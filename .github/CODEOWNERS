@@ -1,13 +1,13 @@
 * @rice8y
 
-# /frontend/ @rice8y @memberA
-# /backend/ @rice8y @memberB
+/frontend/ @rice8y @mana1231
+/backend/ @rice8y @mana1231
 
-# /pipeline/ @rice8y
-# /pipeline/bibtex_reconstruction/ @rice8y @memberA
-# /pipeline/citation_context_extraction/ @rice8y @memberB
-# /pipeline/metadata_extraction/ @rice8y @memberA
+/pipeline/ @rice8y
+/pipeline/bibtex_reconstruction/ @rice8y koyamaM25
+/pipeline/citation_context_extraction/ @rice8y @mana1231 koyamaM25
+/pipeline/metadata_extraction/ @rice8y koyamaM25
 
-# /scripts/ @rice8y @memberB
+/scripts/ @rice8y
 
-# /docs/ @rice8y @memberA
+/docs/ @rice8y @mana1231
