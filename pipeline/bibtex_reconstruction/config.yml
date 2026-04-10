@@ -1,0 +1,85 @@
+app:
+  title: "BibTeX Reconstruction API"
+  version: "1.0.0"
+
+search:
+  similarity_threshold: 0.90
+
+api:
+  crossref:
+    base_url: "https://api.crossref.org/works"
+    doi_base_url: "https://doi.org/"
+    timeout: 10
+
+venue_abbreviations:
+  # ==========================================
+  # NLP: ACL系 主要国際会議 (Core Conferences)
+  # ==========================================
+  "association for computational linguistics": "ACL"
+  "empirical methods in natural language processing": "EMNLP"
+  "north american chapter of the association for computational linguistics": "NAACL"
+  "european chapter of the association for computational linguistics": "EACL"
+  "asia-pacific chapter of the association for computational linguistics": "AACL"
+  "international conference on computational linguistics": "COLING"
+  "international joint conference on natural language processing": "IJCNLP"
+  "language resources and evaluation": "LREC"
+  "lrec-coling": "LREC-COLING" # 近年の合同会議用
+  
+  # ==========================================
+  # NLP: ジャーナル・トランザクション (Journals)
+  # ==========================================
+  "transactions of the association for computational linguistics": "TACL"
+  "computational linguistics": "CL"
+  "asian language information processing": "TALLIP"
+  "findings of the association for computational linguistics": "Findings"
+
+  # ==========================================
+  # NLP: 有名なタスク・評価系会議 (Evaluation & Tasks)
+  # ==========================================
+  "conference on machine translation": "WMT"
+  "workshop on statistical machine translation": "WMT" # 昔の名称対応
+  "international workshop on semantic evaluation": "SemEval"
+  "conference on computational natural language learning": "CoNLL"
+  
+  # ==========================================
+  # NLP: 著名なSIG・定例ワークショップ (SIGs & Workshops)
+  # ==========================================
+  "special interest group on discourse and dialogue": "SIGDIAL"
+  "international conference on natural language generation": "INLG"
+  "joint conference on lexical and computational semantics": "*SEM"
+  "computational semantics": "IWCS"
+  "representation learning for nlp": "RepL4NLP"
+  "noisy user-generated text": "W-NUT"
+  "clinical natural language processing": "ClinicalNLP"
+  "biomedical natural language processing": "BioNLP"
+  "analyzing and interpreting neural networks for nlp": "BlackboxNLP"
+  "widening natural language processing": "WiNLP"
+  "nlp for music and spoken audio": "NLP4MusA"
+  
+  # ==========================================
+  # NLP: 音声・マルチメディア (Speech & Multimedia)
+  # ==========================================
+  "international conference on acoustics, speech, and signal processing": "ICASSP"
+  "international conference on acoustics, speech and signal processing": "ICASSP"
+  "interspeech": "INTERSPEECH"
+  "international society for music information retrieval": "ISMIR"
+
+  # ==========================================
+  # ML/CV/AI: 周辺のトップ会議 (Related Top Tier)
+  # ==========================================
+  "neural information processing systems": "NeurIPS"
+  "international conference on learning representations": "ICLR"
+  "international conference on machine learning": "ICML"
+  "association for the advancement of artificial intelligence": "AAAI"
+  "international joint conference on artificial intelligence": "IJCAI"
+  "computer vision and pattern recognition": "CVPR"
+  "international conference on computer vision": "ICCV"
+  "european conference on computer vision": "ECCV"
+  "knowledge discovery and data mining": "KDD"
+  "international conference on world wide web": "WWW"
+  "the web conference": "WWW"
+
+  # ==========================================
+  # プレプリント (Preprints)
+  # ==========================================
+  "arxiv": "arXiv"
