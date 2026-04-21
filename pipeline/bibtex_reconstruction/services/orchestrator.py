@@ -1,8 +1,8 @@
-from ..models.input_models import InputData
-from ..api_clients.local_db import LocalDBClient
-from ..api_clients.crossref import CrossrefClient
-from ..core.utils import calculate_similarity
-from ..core.config import settings
+from models.input_models import InputData
+from api_clients.local_db import LocalDBClient
+from api_clients.crossref import CrossrefClient
+from core.utils import calculate_similarity
+from core.config import settings
 
 class SearchOrchestrator:
     def __init__(self):

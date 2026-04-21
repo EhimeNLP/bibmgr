@@ -1,7 +1,7 @@
 import re
 from typing import Tuple, Optional
-from ..models.output_models import Metadata
-from ..core.config import settings # ★ 変更
+from models.output_models import Metadata
+from core.config import settings # ★ 変更
 
 def _extract_field(raw_bibtex: str, field_name: str) -> Optional[str]:
     if not raw_bibtex: return None

@@ -1,8 +1,8 @@
 from fastapi import FastAPI, HTTPException
-from .models.input_models import InputData
-from .models.output_models import OutputData
-from .services.orchestrator import orchestrator
-from .services import formatter
+from models.input_models import InputData
+from models.output_models import OutputData
+from services.orchestrator import orchestrator
+from services import formatter
 
 app = FastAPI(title="BibTeX-Reconstruction-API")
 
@@ -12,7 +12,14 @@ async def reconstruct_bibtex(request_data: InputData):
         search_result = orchestrator.execute_search(request_data)
         
         raw_bibtex = search_result.get("bibtex")
-        formatted_bibtex = formatter.apply_lab_rules(raw_bibtex)
+        metadata = search_result.get("metadata")
+        current_status = search_result.get("status")
+
+        formatted_bibtex, final_status = formatter.apply_lab_rules(
+            raw_bibtex, 
+            metadata, 
+            current_status
+        )
 
         original_input_dict = {
             "raw_reference_text": request_data.raw_reference_text,
@@ -22,7 +29,7 @@ async def reconstruct_bibtex(request_data: InputData):
         return OutputData(
             source_pdf=request_data.source_pdf,
             ref_id=request_data.ref_id,
-            status=search_result["status"], # already_exists, success, needs_review, not_found
+            status=final_status, # already_exists, success, needs_review, not_found
             confidence_score=search_result["confidence_score"],
             metadata=search_result["metadata"],
             bibtex=formatted_bibtex,

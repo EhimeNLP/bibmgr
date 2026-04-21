@@ -1,7 +1,7 @@
 from abc import ABC, abstractmethod
 from typing import Optional, Tuple
-from ..models.input_models import InputData
-from ..models.output_models import Metadata
+from models.input_models import InputData
+from models.output_models import Metadata
 
 class BaseAPIClient(ABC):
     """

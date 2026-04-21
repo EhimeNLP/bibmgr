@@ -1,7 +1,7 @@
 from typing import Optional, Tuple
-from .base_client import BaseAPIClient
-from ..models.input_models import InputData
-from ..models.output_models import Metadata
+from api_clients.base_client import BaseAPIClient
+from models.input_models import InputData
+from models.output_models import Metadata
 
 class LocalDBClient(BaseAPIClient):
     """C担当が構築する研究室内部DB（登録済み文献）を検索するクライアント"""
