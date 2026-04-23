@@ -1,7 +1,7 @@
 import re
 from typing import Tuple, Optional
 from models.output_models import Metadata
-from core.config import settings # ★ 変更
+from core.config import settings
 
 def _extract_field(raw_bibtex: str, field_name: str) -> Optional[str]:
     if not raw_bibtex: return None
@@ -70,7 +70,7 @@ def apply_lab_rules(raw_bibtex: str, metadata: Metadata, current_status: str) ->
     is_conference = not is_arxiv and (
         "conference" in (raw_venue or "").lower() or 
         "proceedings" in (raw_venue or "").lower() or 
-        "workshop" in (raw_venue or "").lower() or # ←追加
+        "workshop" in (raw_venue or "").lower() or
         abbrev in known_conferences or
         (abbrev and abbrev != "arXiv")
     )

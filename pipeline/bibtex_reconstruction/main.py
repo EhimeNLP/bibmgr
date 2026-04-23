@@ -34,7 +34,8 @@ async def reconstruct_bibtex(request_data: InputData):
             metadata=search_result["metadata"],
             bibtex=formatted_bibtex,
             citation_contexts=request_data.citation_contexts,
-            original_input=original_input_dict
+            original_input=original_input_dict,
+            source_api=search_result.get("source_api")
         )
 
     except Exception as e:

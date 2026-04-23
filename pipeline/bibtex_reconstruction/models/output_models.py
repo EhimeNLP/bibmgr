@@ -18,3 +18,4 @@ class OutputData(BaseModel):
     bibtex: Optional[str] = Field(None, description="整形済みのBibTeX文字列")
     citation_contexts: List[str]
     original_input: dict = Field(..., description="人間がレビューする際の比較用生データ")
+    source_api: Optional[str] = Field(None, description="データを取得したAPI（例: Crossref API, CiNii API）")

@@ -1,0 +1,12 @@
+{
+  "source_pdf": "test_cinii.pdf",
+  "ref_id": "ref-002",
+  "raw_reference_text": "芝田 有希. '消費者行動論と音楽心理学の融合を目指して' 日本マーケティングジャーナル. 2020.",
+  "parsed_data": {
+    "title": "消費者行動論と音楽心理学の融合を目指して",
+    "authors": ["芝田 有希"],
+    "year": 2020,
+    "venue": "マーケティングジャーナル"
+  },
+  "citation_contexts": ["小野(2024)が述べるように..."]
+}
