@@ -25,10 +25,10 @@ uv sync
 **起動方法**
 開発モードで FastAPI サーバを起動するには:
 ```bash
-uv run uvicorn main:app --reload --host 127.0.0.1 --port 8000
+uv run uvicorn main:app --reload 
 ```
 
-起動後、OpenAPIドキュメントは `http://127.0.0.1:8000/docs` で確認できます。
+起動後、OpenAPIドキュメントは `http://localhost:8000/docs` で確認できます。
 
 **API (POST /reconstruct)**
 - 入力モデルは `models.InputData` を参照します。最小例:
