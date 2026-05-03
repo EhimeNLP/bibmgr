@@ -1,25 +1,31 @@
 from typing import Optional, Tuple
-from models.input_models import InputData
-from models.output_models import Metadata
 from api_clients.base_client import BaseAPIClient
-from core.config import settings
+from core import settings
+from models import InputData, VerifiedCitationInfo
 
 class CrossrefClient(BaseAPIClient):
+    """Client for searching academic papers via the Crossref REST API."""
+
     @property
     def api_name(self) -> str:
         return "Crossref API"
 
-    def search(self, input_data: InputData) -> Tuple[Optional[Metadata], Optional[str]]:
+    def search(self, input_data: InputData) -> Tuple[Optional[VerifiedCitationInfo], Optional[str]]:
         if not input_data.parsed_data or not input_data.parsed_data.title:
             return None, None
             
-        title = input_data.parsed_data.title
-        params = {"query.title": title, "rows": 1}
+        search_title = input_data.parsed_data.title
+        params = {"query.title": search_title, "rows": 1}
+        
         if settings.crossref_mailto:
             params["mailto"] = settings.crossref_mailto
 
         try:
-            response = self._make_request(settings.crossref_base_url, params=params, timeout=settings.crossref_timeout)
+            response = self._make_request(
+                settings.crossref_base_url, 
+                params=params, 
+                timeout=settings.crossref_timeout
+            )
             if not response: 
                 return None, None
 
@@ -30,10 +36,12 @@ class CrossrefClient(BaseAPIClient):
             best_match = items[0]
             doi = best_match.get("DOI")
             
+            # Crossref is heavily DOI-dependent. If no DOI is found, it's a weak match.
             if not doi: 
                 return None, None
 
             title = best_match.get("title", [""])[0]
+            
             authors = []
             for author in best_match.get("author", []):
                 name = f"{author.get('given', '')} {author.get('family', '')}".strip()
@@ -48,8 +56,19 @@ class CrossrefClient(BaseAPIClient):
             venue = best_match.get("container-title", [""])[0] if best_match.get("container-title") else None
             url = best_match.get("URL")
 
-            metadata = Metadata(title=title, authors=authors, year=year, venue=venue, doi=doi, url=url)
+            metadata = VerifiedCitationInfo(
+                title=title, 
+                authors=authors, 
+                year=year, 
+                venue=venue, 
+                doi=doi, 
+                url=url
+            )
+            
             raw_bibtex = self._fetch_bibtex_from_doi(doi, timeout=settings.crossref_timeout)
+
+            if not raw_bibtex:
+                raw_bibtex = self._generate_fallback_bibtex(metadata, "crossref")
 
             return metadata, raw_bibtex
         

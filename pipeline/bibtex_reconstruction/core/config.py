@@ -3,21 +3,25 @@ import yaml
 from pathlib import Path
 from dotenv import load_dotenv
 
-# .env ファイルの読み込み
 load_dotenv()
 
-# config.ymlのパスを計算（core/config.py から見て1つ上のディレクトリ）
 BASE_DIR = Path(__file__).resolve().parent.parent
 CONFIG_PATH = BASE_DIR / "config.yml"
 # core/config.py
 class Settings:
     def __init__(self):
-        # YAMLファイルの読み込み
-        with open(CONFIG_PATH, "r", encoding="utf-8") as f:
-            self._config = yaml.safe_load(f)
+        self._config = {}
         
-        # --- YAMLからの設定値 ---
-        self.similarity_threshold = self._config.get("search", {}).get("similarity_threshold", 0.90)
+        if CONFIG_PATH.exists():
+            try:
+                with open(CONFIG_PATH, "r", encoding="utf-8") as f:
+                    self._config = yaml.safe_load(f) or {}
+            except Exception as e:
+                print(f"[Config] Error reading {CONFIG_PATH}: {e}. Using defaults.")
+        else:
+            print(f"[Config] Warning: {CONFIG_PATH} not found. Using default settings.")
+        
+        self.similarity_threshold = self._config.get("search", {}).get("similarity_threshold", 0.95)
         self.doi_base_url = self._config.get("api", {}).get("doi_base_url", "https://doi.org/")
 
         # Crossref

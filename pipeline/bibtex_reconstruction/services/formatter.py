@@ -1,7 +1,8 @@
 import re
 from typing import Tuple, Optional
-from models.output_models import Metadata
-from core.config import settings
+from models import VerifiedCitationInfo
+from core import settings
+from core.llm_utils import extract_core_concept_via_llm
 
 def _extract_field(raw_bibtex: str, field_name: str) -> Optional[str]:
     if not raw_bibtex: return None
@@ -16,7 +17,6 @@ def _get_abbreviation(venue_full_name: str) -> Tuple[Optional[str], Optional[str
     if "arxiv" in venue_lower:
         return "arXiv", venue_full_name
 
-    # 動的抽出: 括弧 () の中から
     extracted_abbrev = None
     match = re.search(r'\(([A-Za-z0-9\-]+)\)', venue_full_name)
     if match:
@@ -24,7 +24,6 @@ def _get_abbreviation(venue_full_name: str) -> Tuple[Optional[str], Optional[str
         if any(c.isupper() for c in candidate) and not candidate.isdigit():
             extracted_abbrev = candidate
 
-    # 静的抽出: config.yml の辞書から
     dict_abbrev = None
     sorted_venues = sorted(settings.venue_abbrev_map.items(), key=lambda x: len(x[0]), reverse=True)    
     for key, abbrev in sorted_venues:
@@ -36,15 +35,7 @@ def _get_abbreviation(venue_full_name: str) -> Tuple[Optional[str], Optional[str
     
     return final_abbrev, venue_full_name
 
-def _extract_model_name(title: str) -> Optional[str]:
-    if not title: return None
-    if ":" in title:
-        candidate = title.split(":")[0].strip()
-        if len(candidate.split()) <= 2:
-            return candidate.replace(" ", "")
-    return None
-
-def apply_lab_rules(raw_bibtex: str, metadata: Metadata, current_status: str) -> Tuple[str, str]:
+def apply_lab_rules(raw_bibtex: str, metadata: VerifiedCitationInfo, raw_text: str, current_status: str) -> Tuple[str, str]:
     if not raw_bibtex or not metadata:
         return raw_bibtex, current_status
 
@@ -81,23 +72,23 @@ def apply_lab_rules(raw_bibtex: str, metadata: Metadata, current_status: str) ->
     if metadata.authors:
         first_author_surname = metadata.authors[0].split(",")[0].split()[-1].lower()
 
-    model_name = _extract_model_name(title)
-    if model_name:
-        key_suffix = model_name.lower()
-    elif abbrev:
-        key_suffix = abbrev.lower()
-    else:
-        key_suffix = "unknown"
+    venue_str = (abbrev or "unknown").lower().replace(" ", "")
+    
+    xx_str = extract_core_concept_via_llm(title, raw_text)
+    
+    bibtex_key = f"{first_author_surname}-{year}-{venue_str}-{xx_str}"
+
+    if venue_str == "unknown" or xx_str == "unknown":
         status = "needs_review"
 
-    bibtex_key = f"{first_author_surname}-{year}-{key_suffix}"
+    lines = []
+    lines.append(f"@{entry_type}{{{bibtex_key},")
+    
+    # 共通ヘッダー (title -> author)
+    lines.append(f"    title = {{{{{title}}}}},")
+    lines.append(f"    author = \"{authors}\",")
 
-    lines = [
-        f"@{entry_type}{{{bibtex_key},",
-        f"    title = {{{{{title}}}}},",
-        f"    author = \"{authors}\","
-    ]
-
+    # arXiv の場合 (title -> author -> journal -> year -> url)
     if is_arxiv:
         arxiv_id = ""
         if url and "arxiv.org/abs/" in url:
@@ -110,26 +101,34 @@ def apply_lab_rules(raw_bibtex: str, metadata: Metadata, current_status: str) ->
         journal_val = f"arXiv:{arxiv_id}" if arxiv_id else "arXiv"
         lines.append(f"    journal = \"{journal_val}\",")
 
-    else:
-        venue_field = "booktitle" if entry_type == "inproceedings" else "journal"
-        if abbrev:
-            display_abbrev = f"Proc. of {abbrev}" if entry_type == "inproceedings" else abbrev
-            lines.append(f"    {venue_field} = \"{display_abbrev}\",")
-            lines.append(f"    {venue_field} = \"{full_venue}\",")
+    # 論文誌 の場合 (title -> author -> journal -> volume -> number -> pages -> year -> url)
+    elif entry_type == "article":
+        if abbrev and full_venue and abbrev != full_venue:
+            lines.append(f"    journal = \"{abbrev}\",")      # 略称を上に置く
+            lines.append(f"    journal = \"{full_venue}\",") # 正式名称を下に置く
         else:
-            lines.append(f"    {venue_field} = \"{full_venue}\",")
-
-    if entry_type == "article" and not is_arxiv:
+            lines.append(f"    journal = \"{full_venue or abbrev}\",")
+            
         if volume: lines.append(f"    volume = \"{volume}\",")
         if number: lines.append(f"    number = \"{number}\",")
-        if pages: lines.append(f"    pages = \"{pages}\",")
+        if pages:  lines.append(f"    pages = \"{pages}\",")
+        
+
+    # 国際会議 の場合 (title -> author -> booktitle -> pages -> year -> url)
     elif entry_type == "inproceedings":
+        if abbrev and full_venue and abbrev != full_venue:
+            lines.append(f"    booktitle = \"Proc. of {abbrev}\",") # 略称を上に置く
+            lines.append(f"    booktitle = \"{full_venue}\",")      # 正式名称を下に置く
+        else:
+            display_venue = full_venue or abbrev
+            lines.append(f"    booktitle = \"{display_venue}\",")
+            
         if pages: lines.append(f"    pages = \"{pages}\",")
+        
 
+    # 終端 (year -> url)
     lines.append(f"    year = \"{year}\",")
-    if url:
-        lines.append(f"    url = \"{url}\",")
-
+    if url:    lines.append(f"    url = \"{url}\",")
     lines.append("}")
 
     formatted_bibtex = "\n".join(lines)

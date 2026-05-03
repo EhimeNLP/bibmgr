@@ -1,15 +1,30 @@
-from typing import List, Optional
+# models/input_models.py
+from typing import List, Optional, Any, Union
 from pydantic import BaseModel, Field
 
-class ParsedData(BaseModel):
-    title: Optional[str] = Field(None, description="抽出された論文タイトル")
-    authors: Optional[List[str]] = Field(None, description="抽出された著者名のリスト")
-    year: Optional[int] = Field(None, description="発行年")
-    journal_or_book: Optional[str] = Field(None, description="学会名や雑誌名")
+class ReferenceData(BaseModel):
+    id: str
+    title: Optional[str] = None
+    authors: List[str] = Field(default_factory=list)
+    year: Optional[str] = None
+    doi: Optional[str] = None
+    venue: Optional[str] = None
+    raw_text: str
+
+class DocumentRoot(BaseModel):
+    title: str
+    authors: List[str] = Field(default_factory=list)
+    year: Optional[Any] = None
+    doi: Optional[str] = None
+    abstract: str
+    reference_count: Union[int, float]
+    references: List[ReferenceData] = Field(default_factory=list)
+    saved_files: List[Any] = Field(default_factory=list)
 
 class InputData(BaseModel):
-    source_pdf: str = Field(..., description="元のPDFファイル名")
-    ref_id: str = Field(..., description="論文内での参照番号 (例: ref_1)")
-    parsed_data: ParsedData
-    raw_reference_text: str = Field(..., description="画像から読み取った生の文字列")
-    citation_contexts: List[str] = Field(default_factory=list, description="引用された文脈")
+    """
+    An architectural wrapper (envelope) used internally by the SearchOrchestrator.
+    It encapsulates a single reference and can be expanded in the future 
+    to include system-level search parameters (e.g., timeout, retry counts).
+    """
+    parsed_data: ReferenceData
