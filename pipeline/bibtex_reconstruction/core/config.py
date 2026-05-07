@@ -1,57 +1,82 @@
-import os
 import yaml
 from pathlib import Path
 from dotenv import load_dotenv
+from pydantic import Field
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 load_dotenv()
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 CONFIG_PATH = BASE_DIR / "config.yml"
-# core/config.py
-class Settings:
-    def __init__(self):
-        self._config = {}
-        
+
+class Settings(BaseSettings):
+    # --- Search Settings ---
+    similarity_threshold: float = 0.95
+    max_parallel_requests: int = 5
+    # --- LLM Settings ---
+    gemini_model_name: str = "gemini-flash-lite-latest"
+    gemini_api_key: str = Field("", validation_alias="GEMINI_API_KEY")
+    temperature: float = 0.0
+    max_output_tokens: int = 150
+    # --- API Base URLs ---
+    max_retries: int = 3
+    retry_backoff_sec: int = 2
+    doi_base_url: str = "https://doi.org/"
+    dblp_venue_api_url: str = "https://dblp.org/search/venue/api"
+    ## --- crossref ---
+    crossref_base_url: str = "https://api.crossref.org/works"
+    crossref_timeout: int = 10
+    crossref_wait_sec: float = 0
+    crossref_mailto: str = Field("", validation_alias="CROSSREF_MAILTO")
+    ## --- cinii ---
+    cinii_base_url: str = "https://cir.nii.ac.jp/opensearch/v2"
+    cinii_timeout: int = 10
+    cinii_wait_sec: float = 0.5
+    cinii_appid: str = Field("", validation_alias="CINII_APPID")
+    ## --- semanticscholar ---
+    semanticscholar_base_url: str = "https://api.semanticscholar.org/graph/v1/paper/search"
+    semanticscholar_timeout: int = 10
+    semanticscholar_wait_sec: float = 1
+    semanticscholar_api_key: str = Field("", validation_alias="SEMANTIC_SCHOLAR_API_KEY")
+    ## --- jstage ---
+    jstage_base_url: str = "https://api.jstage.jst.go.jp/searchapi/do"
+    jstage_timeout: int = 10
+    jstage_wait_sec: float = 0
+    ## --- arxiv ---
+    arxiv_base_url: str = "http://export.arxiv.org/api/query"
+    arxiv_timeout: int = 10
+    arxiv_wait_sec: float = 0
+    # --- venue abbreviations ---
+    venue_abbrev_map: dict[str, str] = Field(default_factory=dict)
+    # --- API Keys / Environment Variables ---
+
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        env_file_encoding="utf-8",
+        extra="ignore"
+    )
+
+    @classmethod
+    def load_settings(cls):
+        conf_data = {}
         if CONFIG_PATH.exists():
-            try:
-                with open(CONFIG_PATH, "r", encoding="utf-8") as f:
-                    self._config = yaml.safe_load(f) or {}
-            except Exception as e:
-                print(f"[Config] Error reading {CONFIG_PATH}: {e}. Using defaults.")
-        else:
-            print(f"[Config] Warning: {CONFIG_PATH} not found. Using default settings.")
+            with open(CONFIG_PATH, "r", encoding="utf-8") as f:
+                raw_data = yaml.safe_load(f) or {}
+                conf_data.update(raw_data.get("search", {}))
+                conf_data.update(raw_data.get("llm", {}))
+                
+                api_section = raw_data.get("api", {})
+                conf_data["max_retries"] = api_section.get("max_retries", 3)
+                conf_data["retry_backoff_sec"] = api_section.get("retry_backoff_sec", 2)
+                if isinstance(api_section, dict):
+                    for service in ["crossref", "cinii", "semanticscholar", "jstage", "arxiv"]:
+                        detail = api_section.get(service, {})
+                        conf_data[f"{service}_base_url"] = detail.get("base_url")
+                        conf_data[f"{service}_timeout"] = detail.get("timeout", 10)
+                        conf_data[f"{service}_wait_sec"] = detail.get("wait_sec", 0)
+                
+                conf_data["venue_abbrev_map"] = raw_data.get("venue_abbreviations", {})
         
-        self.similarity_threshold = self._config.get("search", {}).get("similarity_threshold", 0.95)
-        self.doi_base_url = self._config.get("api", {}).get("doi_base_url", "https://doi.org/")
+        return cls(**{k: v for k, v in conf_data.items() if v is not None})
 
-        # Crossref
-        self.crossref_base_url = self._config.get("api", {}).get("crossref", {}).get("base_url", "https://api.crossref.org/works")
-        self.crossref_timeout = self._config.get("api", {}).get("crossref", {}).get("timeout", 10)
-        
-        # CiNii
-        self.cinii_appid = os.getenv("CINII_APPID", "")
-        self.cinii_base_url = self._config.get("api", {}).get("cinii", {}).get("base_url", "https://cir.nii.ac.jp/opensearch/v2")
-        self.cinii_timeout = self._config.get("api", {}).get("cinii", {}).get("timeout", 10)
-        
-        # Semantic Scholar
-        self.s2_api_key = os.getenv("SEMANTIC_SCHOLAR_API_KEY", "")
-        self.s2_base_url = self._config.get("api", {}).get("semanticscholar", {}).get("base_url", "https://api.semanticscholar.org/graph/v1/paper/search")
-        self.s2_timeout = self._config.get("api", {}).get("semanticscholar", {}).get("timeout", 10)
-
-        # J-STAGE
-        self.jstage_base_url = self._config.get("api", {}).get("jstage", {}).get("base_url", "https://api.jstage.jst.go.jp/searchapi/do")
-        self.jstage_timeout = self._config.get("api", {}).get("jstage", {}).get("timeout", 10)
-
-        # arXiv
-        self.arxiv_base_url = self._config.get("api", {}).get("arxiv", {}).get("base_url", "http://export.arxiv.org/api/query")
-        self.arxiv_timeout = self._config.get("api", {}).get("arxiv", {}).get("timeout", 10)
-        
-        # 辞書データ
-        self.venue_abbrev_map = self._config.get("venue_abbreviations", {})
-        
-        # --- 環境変数 (.env) からの設定値 ---
-        self.crossref_mailto = os.getenv("CROSSREF_MAILTO", "")
-        
-
-# シングルトンとしてインスタンス化（他のファイルはこれをインポートする）
-settings = Settings()
+settings = Settings.load_settings()
