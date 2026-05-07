@@ -12,9 +12,7 @@ env/
 *.log
 .pytest_cache/
 
-pipeline/bibtex_reconstruction/test_data/*.json
-!pipeline/bibtex_reconstruction/test_data/sample_input.json
-
+test_data/
 .vscode/
 .idea/
 .DS_Store
