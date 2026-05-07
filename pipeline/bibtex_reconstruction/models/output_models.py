@@ -2,6 +2,7 @@
 from typing import List, Optional, Any
 from pydantic import BaseModel, Field
 from models.input_models import ReferenceData
+from core.constants import ProcessingStatus
 
 class VerifiedCitationInfo(BaseModel):
     title: str
@@ -13,8 +14,8 @@ class VerifiedCitationInfo(BaseModel):
 
 class CandidateResult(BaseModel):
     source_api: str = Field(..., description="The API that provided this candidate (e.g., 'Crossref', 'CiNii')")
-    status: str = Field(..., description="Status of this specific API's result: 'success', 'needs_review', or 'not_found'")
-    confidence_score: float = Field(ge=0.0, le=1.0, description="Similarity score calculated for this specific result (0.0 to 1.0)")
+    status: ProcessingStatus = Field(..., description="Status of this specific API's result: 'success', 'needs_review', 'api_error', or 'not_found'")
+    confidence_score: Optional[float] = Field(0.0, ge=0.0, le=1.0, description="Similarity score calculated for this specific result (0.0 to 1.0)")
     verified_info: Optional[VerifiedCitationInfo] = Field(None, description="Verified metadata obtained from the API. None if not found.")
     bibtex: Optional[str] = Field(None, description="Formatted BibTeX string from this API")
 

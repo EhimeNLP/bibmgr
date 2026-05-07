@@ -4,8 +4,16 @@ app:
 
 search:
   similarity_threshold: 0.95
+  max_parallel_requests: 5
+
+llm:
+  model_name: "gemini-flash-lite-latest"
+  max_output_tokens: 15
+  temperature: 0.0
 
 api:
+  max_retries: 2
+  retry_backoff_sec: 2
   doi_base_url: "https://doi.org/"
   crossref:
     base_url: "https://api.crossref.org/works"
@@ -13,15 +21,18 @@ api:
   cinii:
     base_url: "https://cir.nii.ac.jp/opensearch/v2"
     timeout: 10
+    wait_sec: 0.5
   semanticscholar:
     base_url: "https://api.semanticscholar.org/graph/v1/paper/search"
     timeout: 10
+    wait_sec: 1
   jstage:
     base_url: "https://api.jstage.jst.go.jp/searchapi/do"
     timeout: 10
   arxiv:
     base_url: "http://export.arxiv.org/api/query"
     timeout: 10
+    wait_sec: 1
   
 
 
@@ -37,7 +48,7 @@ venue_abbreviations:
   "international conference on computational linguistics": "COLING"
   "international joint conference on natural language processing": "IJCNLP"
   "language resources and evaluation": "LREC"
-  "lrec-coling": "LREC-COLING" # 近年の合同会議用
+  "lrec-coling": "LREC-COLING"
   
   # ==========================================
   # NLP: ジャーナル・トランザクション (Journals)
@@ -46,6 +57,8 @@ venue_abbreviations:
   "computational linguistics": "CL"
   "asian language information processing": "TALLIP"
   "findings of the association for computational linguistics": "Findings"
+  "engineering reports": "Eng. Rep."
+  
 
   # ==========================================
   # NLP: 有名なタスク・評価系会議 (Evaluation & Tasks)

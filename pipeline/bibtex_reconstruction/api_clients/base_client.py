@@ -5,84 +5,157 @@ from abc import ABC, abstractmethod
 from typing import Optional, Tuple
 
 from models import InputData, VerifiedCitationInfo
-from core import settings
+from core.config import settings
 
 class BaseAPIClient(ABC):
     """
     Abstract Base Class for all academic API clients.
-    Provides common utilities like request retrying, year extraction, and fallback BibTeX generation.
+    Provides a unified search pipeline and common utilities.
     """
     
     @property
     @abstractmethod
     def api_name(self) -> str:
         """
+        Returns the official name of the API.
+        
         Returns:
-            str: The official name of the API (e.g., "Crossref API", "CiNii API").
+            str: The API name (e.g., 'Crossref API').
         """
         pass
 
+    @property
     @abstractmethod
+    def api_prefix(self) -> str:
+        """
+        Returns the prefix used for fallback BibTeX keys.
+        
+        Returns:
+            str: The unique prefix (e.g., 'crossref', 'semanticscholar').
+        """
+        pass
+
+    @property
+    def wait_sec(self) -> float:
+        """Dynamically retrieves the wait time from settings using api_prefix."""
+        return getattr(settings, f"{self.api_prefix}_wait_sec", 0.0)
+
+    @property
+    def base_url(self) -> str:
+        """Dynamically retrieves the base URL from settings using api_prefix."""
+        return getattr(settings, f"{self.api_prefix}_base_url", "")
+
+    @property
+    def timeout(self) -> int:
+        """Dynamically retrieves the timeout from settings using api_prefix."""
+        return getattr(settings, f"{self.api_prefix}_timeout", 10)
+
     def search(self, input_data: InputData) -> Tuple[Optional[VerifiedCitationInfo], Optional[str]]:
         """
-        Executes the search against the specific API.
-        
+        Executes the common search pipeline including validation, rate limiting, and BibTeX retrieval.
+        Subclasses should implement _execute_search() instead of overriding this method.
+
         Args:
-            input_data (InputData): The envelope containing the raw parsed data (input_data.parsed_data).
-            
+            input_data (InputData): The envelope containing parsed reference data.
+
         Returns:
             Tuple[Optional[VerifiedCitationInfo], Optional[str]]: 
-            A tuple containing the verified metadata (or None if not found) and the BibTeX string (or None).
+            A tuple of (verified metadata, BibTeX string). Both are None if search fails.
+        """
+        if not input_data.parsed_data or not input_data.parsed_data.title:
+            return None, None   # 1. Validation
+
+        if self.wait_sec > 0:
+            time.sleep(self.wait_sec)   # 2. Rate Limiting (Throttling)
+
+        try:
+            metadata, custom_bibtex = self._execute_search(input_data)  # 3. Delegate specific search logic to subclasses
+            
+            if not metadata or not metadata.title.strip():
+                return None, None
+
+            raw_bibtex = custom_bibtex  # 4. Determine BibTeX string
+            
+            if not raw_bibtex and metadata.doi:
+                raw_bibtex = self._fetch_bibtex_from_doi(metadata.doi)  # Fetch from DOI if not provided by the specific API logic
+                
+            if not raw_bibtex:
+                raw_bibtex = self._generate_fallback_bibtex(metadata, self.api_prefix)  # Fallback if still missing
+
+            return metadata, raw_bibtex
+
+        except Exception as e:
+            print(f"[{self.api_name}] Error during search pipeline: {e}")
+            return None, None
+
+    @abstractmethod
+    def _execute_search(self, input_data: InputData) -> Tuple[Optional[VerifiedCitationInfo], Optional[str]]:
+        """
+        Internal method for API-specific communication and metadata extraction.
+
+        Args:
+            input_data (InputData): The search parameters.
+
+        Returns:
+            Tuple[Optional[VerifiedCitationInfo], Optional[str]]: 
+            A tuple of (extracted metadata, API-specific BibTeX).
         """
         pass
 
-    def _make_request(self, url: str, params: dict = None, headers: dict = None, timeout: int = 10, max_retries: int = 3) -> Optional[requests.Response]:
+    def _make_request(self, url: Optional[str] = None, params: dict = None, headers: dict = None, 
+                      timeout: Optional[int] = None, max_retries: Optional[int] = None) -> Optional[requests.Response]:
         """
-        Helper method to make HTTP requests with exponential backoff for handling rate limits and transient errors.
-        
+        Helper method to make HTTP requests with exponential backoff.
+
         Args:
-            url (str): The target endpoint.
+            url (str): Target endpoint.
             params (dict, optional): Query parameters.
             headers (dict, optional): HTTP headers.
-            timeout (int, optional): Timeout in seconds. Default is 10.
-            max_retries (int, optional): Maximum retry attempts. Default is 3.
-            
+            timeout (int, optional): Request timeout.
+            max_retries (int, optional): Maximum attempts. Defaults to settings.max_retries.
+
         Returns:
-            Optional[requests.Response]: The successful response object, or None if all attempts fail.
+            Optional[requests.Response]: Response object or None if failed.
         """
-        for attempt in range(max_retries):
+        req_url = url or self.base_url
+        req_timeout = timeout or self.timeout
+        retries = max_retries if max_retries is not None else settings.max_retries
+        
+        if not req_url:
+            print(f"[{self.api_name}] Error: Base URL is not defined.")
+            return None
+    
+
+        for attempt in range(retries):
             try:
-                response = requests.get(url, params=params, headers=headers, timeout=timeout)
+                response = requests.get(req_url, params=params, headers=headers, timeout=req_timeout)
                 
-                # Handle specific HTTP 429 Too Many Requests (Rate Limiting)
                 if response.status_code == 429:
-                    if attempt < max_retries - 1:
-                        sleep_time = 2 ** attempt
-                        print(f"[{self.api_name}] Rate limit exceeded. Retrying in {sleep_time}s... (Attempt {attempt+1}/{max_retries})")
+                    if attempt < retries - 1:
+                        sleep_time = settings.retry_backoff_sec ** (attempt + 1)
+                        print(f"[{self.api_name}] Rate limit reached. Retrying in {sleep_time}s...")
                         time.sleep(sleep_time)
                         continue
-                    else:
-                        print(f"[{self.api_name}] Rate limit exceeded. Max retries reached for URL: {url}")
-                        return None
+                    return None
                     
                 response.raise_for_status()
                 return response
                 
             except requests.exceptions.RequestException as e:
-                print(f"[{self.api_name}] Network error during request to {url}: {e}")
-                if attempt == max_retries - 1:
+                print(f"[{self.api_name}] Network error: {e}")
+                if attempt == retries - 1:
                     return None
         return None
 
     def _extract_year(self, date_str: str) -> Optional[int]:
         """
-        Extracts a 4-digit year from various date string formats using regex.
-        
+        Extracts a 4-digit year from a string.
+
         Args:
-            date_str (str): Input string (e.g., "2020-05-15", "May 2020").
-            
+            date_str (str): Date-like string.
+
         Returns:
-            Optional[int]: The extracted year, or None if no valid year pattern is found.
+            Optional[int]: The 4-digit year.
         """
         if not date_str:
             return None
@@ -91,19 +164,17 @@ class BaseAPIClient(ABC):
 
     def _fetch_bibtex_from_doi(self, doi: str, timeout: int = 10) -> Optional[str]:
         """
-        Fetches official BibTeX data directly from a DOI registry via content negotiation.
-        
+        Fetches official BibTeX data via content negotiation from DOI.org.
+
         Args:
-            doi (str): The DOI string (e.g., "10.1038/s41586-020-2649-2").
-            timeout (int, optional): Request timeout in seconds.
-            
+            doi (str): DOI string.
+            timeout (int, optional): Request timeout.
+
         Returns:
-            Optional[str]: The official BibTeX string, or None if the request fails.
+            Optional[str]: BibTeX string or None.
         """
         if not doi:
             return None
-            
-        # Clean up DOI string just in case it contains URL prefixes
         clean_doi = doi.replace("https://doi.org/", "").replace("http://doi.org/", "")
         url = f"{settings.doi_base_url}{clean_doi}"
         headers = {"Accept": "application/x-bibtex"}
@@ -115,41 +186,28 @@ class BaseAPIClient(ABC):
 
     def _generate_fallback_bibtex(self, metadata: VerifiedCitationInfo, api_prefix: str) -> str:
         """
-        Generates a basic, structural BibTeX entry based on available metadata 
-        when official DOI-based retrieval is impossible.
-        
+        Generates a structural fallback BibTeX entry.
+
         Args:
-            metadata (VerifiedCitationInfo): The verified metadata gathered by the API client.
-            api_prefix (str): A short string (e.g., 'cinii', 'arxiv') used to generate a unique BibTeX key.
-            
+            metadata (VerifiedCitationInfo): The metadata used for generation.
+            api_prefix (str): Prefix for the BibTeX key.
+
         Returns:
-            str: The constructed BibTeX string.
-        """ 
+            str: Constructed BibTeX string.
+        """
         bib_type = "article"
         venue_field = "journal"
-        venue = metadata.venue or ""
+        venue = (metadata.venue or "").strip().replace('\n', ' ')
         
         if venue:
             venue_lower = venue.lower()
             inproceedings_keywords = ["大会", "シンポジウム", "会議", "proceedings", "conference", "symposium", "workshop"]
-            
             if any(k in venue_lower for k in inproceedings_keywords):
                 bib_type = "inproceedings"
                 venue_field = "booktitle"
-            elif "arxiv" in venue_lower:
-                bib_type = "article"
-                venue_field = "journal"
-                venue = f"arXiv preprint {venue}"
-            elif "thesis" in venue_lower or "学位" in venue_lower:
-                bib_type = "phdthesis"
-                venue_field = "school"
-            elif "book" in venue_lower or "図書" in venue_lower:
-                bib_type = "book"
-                venue_field = "publisher"
 
         bib_authors = " and ".join(metadata.authors) if metadata.authors else "Unknown"
         year_val = metadata.year if metadata.year else "unknown"
-        
         temp_key = f"{api_prefix}_{year_val}"
         
         return (
