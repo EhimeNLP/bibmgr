@@ -1,0 +1,1415 @@
+{
+    "input_path": "pdfs/2021.naacl-main.169.pdf",
+    "page_index": 6,
+    "page_count": 10,
+    "width": 1191,
+    "height": 1684,
+    "model_settings": {
+        "use_doc_preprocessor": false,
+        "use_layout_detection": true,
+        "use_chart_recognition": false,
+        "use_seal_recognition": false,
+        "use_ocr_for_image_block": false,
+        "format_block_content": false,
+        "merge_layout_blocks": true,
+        "markdown_ignore_labels": [
+            "number",
+            "footnote",
+            "header",
+            "header_image",
+            "footer",
+            "footer_image",
+            "aside_text"
+        ],
+        "return_layout_polygon_points": true
+    },
+    "parsing_res_list": [
+        {
+            "block_label": "table",
+            "block_content": "<table><tr><td rowspan=\"2\">Subjective labels</td><td colspan=\"9\">MAE</td><td>QWK</td></tr><tr><td>Joy</td><td>Sadness</td><td>Anticipation</td><td>Surprise</td><td>Anger</td><td>Fear</td><td>Disgust</td><td>Trust</td><td>Overall</td><td>Overall</td></tr><tr><td>Random</td><td>1.390</td><td>1.383</td><td>1.419</td><td>1.313</td><td>1.492</td><td>1.420</td><td>1.411</td><td>1.407</td><td>1.404</td><td>0.001</td></tr><tr><td>Modal Class</td><td>0.896</td><td>0.713</td><td>0.907</td><td>0.684</td><td>0.218</td><td>0.344</td><td>0.435</td><td>0.429</td><td>0.578</td><td>0.000</td></tr><tr><td>BoW+LogReg</td><td>0.863</td><td>0.817</td><td>0.919</td><td>0.752</td><td>0.313</td><td>0.479</td><td>0.545</td><td>0.555</td><td>0.655</td><td>0.156</td></tr><tr><td>fastText+SVM</td><td>0.896</td><td>0.754</td><td>0.910</td><td>0.723</td><td>0.250</td><td>0.397</td><td>0.489</td><td>0.510</td><td>0.616</td><td>0.120</td></tr><tr><td>Subj. BERT</td><td>0.734</td><td>0.666</td><td>0.899</td><td>0.684</td><td>0.218</td><td>0.344</td><td>0.443</td><td>0.432</td><td>0.553</td><td>0.135</td></tr><tr><td>Subj. BERT w/ Pc</td><td>0.784</td><td>0.698</td><td>0.870</td><td>0.659</td><td>0.218</td><td>0.343</td><td>0.457</td><td>0.429</td><td>0.557</td><td>0.153</td></tr><tr><td>Subj. BERT w/ Pa</td><td>0.740</td><td>0.665</td><td>0.850</td><td>0.665</td><td>0.218</td><td>0.351</td><td>0.441</td><td>0.429</td><td>0.545</td><td>0.183</td></tr><tr><td>Obj. BERT</td><td>0.674</td><td>0.623</td><td>0.789</td><td>0.634</td><td>0.218</td><td>0.356</td><td>0.432</td><td>0.427</td><td>0.519</td><td>0.242</td></tr><tr><td>Reader 1</td><td>0.545</td><td>0.544</td><td>0.713</td><td>0.686</td><td>0.211</td><td>0.523</td><td>0.522</td><td>0.428</td><td>0.522</td><td>0.417</td></tr><tr><td>Reader 2</td><td>0.521</td><td>0.520</td><td>0.720</td><td>0.571</td><td>0.201</td><td>0.347</td><td>0.375</td><td>0.426</td><td>0.460</td><td>0.442</td></tr><tr><td>Reader 3</td><td>0.526</td><td>0.533</td><td>0.738</td><td>0.694</td><td>0.200</td><td>0.610</td><td>0.520</td><td>0.432</td><td>0.532</td><td>0.439</td></tr><tr><td>Avg. Readers</td><td>0.491</td><td>0.466</td><td>0.658</td><td>0.584</td><td>0.198</td><td>0.458</td><td>0.420</td><td>0.425</td><td>0.463</td><td>0.486</td></tr></table>",
+            "block_bbox": [
+                140,
+                146,
+                1051,
+                491
+            ],
+            "block_id": 0,
+            "block_order": null,
+            "group_id": 0,
+            "global_block_id": 92,
+            "global_group_id": 92,
+            "block_polygon_points": [
+                [
+                    140.0,
+                    146.0
+                ],
+                [
+                    1051.0,
+                    146.0
+                ],
+                [
+                    1051.0,
+                    491.0
+                ],
+                [
+                    140.0,
+                    491.0
+                ]
+            ]
+        },
+        {
+            "block_label": "figure_title",
+            "block_content": "Table 6: Evaluation of MAE and QWK in estimating subjective emotional intensity.",
+            "block_bbox": [
+                255,
+                513,
+                933,
+                538
+            ],
+            "block_id": 1,
+            "block_order": null,
+            "group_id": 1,
+            "global_block_id": 93,
+            "global_group_id": 93,
+            "block_polygon_points": [
+                [
+                    255.0,
+                    513.0
+                ],
+                [
+                    933.0,
+                    513.0
+                ],
+                [
+                    933.0,
+                    538.0
+                ],
+                [
+                    255.0,
+                    538.0
+                ]
+            ]
+        },
+        {
+            "block_label": "text",
+            "block_content": "BERT), in both evaluations on subjective and objective labels.",
+            "block_bbox": [
+                179,
+                580,
+                583,
+                635
+            ],
+            "block_id": 2,
+            "block_order": 1,
+            "group_id": 2,
+            "global_block_id": 94,
+            "global_group_id": 94,
+            "block_polygon_points": [
+                [
+                    179.0,
+                    580.0
+                ],
+                [
+                    583.0,
+                    580.0
+                ],
+                [
+                    583.0,
+                    635.0
+                ],
+                [
+                    179.0,
+                    635.0
+                ]
+            ]
+        },
+        {
+            "block_label": "text",
+            "block_content": "We also evaluate the following two baselines.",
+            "block_bbox": [
+                159,
+                650,
+                564,
+                676
+            ],
+            "block_id": 3,
+            "block_order": 2,
+            "group_id": 3,
+            "global_block_id": 95,
+            "global_group_id": 95,
+            "block_polygon_points": [
+                [
+                    159.0,
+                    650.0
+                ],
+                [
+                    564.0,
+                    650.0
+                ],
+                [
+                    564.0,
+                    676.0
+                ],
+                [
+                    159.0,
+                    676.0
+                ]
+            ]
+        },
+        {
+            "block_label": "text",
+            "block_content": "• Random outputs one of the four emotional intensity labels  $ \\{0, 1, 2, 3\\} $ randomly with the uniform distribution.",
+            "block_bbox": [
+                164,
+                692,
+                582,
+                774
+            ],
+            "block_id": 4,
+            "block_order": 3,
+            "group_id": 4,
+            "global_block_id": 96,
+            "global_group_id": 96,
+            "block_polygon_points": [
+                [
+                    164.0,
+                    692.0
+                ],
+                [
+                    582.0,
+                    692.0
+                ],
+                [
+                    582.0,
+                    774.0
+                ],
+                [
+                    164.0,
+                    774.0
+                ]
+            ]
+        },
+        {
+            "block_label": "text",
+            "block_content": "• Modal Class always outputs the most frequent intensity label for each emotion. As shown in Table 4, in this dataset, intensity 0 has the highest frequency for all emotions, so in practice, this baseline always gives label 0.",
+            "block_bbox": [
+                162,
+                791,
+                585,
+                928
+            ],
+            "block_id": 5,
+            "block_order": 4,
+            "group_id": 5,
+            "global_block_id": 97,
+            "global_group_id": 97,
+            "block_polygon_points": [
+                [
+                    162.0,
+                    791.0
+                ],
+                [
+                    585.0,
+                    791.0
+                ],
+                [
+                    585.0,
+                    928.0
+                ],
+                [
+                    162.0,
+                    928.0
+                ]
+            ]
+        },
+        {
+            "block_label": "text",
+            "block_content": "We used scikit-learn $ ^{16} $ (Pedregosa et al., 2011) implementation for both BoW+LogReg and fastText+SVM models. For the hyper-parameter of C, the optimum value over the validation set was selected from {0.01, 0.1, 1, 10, 100}.",
+            "block_bbox": [
+                135,
+                941,
+                584,
+                1076
+            ],
+            "block_id": 6,
+            "block_order": 5,
+            "group_id": 6,
+            "global_block_id": 98,
+            "global_group_id": 98,
+            "block_polygon_points": [
+                [
+                    135.0,
+                    941.0
+                ],
+                [
+                    584.0,
+                    941.0
+                ],
+                [
+                    584.0,
+                    1076.0
+                ],
+                [
+                    135.0,
+                    1076.0
+                ]
+            ]
+        },
+        {
+            "block_label": "text",
+            "block_content": "As for BERT-based models, we used the implementation in Transformers $ ^{17} $ (Wolf et al., 2020). We used the whole-word-masking model with a batch size of 32, a dropout rate of 0.1, a learning rate of 2e-5, and Adam (Kingma and Ba, 2015) for optimization. The training stopped after 3 epochs without improvement in the validation loss.",
+            "block_bbox": [
+                135,
+                1079,
+                584,
+                1265
+            ],
+            "block_id": 7,
+            "block_order": 6,
+            "group_id": 7,
+            "global_block_id": 99,
+            "global_group_id": 99,
+            "block_polygon_points": [
+                [
+                    135.0,
+                    1079.0
+                ],
+                [
+                    584.0,
+                    1079.0
+                ],
+                [
+                    584.0,
+                    1265.0
+                ],
+                [
+                    135.0,
+                    1265.0
+                ]
+            ]
+        },
+        {
+            "block_label": "text",
+            "block_content": "In the evaluation of subjective labels, the personality of the writers is considered in the Subj. BERT in the following two ways.",
+            "block_bbox": [
+                136,
+                1268,
+                585,
+                1349
+            ],
+            "block_id": 8,
+            "block_order": 7,
+            "group_id": 8,
+            "global_block_id": 100,
+            "global_group_id": 100,
+            "block_polygon_points": [
+                [
+                    136.0,
+                    1268.0
+                ],
+                [
+                    585.0,
+                    1268.0
+                ],
+                [
+                    585.0,
+                    1349.0
+                ],
+                [
+                    136.0,
+                    1349.0
+                ]
+            ]
+        },
+        {
+            "block_label": "text",
+            "block_content": "• w/ Pc: Feature extraction is performed with  $ h_c = [u; v] W^c $ in consideration of personality. Here, v is a 768-dimensional text representation obtained from the [CLS] token of BERT, and u is a representation of the Big Five personality indicators given by linearly transforming the five indicator values into a 768-dimensional vector. When estimating the emotional intensity,  $ h_c $ is used instead of h.",
+            "block_bbox": [
+                164,
+                1362,
+                585,
+                1473
+            ],
+            "block_id": 9,
+            "block_order": 8,
+            "group_id": 9,
+            "global_block_id": 101,
+            "global_group_id": 101,
+            "block_polygon_points": [
+                [
+                    164.0,
+                    1362.0
+                ],
+                [
+                    585.0,
+                    1362.0
+                ],
+                [
+                    585.0,
+                    1473.0
+                ],
+                [
+                    164.0,
+                    1473.0
+                ]
+            ]
+        },
+        {
+            "block_label": "text",
+            "block_content": "",
+            "block_bbox": [
+                649,
+                580,
+                1053,
+                717
+            ],
+            "block_id": 10,
+            "block_order": 9,
+            "group_id": 9,
+            "global_block_id": 102,
+            "global_group_id": 102,
+            "block_polygon_points": [
+                [
+                    649.0,
+                    580.0
+                ],
+                [
+                    1053.0,
+                    580.0
+                ],
+                [
+                    1053.0,
+                    717.0
+                ],
+                [
+                    649.0,
+                    717.0
+                ]
+            ]
+        },
+        {
+            "block_label": "text",
+            "block_content": "- w/ Pa: Feature extraction is performed with  $ h_a = \\text{attention}(uW^Q, vW^K, vW^V) $ in consideration of personality. That is, in the calculation of the attention mechanism, the personality representation  $ u $ is used as the query, and the text representation  $ v $ is used as both the key and the value.  $ h_a $ is used instead of  $ h $ for emotional intensity estimation.",
+            "block_bbox": [
+                634,
+                736,
+                1054,
+                949
+            ],
+            "block_id": 11,
+            "block_order": 10,
+            "group_id": 11,
+            "global_block_id": 103,
+            "global_group_id": 103,
+            "block_polygon_points": [
+                [
+                    634.0,
+                    736.0
+                ],
+                [
+                    1054.0,
+                    736.0
+                ],
+                [
+                    1054.0,
+                    949.0
+                ],
+                [
+                    634.0,
+                    949.0
+                ]
+            ]
+        },
+        {
+            "block_label": "paragraph_title",
+            "block_content": "5.2 Results",
+            "block_bbox": [
+                608,
+                980,
+                734,
+                1005
+            ],
+            "block_id": 12,
+            "block_order": 11,
+            "group_id": 12,
+            "global_block_id": 104,
+            "global_group_id": 104,
+            "block_polygon_points": [
+                [
+                    608.0,
+                    980.0
+                ],
+                [
+                    734.0,
+                    980.0
+                ],
+                [
+                    734.0,
+                    1005.0
+                ],
+                [
+                    608.0,
+                    1005.0
+                ]
+            ]
+        },
+        {
+            "block_label": "text",
+            "block_content": "The performance of each model on subjective and objective labels is shown in Tables 6 and 7, respectively. Regardless of the method, the evaluation of subjective label estimation gets a larger mean absolute error than the evaluation of objective labels. In our previous discussion, we have stated that it is difficult for readers to estimate the emotions of writers; this also applies to machine learning models.",
+            "block_bbox": [
+                605,
+                1016,
+                1057,
+                1259
+            ],
+            "block_id": 13,
+            "block_order": 12,
+            "group_id": 13,
+            "global_block_id": 105,
+            "global_group_id": 105,
+            "block_polygon_points": [
+                [
+                    605.0,
+                    1016.0
+                ],
+                [
+                    1057.0,
+                    1016.0
+                ],
+                [
+                    1057.0,
+                    1259.0
+                ],
+                [
+                    605.0,
+                    1259.0
+                ]
+            ]
+        },
+        {
+            "block_label": "paragraph_title",
+            "block_content": "5.2.1 Evaluation with Subjective Labels",
+            "block_bbox": [
+                606,
+                1274,
+                1001,
+                1299
+            ],
+            "block_id": 14,
+            "block_order": 13,
+            "group_id": 14,
+            "global_block_id": 106,
+            "global_group_id": 106,
+            "block_polygon_points": [
+                [
+                    606.0,
+                    1274.0
+                ],
+                [
+                    1001.0,
+                    1274.0
+                ],
+                [
+                    1001.0,
+                    1299.0
+                ],
+                [
+                    606.0,
+                    1299.0
+                ]
+            ]
+        },
+        {
+            "block_label": "text",
+            "block_content": "In the evaluation of subjective labels, the traditional models of BoW+LogReg and fastText+SVM achieved lower mean absolute errors than the Random baseline, but were inferior to the Modal Class baseline. The BERT methods achieved a mean absolute error lower than the Modal Class baseline. Surprisingly, Obj. BERT trained with objective labels, rather than Subj. BERT trained with subjective labels, achieved the highest performance.",
+            "block_bbox": [
+                604,
+                1306,
+                1058,
+                1549
+            ],
+            "block_id": 15,
+            "block_order": 14,
+            "group_id": 15,
+            "global_block_id": 107,
+            "global_group_id": 107,
+            "block_polygon_points": [
+                [
+                    604.0,
+                    1306.0
+                ],
+                [
+                    1058.0,
+                    1306.0
+                ],
+                [
+                    1058.0,
+                    1549.0
+                ],
+                [
+                    604.0,
+                    1549.0
+                ]
+            ]
+        },
+        {
+            "block_label": "footnote",
+            "block_content": " $ ^{16} $https://scikit-learn.org/",
+            "block_bbox": [
+                156,
+                1483,
+                448,
+                1507
+            ],
+            "block_id": 16,
+            "block_order": null,
+            "group_id": 16,
+            "global_block_id": 108,
+            "global_group_id": 108,
+            "block_polygon_points": [
+                [
+                    156.0,
+                    1483.0
+                ],
+                [
+                    448.0,
+                    1483.0
+                ],
+                [
+                    448.0,
+                    1507.0
+                ],
+                [
+                    156.0,
+                    1507.0
+                ]
+            ]
+        },
+        {
+            "block_label": "footnote",
+            "block_content": " $ ^{17} $https://github.com/huggingface/transformers",
+            "block_bbox": [
+                140,
+                1506,
+                511,
+                1548
+            ],
+            "block_id": 17,
+            "block_order": null,
+            "group_id": 17,
+            "global_block_id": 109,
+            "global_group_id": 109,
+            "block_polygon_points": [
+                [
+                    140.0,
+                    1506.0
+                ],
+                [
+                    511.0,
+                    1506.0
+                ],
+                [
+                    511.0,
+                    1548.0
+                ],
+                [
+                    140.0,
+                    1548.0
+                ]
+            ]
+        },
+        {
+            "block_label": "number",
+            "block_content": "2101",
+            "block_bbox": [
+                573,
+                1552,
+                619,
+                1575
+            ],
+            "block_id": 18,
+            "block_order": null,
+            "group_id": 18,
+            "global_block_id": 110,
+            "global_group_id": 110,
+            "block_polygon_points": [
+                [
+                    573.0,
+                    1552.0
+                ],
+                [
+                    618.0,
+                    1552.0
+                ],
+                [
+                    618.0,
+                    1574.0
+                ],
+                [
+                    573.0,
+                    1574.0
+                ]
+            ]
+        }
+    ],
+    "layout_det_res": {
+        "input_path": null,
+        "page_index": null,
+        "boxes": [
+            {
+                "cls_id": 21,
+                "label": "table",
+                "score": 0.9758918285369873,
+                "coordinate": [
+                    140,
+                    146,
+                    1051,
+                    491
+                ],
+                "order": null,
+                "polygon_points": [
+                    [
+                        140.0,
+                        146.0
+                    ],
+                    [
+                        1051.0,
+                        146.0
+                    ],
+                    [
+                        1051.0,
+                        491.0
+                    ],
+                    [
+                        140.0,
+                        491.0
+                    ]
+                ]
+            },
+            {
+                "cls_id": 7,
+                "label": "figure_title",
+                "score": 0.8621140718460083,
+                "coordinate": [
+                    255,
+                    513,
+                    933,
+                    538
+                ],
+                "order": null,
+                "polygon_points": [
+                    [
+                        255.0,
+                        513.0
+                    ],
+                    [
+                        933.0,
+                        513.0
+                    ],
+                    [
+                        933.0,
+                        538.0
+                    ],
+                    [
+                        255.0,
+                        538.0
+                    ]
+                ]
+            },
+            {
+                "cls_id": 22,
+                "label": "text",
+                "score": 0.9035868048667908,
+                "coordinate": [
+                    179,
+                    580,
+                    583,
+                    635
+                ],
+                "order": 1,
+                "polygon_points": [
+                    [
+                        179.0,
+                        580.0
+                    ],
+                    [
+                        583.0,
+                        580.0
+                    ],
+                    [
+                        583.0,
+                        635.0
+                    ],
+                    [
+                        179.0,
+                        635.0
+                    ]
+                ]
+            },
+            {
+                "cls_id": 22,
+                "label": "text",
+                "score": 0.8443791270256042,
+                "coordinate": [
+                    159,
+                    650,
+                    564,
+                    676
+                ],
+                "order": 2,
+                "polygon_points": [
+                    [
+                        159.0,
+                        650.0
+                    ],
+                    [
+                        564.0,
+                        650.0
+                    ],
+                    [
+                        564.0,
+                        676.0
+                    ],
+                    [
+                        159.0,
+                        676.0
+                    ]
+                ]
+            },
+            {
+                "cls_id": 22,
+                "label": "text",
+                "score": 0.9264700412750244,
+                "coordinate": [
+                    164,
+                    692,
+                    582,
+                    774
+                ],
+                "order": 3,
+                "polygon_points": [
+                    [
+                        164.0,
+                        692.0
+                    ],
+                    [
+                        582.0,
+                        692.0
+                    ],
+                    [
+                        582.0,
+                        774.0
+                    ],
+                    [
+                        164.0,
+                        774.0
+                    ]
+                ]
+            },
+            {
+                "cls_id": 22,
+                "label": "text",
+                "score": 0.9464069604873657,
+                "coordinate": [
+                    162,
+                    791,
+                    585,
+                    928
+                ],
+                "order": 4,
+                "polygon_points": [
+                    [
+                        162.0,
+                        791.0
+                    ],
+                    [
+                        585.0,
+                        791.0
+                    ],
+                    [
+                        585.0,
+                        928.0
+                    ],
+                    [
+                        162.0,
+                        928.0
+                    ]
+                ]
+            },
+            {
+                "cls_id": 22,
+                "label": "text",
+                "score": 0.9509605169296265,
+                "coordinate": [
+                    135,
+                    941,
+                    584,
+                    1076
+                ],
+                "order": 5,
+                "polygon_points": [
+                    [
+                        135.0,
+                        941.0
+                    ],
+                    [
+                        584.0,
+                        941.0
+                    ],
+                    [
+                        584.0,
+                        1076.0
+                    ],
+                    [
+                        135.0,
+                        1076.0
+                    ]
+                ]
+            },
+            {
+                "cls_id": 22,
+                "label": "text",
+                "score": 0.953606128692627,
+                "coordinate": [
+                    135,
+                    1079,
+                    584,
+                    1265
+                ],
+                "order": 6,
+                "polygon_points": [
+                    [
+                        135.0,
+                        1079.0
+                    ],
+                    [
+                        584.0,
+                        1079.0
+                    ],
+                    [
+                        584.0,
+                        1265.0
+                    ],
+                    [
+                        135.0,
+                        1265.0
+                    ]
+                ]
+            },
+            {
+                "cls_id": 22,
+                "label": "text",
+                "score": 0.9285078644752502,
+                "coordinate": [
+                    136,
+                    1268,
+                    585,
+                    1349
+                ],
+                "order": 7,
+                "polygon_points": [
+                    [
+                        136.0,
+                        1268.0
+                    ],
+                    [
+                        585.0,
+                        1268.0
+                    ],
+                    [
+                        585.0,
+                        1349.0
+                    ],
+                    [
+                        136.0,
+                        1349.0
+                    ]
+                ]
+            },
+            {
+                "cls_id": 22,
+                "label": "text",
+                "score": 0.9084837436676025,
+                "coordinate": [
+                    164,
+                    1362,
+                    585,
+                    1473
+                ],
+                "order": 8,
+                "polygon_points": [
+                    [
+                        164.0,
+                        1362.0
+                    ],
+                    [
+                        585.0,
+                        1362.0
+                    ],
+                    [
+                        585.0,
+                        1473.0
+                    ],
+                    [
+                        164.0,
+                        1473.0
+                    ]
+                ]
+            },
+            {
+                "cls_id": 15,
+                "label": "inline_formula",
+                "score": 0.7920864820480347,
+                "coordinate": [
+                    183,
+                    1390,
+                    322,
+                    1416
+                ],
+                "order": 9,
+                "polygon_points": [
+                    [
+                        183.0,
+                        1390.0
+                    ],
+                    [
+                        322.0,
+                        1390.0
+                    ],
+                    [
+                        322.0,
+                        1416.0
+                    ],
+                    [
+                        183.0,
+                        1416.0
+                    ]
+                ]
+            },
+            {
+                "cls_id": 22,
+                "label": "text",
+                "score": 0.9524546265602112,
+                "coordinate": [
+                    649,
+                    580,
+                    1053,
+                    717
+                ],
+                "order": 10,
+                "polygon_points": [
+                    [
+                        649.0,
+                        580.0
+                    ],
+                    [
+                        1053.0,
+                        580.0
+                    ],
+                    [
+                        1053.0,
+                        717.0
+                    ],
+                    [
+                        649.0,
+                        717.0
+                    ]
+                ]
+            },
+            {
+                "cls_id": 15,
+                "label": "inline_formula",
+                "score": 0.7100036144256592,
+                "coordinate": [
+                    832,
+                    691,
+                    856,
+                    713
+                ],
+                "order": 11,
+                "polygon_points": [
+                    [
+                        832.0,
+                        691.0
+                    ],
+                    [
+                        832.0,
+                        712.0
+                    ],
+                    [
+                        855.0,
+                        712.0
+                    ],
+                    [
+                        855.0,
+                        691.0
+                    ]
+                ]
+            },
+            {
+                "cls_id": 22,
+                "label": "text",
+                "score": 0.9421072602272034,
+                "coordinate": [
+                    634,
+                    736,
+                    1054,
+                    949
+                ],
+                "order": 12,
+                "polygon_points": [
+                    [
+                        634.0,
+                        736.0
+                    ],
+                    [
+                        1054.0,
+                        736.0
+                    ],
+                    [
+                        1054.0,
+                        949.0
+                    ],
+                    [
+                        634.0,
+                        949.0
+                    ]
+                ]
+            },
+            {
+                "cls_id": 15,
+                "label": "inline_formula",
+                "score": 0.42893803119659424,
+                "coordinate": [
+                    654,
+                    757,
+                    1022,
+                    786
+                ],
+                "order": 13,
+                "polygon_points": [
+                    [
+                        654.0,
+                        757.0
+                    ],
+                    [
+                        654.0,
+                        785.0
+                    ],
+                    [
+                        1016.0,
+                        785.0
+                    ],
+                    [
+                        1016.0,
+                        757.0
+                    ]
+                ]
+            },
+            {
+                "cls_id": 15,
+                "label": "inline_formula",
+                "score": 0.703373372554779,
+                "coordinate": [
+                    892,
+                    897,
+                    918,
+                    921
+                ],
+                "order": 14,
+                "polygon_points": [
+                    [
+                        892.0,
+                        897.0
+                    ],
+                    [
+                        917.0,
+                        897.0
+                    ],
+                    [
+                        917.0,
+                        920.0
+                    ],
+                    [
+                        892.0,
+                        920.0
+                    ]
+                ]
+            },
+            {
+                "cls_id": 17,
+                "label": "paragraph_title",
+                "score": 0.8097308278083801,
+                "coordinate": [
+                    608,
+                    980,
+                    734,
+                    1005
+                ],
+                "order": 15,
+                "polygon_points": [
+                    [
+                        608.0,
+                        980.0
+                    ],
+                    [
+                        734.0,
+                        980.0
+                    ],
+                    [
+                        734.0,
+                        1005.0
+                    ],
+                    [
+                        608.0,
+                        1005.0
+                    ]
+                ]
+            },
+            {
+                "cls_id": 22,
+                "label": "text",
+                "score": 0.9528543949127197,
+                "coordinate": [
+                    605,
+                    1016,
+                    1057,
+                    1259
+                ],
+                "order": 16,
+                "polygon_points": [
+                    [
+                        605.0,
+                        1016.0
+                    ],
+                    [
+                        1057.0,
+                        1016.0
+                    ],
+                    [
+                        1057.0,
+                        1259.0
+                    ],
+                    [
+                        605.0,
+                        1259.0
+                    ]
+                ]
+            },
+            {
+                "cls_id": 17,
+                "label": "paragraph_title",
+                "score": 0.8354142904281616,
+                "coordinate": [
+                    606,
+                    1274,
+                    1001,
+                    1299
+                ],
+                "order": 17,
+                "polygon_points": [
+                    [
+                        606.0,
+                        1274.0
+                    ],
+                    [
+                        1001.0,
+                        1274.0
+                    ],
+                    [
+                        1001.0,
+                        1299.0
+                    ],
+                    [
+                        606.0,
+                        1299.0
+                    ]
+                ]
+            },
+            {
+                "cls_id": 22,
+                "label": "text",
+                "score": 0.9567667245864868,
+                "coordinate": [
+                    604,
+                    1306,
+                    1058,
+                    1549
+                ],
+                "order": 18,
+                "polygon_points": [
+                    [
+                        604.0,
+                        1306.0
+                    ],
+                    [
+                        1058.0,
+                        1306.0
+                    ],
+                    [
+                        1058.0,
+                        1549.0
+                    ],
+                    [
+                        604.0,
+                        1549.0
+                    ]
+                ]
+            },
+            {
+                "cls_id": 10,
+                "label": "footnote",
+                "score": 0.7428306341171265,
+                "coordinate": [
+                    156,
+                    1483,
+                    448,
+                    1507
+                ],
+                "order": null,
+                "polygon_points": [
+                    [
+                        156.0,
+                        1483.0
+                    ],
+                    [
+                        448.0,
+                        1483.0
+                    ],
+                    [
+                        448.0,
+                        1507.0
+                    ],
+                    [
+                        156.0,
+                        1507.0
+                    ]
+                ]
+            },
+            {
+                "cls_id": 10,
+                "label": "footnote",
+                "score": 0.45852333307266235,
+                "coordinate": [
+                    153,
+                    1506,
+                    512,
+                    1526
+                ],
+                "order": null,
+                "polygon_points": [
+                    [
+                        153.0,
+                        1506.0
+                    ],
+                    [
+                        153.0,
+                        1525.0
+                    ],
+                    [
+                        511.0,
+                        1525.0
+                    ],
+                    [
+                        511.0,
+                        1506.0
+                    ]
+                ]
+            },
+            {
+                "cls_id": 10,
+                "label": "footnote",
+                "score": 0.7213119864463806,
+                "coordinate": [
+                    140,
+                    1506,
+                    511,
+                    1548
+                ],
+                "order": null,
+                "polygon_points": [
+                    [
+                        140.0,
+                        1506.0
+                    ],
+                    [
+                        511.0,
+                        1506.0
+                    ],
+                    [
+                        511.0,
+                        1548.0
+                    ],
+                    [
+                        140.0,
+                        1548.0
+                    ]
+                ]
+            },
+            {
+                "cls_id": 10,
+                "label": "footnote",
+                "score": 0.4103739857673645,
+                "coordinate": [
+                    139,
+                    1528,
+                    275,
+                    1548
+                ],
+                "order": null,
+                "polygon_points": [
+                    [
+                        139.0,
+                        1528.0
+                    ],
+                    [
+                        139.0,
+                        1547.0
+                    ],
+                    [
+                        274.0,
+                        1547.0
+                    ],
+                    [
+                        274.0,
+                        1535.0
+                    ],
+                    [
+                        269.0,
+                        1528.0
+                    ]
+                ]
+            },
+            {
+                "cls_id": 16,
+                "label": "number",
+                "score": 0.7577183842658997,
+                "coordinate": [
+                    573,
+                    1552,
+                    619,
+                    1575
+                ],
+                "order": 19,
+                "polygon_points": [
+                    [
+                        573.0,
+                        1552.0
+                    ],
+                    [
+                        618.0,
+                        1552.0
+                    ],
+                    [
+                        618.0,
+                        1574.0
+                    ],
+                    [
+                        573.0,
+                        1574.0
+                    ]
+                ]
+            }
+        ]
+    }
+}
