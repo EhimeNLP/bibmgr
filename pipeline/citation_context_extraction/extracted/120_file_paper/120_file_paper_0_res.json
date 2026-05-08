@@ -1,0 +1,1513 @@
+{
+    "input_path": "pdfs/120_file_paper.pdf",
+    "page_index": 0,
+    "page_count": 5,
+    "width": 1191,
+    "height": 1684,
+    "model_settings": {
+        "use_doc_preprocessor": false,
+        "use_layout_detection": true,
+        "use_chart_recognition": false,
+        "use_seal_recognition": false,
+        "use_ocr_for_image_block": false,
+        "format_block_content": false,
+        "merge_layout_blocks": true,
+        "markdown_ignore_labels": [
+            "number",
+            "footnote",
+            "header",
+            "header_image",
+            "footer",
+            "footer_image",
+            "aside_text"
+        ],
+        "return_layout_polygon_points": true
+    },
+    "parsing_res_list": [
+        {
+            "block_label": "doc_title",
+            "block_content": "所見文書と X 線画像を用いた矯正歯科治療の自動診断",
+            "block_bbox": [
+                179,
+                224,
+                1009,
+                264
+            ],
+            "block_id": 0,
+            "block_order": 1,
+            "group_id": 0,
+            "global_block_id": 0,
+            "global_group_id": 0,
+            "block_polygon_points": [
+                [
+                    179.0,
+                    224.0
+                ],
+                [
+                    1009.0,
+                    224.0
+                ],
+                [
+                    1009.0,
+                    264.0
+                ],
+                [
+                    179.0,
+                    264.0
+                ]
+            ]
+        },
+        {
+            "block_label": "text",
+            "block_content": "米山 瑛人 $ ^{1} $ 杉原 壮一郎 $ ^{1} $\n\n梶原 智之 $ ^{1,2} $ 池田 直樹 $ ^{2} $ 佐田 明惟 $ ^{2} $ 谷川 千尋 $ ^{2} $",
+            "block_bbox": [
+                145,
+                292,
+                440,
+                323
+            ],
+            "block_id": 1,
+            "block_order": 2,
+            "group_id": 1,
+            "global_block_id": 1,
+            "global_group_id": 1,
+            "block_polygon_points": [
+                [
+                    145.0,
+                    292.0
+                ],
+                [
+                    440.0,
+                    292.0
+                ],
+                [
+                    440.0,
+                    323.0
+                ],
+                [
+                    145.0,
+                    323.0
+                ]
+            ]
+        },
+        {
+            "block_label": "text",
+            "block_content": "",
+            "block_bbox": [
+                464,
+                291,
+                1046,
+                323
+            ],
+            "block_id": 2,
+            "block_order": 3,
+            "group_id": 1,
+            "global_block_id": 2,
+            "global_group_id": 2,
+            "block_polygon_points": [
+                [
+                    464.0,
+                    291.0
+                ],
+                [
+                    1046.0,
+                    291.0
+                ],
+                [
+                    1046.0,
+                    323.0
+                ],
+                [
+                    464.0,
+                    323.0
+                ]
+            ]
+        },
+        {
+            "block_label": "text",
+            "block_content": "1 爱媛大学  $ ^{2} $ 大阪大学",
+            "block_bbox": [
+                464,
+                322,
+                728,
+                353
+            ],
+            "block_id": 3,
+            "block_order": 4,
+            "group_id": 3,
+            "global_block_id": 3,
+            "global_group_id": 3,
+            "block_polygon_points": [
+                [
+                    464.0,
+                    322.0
+                ],
+                [
+                    728.0,
+                    322.0
+                ],
+                [
+                    728.0,
+                    353.0
+                ],
+                [
+                    464.0,
+                    353.0
+                ]
+            ]
+        },
+        {
+            "block_label": "text",
+            "block_content": "{yoneyama@ai., sugihara@ai., kajiwara@}cs.ehime-u.ac.jp",
+            "block_bbox": [
+                263,
+                357,
+                931,
+                384
+            ],
+            "block_id": 4,
+            "block_order": 5,
+            "group_id": 4,
+            "global_block_id": 4,
+            "global_group_id": 4,
+            "block_polygon_points": [
+                [
+                    263.0,
+                    357.0
+                ],
+                [
+                    931.0,
+                    357.0
+                ],
+                [
+                    931.0,
+                    384.0
+                ],
+                [
+                    263.0,
+                    384.0
+                ]
+            ]
+        },
+        {
+            "block_label": "text",
+            "block_content": "{u725921b@ecs., u274168a@ecs., tanikawa.chihiro.dent@osaka-u.ac.jp",
+            "block_bbox": [
+                191,
+                387,
+                1000,
+                415
+            ],
+            "block_id": 5,
+            "block_order": 6,
+            "group_id": 5,
+            "global_block_id": 5,
+            "global_group_id": 5,
+            "block_polygon_points": [
+                [
+                    191.0,
+                    387.0
+                ],
+                [
+                    1000.0,
+                    387.0
+                ],
+                [
+                    1000.0,
+                    415.0
+                ],
+                [
+                    191.0,
+                    415.0
+                ]
+            ]
+        },
+        {
+            "block_label": "paragraph_title",
+            "block_content": "概要",
+            "block_bbox": [
+                109,
+                456,
+                173,
+                490
+            ],
+            "block_id": 6,
+            "block_order": 7,
+            "group_id": 6,
+            "global_block_id": 6,
+            "global_group_id": 6,
+            "block_polygon_points": [
+                [
+                    109.0,
+                    456.0
+                ],
+                [
+                    173.0,
+                    456.0
+                ],
+                [
+                    173.0,
+                    490.0
+                ],
+                [
+                    109.0,
+                    490.0
+                ]
+            ]
+        },
+        {
+            "block_label": "abstract",
+            "block_content": "本研究では，所見文書と X 線画像の両方を用いた矯正歯科治療の自動診断に取り組む．先行研究では所見文書の言語情報のみを使用しており，X 線画像等の画像情報を活用できていなかった．これに対して，我々は言語情報と画像情報を統合的に理解可能な視覚言語モデルを自動診断に活用する．実験の結果，所見文書のみを用いる先行研究と比較して，所見文書と X 線画像の両方を用いる本研究がより高い診断性能を達成し，矯正歯科治療の自動診断におけるマルチモーダル情報処理の有効性を確認できた．",
+            "block_bbox": [
+                108,
+                506,
+                580,
+                801
+            ],
+            "block_id": 7,
+            "block_order": 8,
+            "group_id": 7,
+            "global_block_id": 7,
+            "global_group_id": 7,
+            "block_polygon_points": [
+                [
+                    108.0,
+                    506.0
+                ],
+                [
+                    580.0,
+                    506.0
+                ],
+                [
+                    580.0,
+                    801.0
+                ],
+                [
+                    108.0,
+                    801.0
+                ]
+            ]
+        },
+        {
+            "block_label": "paragraph_title",
+            "block_content": "1 はじめに",
+            "block_bbox": [
+                109,
+                817,
+                272,
+                848
+            ],
+            "block_id": 8,
+            "block_order": 9,
+            "group_id": 8,
+            "global_block_id": 8,
+            "global_group_id": 8,
+            "block_polygon_points": [
+                [
+                    109.0,
+                    817.0
+                ],
+                [
+                    272.0,
+                    817.0
+                ],
+                [
+                    272.0,
+                    848.0
+                ],
+                [
+                    109.0,
+                    848.0
+                ]
+            ]
+        },
+        {
+            "block_label": "text",
+            "block_content": "矯正歯科治療において，正確な診断を実現するためには，高度な専門知識や豊富な経験が必要である．そのため，経験の浅い歯科医師による問題の見落としや，専門医への業務集中が懸念される．",
+            "block_bbox": [
+                108,
+                864,
+                579,
+                980
+            ],
+            "block_id": 9,
+            "block_order": 10,
+            "group_id": 9,
+            "global_block_id": 9,
+            "global_group_id": 9,
+            "block_polygon_points": [
+                [
+                    108.0,
+                    864.0
+                ],
+                [
+                    579.0,
+                    864.0
+                ],
+                [
+                    579.0,
+                    980.0
+                ],
+                [
+                    108.0,
+                    980.0
+                ]
+            ]
+        },
+        {
+            "block_label": "text",
+            "block_content": "これらの課題に対して，先行研究 [1-5] では，所見文書を入力とするマルチラベルテキスト分類として矯正歯科治療の診断プロセスをタスク設計し，自然言語処理の技術を活用して自動診断に取り組んできた．具体的には，Support Vector Machine (SVM) 等を用いる機械学習の手法 [1] や Convolutional Neural Network (CNN) 等を用いる深層学習の手法 [2] が用いられてきた．近年は，大規模言語モデル (Large Language Model; LLM) を用いる自動診断 [3,4] にも取り組まれており，より高性能かつ汎用的な自動診断が可能となった．これらの先行研究では，10 年以上の経験を持つ専門医に匹敵する診断性能 [5] が確認されている．一方で，これらの先行研究では，矯正歯科治療において重要な診断材料である X 線画像（図 1）や顔画像等の画像情報を活用できていない．本研究では，視覚言語モデル (Vision Language Model; VLM) を用いて，所見文書と X 線画像の両方を入力とする矯正歯科治療のマルチモーダル自動診断",
+            "block_bbox": [
+                107,
+                986,
+                581,
+                1516
+            ],
+            "block_id": 10,
+            "block_order": 11,
+            "group_id": 10,
+            "global_block_id": 10,
+            "global_group_id": 10,
+            "block_polygon_points": [
+                [
+                    107.0,
+                    986.0
+                ],
+                [
+                    581.0,
+                    986.0
+                ],
+                [
+                    581.0,
+                    1516.0
+                ],
+                [
+                    107.0,
+                    1516.0
+                ]
+            ]
+        },
+        {
+            "block_label": "image",
+            "block_content": "",
+            "block_bbox": [
+                697,
+                444,
+                995,
+                596
+            ],
+            "block_id": 11,
+            "block_order": null,
+            "group_id": 11,
+            "global_block_id": 11,
+            "global_group_id": 11,
+            "block_polygon_points": [
+                [
+                    697.0,
+                    444.0
+                ],
+                [
+                    995.0,
+                    444.0
+                ],
+                [
+                    995.0,
+                    596.0
+                ],
+                [
+                    697.0,
+                    596.0
+                ]
+            ]
+        },
+        {
+            "block_label": "figure_title",
+            "block_content": "(a) パノラマ X 線画像",
+            "block_bbox": [
+                757,
+                607,
+                935,
+                629
+            ],
+            "block_id": 12,
+            "block_order": null,
+            "group_id": 12,
+            "global_block_id": 12,
+            "global_group_id": 12,
+            "block_polygon_points": [
+                [
+                    757.0,
+                    607.0
+                ],
+                [
+                    934.0,
+                    607.0
+                ],
+                [
+                    934.0,
+                    628.0
+                ],
+                [
+                    757.0,
+                    628.0
+                ]
+            ]
+        },
+        {
+            "block_label": "image",
+            "block_content": "",
+            "block_bbox": [
+                631,
+                641,
+                823,
+                841
+            ],
+            "block_id": 13,
+            "block_order": null,
+            "group_id": 13,
+            "global_block_id": 13,
+            "global_group_id": 13,
+            "block_polygon_points": [
+                [
+                    631.0,
+                    641.0
+                ],
+                [
+                    823.0,
+                    641.0
+                ],
+                [
+                    823.0,
+                    841.0
+                ],
+                [
+                    631.0,
+                    841.0
+                ]
+            ]
+        },
+        {
+            "block_label": "figure_title",
+            "block_content": "(b) 頭部正面 X 線画像",
+            "block_bbox": [
+                637,
+                853,
+                815,
+                874
+            ],
+            "block_id": 14,
+            "block_order": null,
+            "group_id": 14,
+            "global_block_id": 14,
+            "global_group_id": 14,
+            "block_polygon_points": [
+                [
+                    637.0,
+                    853.0
+                ],
+                [
+                    814.0,
+                    853.0
+                ],
+                [
+                    814.0,
+                    873.0
+                ],
+                [
+                    637.0,
+                    873.0
+                ]
+            ]
+        },
+        {
+            "block_label": "image",
+            "block_content": "",
+            "block_bbox": [
+                856,
+                640,
+                1075,
+                841
+            ],
+            "block_id": 15,
+            "block_order": null,
+            "group_id": 15,
+            "global_block_id": 15,
+            "global_group_id": 15,
+            "block_polygon_points": [
+                [
+                    856.0,
+                    640.0
+                ],
+                [
+                    1075.0,
+                    640.0
+                ],
+                [
+                    1075.0,
+                    841.0
+                ],
+                [
+                    856.0,
+                    841.0
+                ]
+            ]
+        },
+        {
+            "block_label": "figure_title",
+            "block_content": "(c) 頭部側面 X 線画像",
+            "block_bbox": [
+                879,
+                852,
+                1055,
+                874
+            ],
+            "block_id": 16,
+            "block_order": null,
+            "group_id": 16,
+            "global_block_id": 16,
+            "global_group_id": 16,
+            "block_polygon_points": [
+                [
+                    879.0,
+                    852.0
+                ],
+                [
+                    1054.0,
+                    852.0
+                ],
+                [
+                    1054.0,
+                    873.0
+                ],
+                [
+                    879.0,
+                    873.0
+                ]
+            ]
+        },
+        {
+            "block_label": "figure_title",
+            "block_content": "図1: 矯正歯科治療における X 線画像",
+            "block_bbox": [
+                677,
+                885,
+                1015,
+                909
+            ],
+            "block_id": 17,
+            "block_order": null,
+            "group_id": 17,
+            "global_block_id": 17,
+            "global_group_id": 17,
+            "block_polygon_points": [
+                [
+                    677.0,
+                    885.0
+                ],
+                [
+                    1015.0,
+                    885.0
+                ],
+                [
+                    1015.0,
+                    909.0
+                ],
+                [
+                    677.0,
+                    909.0
+                ]
+            ]
+        },
+        {
+            "block_label": "text",
+            "block_content": "断に取り組む．VLM とは，言語情報と画像情報を同一の表現空間で統合的に扱うことができるモデルであり，単一モダリティでは捉えにくい臨床的特徴を理解できるという特徴を有する．",
+            "block_bbox": [
+                609,
+                955,
+                1081,
+                1070
+            ],
+            "block_id": 18,
+            "block_order": 12,
+            "group_id": 18,
+            "global_block_id": 18,
+            "global_group_id": 18,
+            "block_polygon_points": [
+                [
+                    609.0,
+                    955.0
+                ],
+                [
+                    1081.0,
+                    955.0
+                ],
+                [
+                    1081.0,
+                    1070.0
+                ],
+                [
+                    609.0,
+                    1070.0
+                ]
+            ]
+        },
+        {
+            "block_label": "text",
+            "block_content": "実験の結果，所見文書のみを用いる LLM と比較して，所見文書と X 線画像の両方を用いる VLM がより高い性能を示すことを確認した．また，入力する X 線画像の種類によっては，32B の VLM で 72B の LLM の性能を上回り，矯正歯科治療の自動診断における画像情報の有効性が明らかになった．",
+            "block_bbox": [
+                610,
+                1075,
+                1083,
+                1251
+            ],
+            "block_id": 19,
+            "block_order": 13,
+            "group_id": 19,
+            "global_block_id": 19,
+            "global_group_id": 19,
+            "block_polygon_points": [
+                [
+                    610.0,
+                    1075.0
+                ],
+                [
+                    1083.0,
+                    1075.0
+                ],
+                [
+                    1083.0,
+                    1251.0
+                ],
+                [
+                    610.0,
+                    1251.0
+                ]
+            ]
+        },
+        {
+            "block_label": "paragraph_title",
+            "block_content": "2 関連研究",
+            "block_bbox": [
+                611,
+                1266,
+                776,
+                1298
+            ],
+            "block_id": 20,
+            "block_order": 14,
+            "group_id": 20,
+            "global_block_id": 20,
+            "global_group_id": 20,
+            "block_polygon_points": [
+                [
+                    611.0,
+                    1266.0
+                ],
+                [
+                    776.0,
+                    1266.0
+                ],
+                [
+                    776.0,
+                    1298.0
+                ],
+                [
+                    611.0,
+                    1298.0
+                ]
+            ]
+        },
+        {
+            "block_label": "paragraph_title",
+            "block_content": "2.1 自然言語処理の医療応用",
+            "block_bbox": [
+                610,
+                1327,
+                940,
+                1356
+            ],
+            "block_id": 21,
+            "block_order": 15,
+            "group_id": 21,
+            "global_block_id": 21,
+            "global_group_id": 21,
+            "block_polygon_points": [
+                [
+                    610.0,
+                    1327.0
+                ],
+                [
+                    940.0,
+                    1327.0
+                ],
+                [
+                    940.0,
+                    1356.0
+                ],
+                [
+                    610.0,
+                    1356.0
+                ]
+            ]
+        },
+        {
+            "block_label": "text",
+            "block_content": "医療分野における自然言語処理の応用は，電子カルテや退院サマリ等の文書解析から診断支援まで幅広く進展している．代表的な医療言語処理モデルには，ClinicalBERT [6] や PubMedBERT [7] がある．近年は，LLM の医療応用も活発であり，PMC-Llama [8]",
+            "block_bbox": [
+                608,
+                1374,
+                1083,
+                1521
+            ],
+            "block_id": 22,
+            "block_order": 16,
+            "group_id": 22,
+            "global_block_id": 22,
+            "global_group_id": 22,
+            "block_polygon_points": [
+                [
+                    608.0,
+                    1374.0
+                ],
+                [
+                    1083.0,
+                    1374.0
+                ],
+                [
+                    1083.0,
+                    1521.0
+                ],
+                [
+                    608.0,
+                    1521.0
+                ]
+            ]
+        }
+    ],
+    "layout_det_res": {
+        "input_path": null,
+        "page_index": null,
+        "boxes": [
+            {
+                "cls_id": 6,
+                "label": "doc_title",
+                "score": 0.9132968783378601,
+                "coordinate": [
+                    179,
+                    224,
+                    1009,
+                    264
+                ],
+                "order": 1,
+                "polygon_points": [
+                    [
+                        179.0,
+                        224.0
+                    ],
+                    [
+                        1009.0,
+                        224.0
+                    ],
+                    [
+                        1009.0,
+                        264.0
+                    ],
+                    [
+                        179.0,
+                        264.0
+                    ]
+                ]
+            },
+            {
+                "cls_id": 22,
+                "label": "text",
+                "score": 0.7097408771514893,
+                "coordinate": [
+                    145,
+                    292,
+                    440,
+                    323
+                ],
+                "order": 2,
+                "polygon_points": [
+                    [
+                        145.0,
+                        292.0
+                    ],
+                    [
+                        440.0,
+                        292.0
+                    ],
+                    [
+                        440.0,
+                        323.0
+                    ],
+                    [
+                        145.0,
+                        323.0
+                    ]
+                ]
+            },
+            {
+                "cls_id": 22,
+                "label": "text",
+                "score": 0.6575870513916016,
+                "coordinate": [
+                    464,
+                    291,
+                    1046,
+                    323
+                ],
+                "order": 3,
+                "polygon_points": [
+                    [
+                        464.0,
+                        291.0
+                    ],
+                    [
+                        1046.0,
+                        291.0
+                    ],
+                    [
+                        1046.0,
+                        323.0
+                    ],
+                    [
+                        464.0,
+                        323.0
+                    ]
+                ]
+            },
+            {
+                "cls_id": 22,
+                "label": "text",
+                "score": 0.7569836974143982,
+                "coordinate": [
+                    464,
+                    322,
+                    728,
+                    353
+                ],
+                "order": 4,
+                "polygon_points": [
+                    [
+                        464.0,
+                        322.0
+                    ],
+                    [
+                        728.0,
+                        322.0
+                    ],
+                    [
+                        728.0,
+                        353.0
+                    ],
+                    [
+                        464.0,
+                        353.0
+                    ]
+                ]
+            },
+            {
+                "cls_id": 22,
+                "label": "text",
+                "score": 0.793114960193634,
+                "coordinate": [
+                    263,
+                    357,
+                    931,
+                    384
+                ],
+                "order": 5,
+                "polygon_points": [
+                    [
+                        263.0,
+                        357.0
+                    ],
+                    [
+                        931.0,
+                        357.0
+                    ],
+                    [
+                        931.0,
+                        384.0
+                    ],
+                    [
+                        263.0,
+                        384.0
+                    ]
+                ]
+            },
+            {
+                "cls_id": 22,
+                "label": "text",
+                "score": 0.7801727056503296,
+                "coordinate": [
+                    191,
+                    387,
+                    1000,
+                    415
+                ],
+                "order": 6,
+                "polygon_points": [
+                    [
+                        191.0,
+                        387.0
+                    ],
+                    [
+                        1000.0,
+                        387.0
+                    ],
+                    [
+                        1000.0,
+                        415.0
+                    ],
+                    [
+                        191.0,
+                        415.0
+                    ]
+                ]
+            },
+            {
+                "cls_id": 17,
+                "label": "paragraph_title",
+                "score": 0.8234235048294067,
+                "coordinate": [
+                    109,
+                    456,
+                    173,
+                    490
+                ],
+                "order": 7,
+                "polygon_points": [
+                    [
+                        109.0,
+                        456.0
+                    ],
+                    [
+                        173.0,
+                        456.0
+                    ],
+                    [
+                        173.0,
+                        490.0
+                    ],
+                    [
+                        109.0,
+                        490.0
+                    ]
+                ]
+            },
+            {
+                "cls_id": 0,
+                "label": "abstract",
+                "score": 0.7430796027183533,
+                "coordinate": [
+                    108,
+                    506,
+                    580,
+                    801
+                ],
+                "order": 8,
+                "polygon_points": [
+                    [
+                        108.0,
+                        506.0
+                    ],
+                    [
+                        580.0,
+                        506.0
+                    ],
+                    [
+                        580.0,
+                        801.0
+                    ],
+                    [
+                        108.0,
+                        801.0
+                    ]
+                ]
+            },
+            {
+                "cls_id": 17,
+                "label": "paragraph_title",
+                "score": 0.8522690534591675,
+                "coordinate": [
+                    109,
+                    817,
+                    272,
+                    848
+                ],
+                "order": 9,
+                "polygon_points": [
+                    [
+                        109.0,
+                        817.0
+                    ],
+                    [
+                        272.0,
+                        817.0
+                    ],
+                    [
+                        272.0,
+                        848.0
+                    ],
+                    [
+                        109.0,
+                        848.0
+                    ]
+                ]
+            },
+            {
+                "cls_id": 22,
+                "label": "text",
+                "score": 0.9446437954902649,
+                "coordinate": [
+                    108,
+                    864,
+                    579,
+                    980
+                ],
+                "order": 10,
+                "polygon_points": [
+                    [
+                        108.0,
+                        864.0
+                    ],
+                    [
+                        579.0,
+                        864.0
+                    ],
+                    [
+                        579.0,
+                        980.0
+                    ],
+                    [
+                        108.0,
+                        980.0
+                    ]
+                ]
+            },
+            {
+                "cls_id": 22,
+                "label": "text",
+                "score": 0.9520348906517029,
+                "coordinate": [
+                    107,
+                    986,
+                    581,
+                    1516
+                ],
+                "order": 11,
+                "polygon_points": [
+                    [
+                        107.0,
+                        986.0
+                    ],
+                    [
+                        581.0,
+                        986.0
+                    ],
+                    [
+                        581.0,
+                        1516.0
+                    ],
+                    [
+                        107.0,
+                        1516.0
+                    ]
+                ]
+            },
+            {
+                "cls_id": 22,
+                "label": "text",
+                "score": 0.36915913224220276,
+                "coordinate": [
+                    107,
+                    1434,
+                    580,
+                    1519
+                ],
+                "order": 12,
+                "polygon_points": [
+                    [
+                        107.0,
+                        1434.0
+                    ],
+                    [
+                        580.0,
+                        1434.0
+                    ],
+                    [
+                        580.0,
+                        1519.0
+                    ],
+                    [
+                        107.0,
+                        1519.0
+                    ]
+                ]
+            },
+            {
+                "cls_id": 14,
+                "label": "image",
+                "score": 0.9648140668869019,
+                "coordinate": [
+                    697,
+                    444,
+                    995,
+                    596
+                ],
+                "order": null,
+                "polygon_points": [
+                    [
+                        697.0,
+                        444.0
+                    ],
+                    [
+                        995.0,
+                        444.0
+                    ],
+                    [
+                        995.0,
+                        596.0
+                    ],
+                    [
+                        697.0,
+                        596.0
+                    ]
+                ]
+            },
+            {
+                "cls_id": 7,
+                "label": "figure_title",
+                "score": 0.8182920217514038,
+                "coordinate": [
+                    757,
+                    607,
+                    935,
+                    629
+                ],
+                "order": null,
+                "polygon_points": [
+                    [
+                        757.0,
+                        607.0
+                    ],
+                    [
+                        934.0,
+                        607.0
+                    ],
+                    [
+                        934.0,
+                        628.0
+                    ],
+                    [
+                        757.0,
+                        628.0
+                    ]
+                ]
+            },
+            {
+                "cls_id": 14,
+                "label": "image",
+                "score": 0.9579552412033081,
+                "coordinate": [
+                    631,
+                    641,
+                    823,
+                    841
+                ],
+                "order": null,
+                "polygon_points": [
+                    [
+                        631.0,
+                        641.0
+                    ],
+                    [
+                        823.0,
+                        641.0
+                    ],
+                    [
+                        823.0,
+                        841.0
+                    ],
+                    [
+                        631.0,
+                        841.0
+                    ]
+                ]
+            },
+            {
+                "cls_id": 7,
+                "label": "figure_title",
+                "score": 0.8163250684738159,
+                "coordinate": [
+                    637,
+                    853,
+                    815,
+                    874
+                ],
+                "order": null,
+                "polygon_points": [
+                    [
+                        637.0,
+                        853.0
+                    ],
+                    [
+                        814.0,
+                        853.0
+                    ],
+                    [
+                        814.0,
+                        873.0
+                    ],
+                    [
+                        637.0,
+                        873.0
+                    ]
+                ]
+            },
+            {
+                "cls_id": 14,
+                "label": "image",
+                "score": 0.9686899781227112,
+                "coordinate": [
+                    856,
+                    640,
+                    1075,
+                    841
+                ],
+                "order": null,
+                "polygon_points": [
+                    [
+                        856.0,
+                        640.0
+                    ],
+                    [
+                        1075.0,
+                        640.0
+                    ],
+                    [
+                        1075.0,
+                        841.0
+                    ],
+                    [
+                        856.0,
+                        841.0
+                    ]
+                ]
+            },
+            {
+                "cls_id": 7,
+                "label": "figure_title",
+                "score": 0.840417742729187,
+                "coordinate": [
+                    879,
+                    852,
+                    1055,
+                    874
+                ],
+                "order": null,
+                "polygon_points": [
+                    [
+                        879.0,
+                        852.0
+                    ],
+                    [
+                        1054.0,
+                        852.0
+                    ],
+                    [
+                        1054.0,
+                        873.0
+                    ],
+                    [
+                        879.0,
+                        873.0
+                    ]
+                ]
+            },
+            {
+                "cls_id": 7,
+                "label": "figure_title",
+                "score": 0.8487938046455383,
+                "coordinate": [
+                    677,
+                    885,
+                    1015,
+                    909
+                ],
+                "order": null,
+                "polygon_points": [
+                    [
+                        677.0,
+                        885.0
+                    ],
+                    [
+                        1015.0,
+                        885.0
+                    ],
+                    [
+                        1015.0,
+                        909.0
+                    ],
+                    [
+                        677.0,
+                        909.0
+                    ]
+                ]
+            },
+            {
+                "cls_id": 22,
+                "label": "text",
+                "score": 0.9335352778434753,
+                "coordinate": [
+                    609,
+                    955,
+                    1081,
+                    1070
+                ],
+                "order": 13,
+                "polygon_points": [
+                    [
+                        609.0,
+                        955.0
+                    ],
+                    [
+                        1081.0,
+                        955.0
+                    ],
+                    [
+                        1081.0,
+                        1070.0
+                    ],
+                    [
+                        609.0,
+                        1070.0
+                    ]
+                ]
+            },
+            {
+                "cls_id": 22,
+                "label": "text",
+                "score": 0.9432732462882996,
+                "coordinate": [
+                    610,
+                    1075,
+                    1083,
+                    1251
+                ],
+                "order": 14,
+                "polygon_points": [
+                    [
+                        610.0,
+                        1075.0
+                    ],
+                    [
+                        1083.0,
+                        1075.0
+                    ],
+                    [
+                        1083.0,
+                        1251.0
+                    ],
+                    [
+                        610.0,
+                        1251.0
+                    ]
+                ]
+            },
+            {
+                "cls_id": 17,
+                "label": "paragraph_title",
+                "score": 0.8480720520019531,
+                "coordinate": [
+                    611,
+                    1266,
+                    776,
+                    1298
+                ],
+                "order": 15,
+                "polygon_points": [
+                    [
+                        611.0,
+                        1266.0
+                    ],
+                    [
+                        776.0,
+                        1266.0
+                    ],
+                    [
+                        776.0,
+                        1298.0
+                    ],
+                    [
+                        611.0,
+                        1298.0
+                    ]
+                ]
+            },
+            {
+                "cls_id": 17,
+                "label": "paragraph_title",
+                "score": 0.8416772484779358,
+                "coordinate": [
+                    610,
+                    1327,
+                    940,
+                    1356
+                ],
+                "order": 16,
+                "polygon_points": [
+                    [
+                        610.0,
+                        1327.0
+                    ],
+                    [
+                        940.0,
+                        1327.0
+                    ],
+                    [
+                        940.0,
+                        1356.0
+                    ],
+                    [
+                        610.0,
+                        1356.0
+                    ]
+                ]
+            },
+            {
+                "cls_id": 22,
+                "label": "text",
+                "score": 0.9496614933013916,
+                "coordinate": [
+                    608,
+                    1374,
+                    1083,
+                    1521
+                ],
+                "order": 17,
+                "polygon_points": [
+                    [
+                        608.0,
+                        1374.0
+                    ],
+                    [
+                        1083.0,
+                        1374.0
+                    ],
+                    [
+                        1083.0,
+                        1521.0
+                    ],
+                    [
+                        608.0,
+                        1521.0
+                    ]
+                ]
+            }
+        ]
+    }
+}
