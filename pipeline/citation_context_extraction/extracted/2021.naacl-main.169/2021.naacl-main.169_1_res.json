@@ -1,0 +1,979 @@
+{
+    "input_path": "pdfs/2021.naacl-main.169.pdf",
+    "page_index": 1,
+    "page_count": 10,
+    "width": 1191,
+    "height": 1684,
+    "model_settings": {
+        "use_doc_preprocessor": false,
+        "use_layout_detection": true,
+        "use_chart_recognition": false,
+        "use_seal_recognition": false,
+        "use_ocr_for_image_block": false,
+        "format_block_content": false,
+        "merge_layout_blocks": true,
+        "markdown_ignore_labels": [
+            "number",
+            "footnote",
+            "header",
+            "header_image",
+            "footer",
+            "footer_image",
+            "aside_text"
+        ],
+        "return_layout_polygon_points": true
+    },
+    "parsing_res_list": [
+        {
+            "block_label": "table",
+            "block_content": "<table><tr><td></td><td>Emotion</td><td>Intensity</td><td>Subj.</td><td>Obj.</td><td>Language</td><td>Size</td></tr><tr><td>ISEAR (Scherer and Wallbott, 1994)</td><td>E6</td><td>n/a</td><td>✓</td><td>✗</td><td>English</td><td>7,666</td></tr><tr><td>Blogs (Aman and Szpakowicz, 2007)</td><td>E6</td><td>\\{Low, Med., High\\}</td><td>✗</td><td>✓</td><td>English</td><td>5,025</td></tr><tr><td>SemEval-2007 (Strapparava and Mihalcea, 2007)</td><td>E6</td><td>[0, 100]</td><td>✗</td><td>✓</td><td>English</td><td>1,250</td></tr><tr><td>WASSA-2017 (Mohammad and Bravo-Marquez, 2017b)</td><td>M4</td><td>[0, 1]</td><td>✗</td><td>✓</td><td>English</td><td>7,097</td></tr><tr><td>SemEval-2018 (Mohammad et al., 2018)</td><td>M4</td><td>[0, 1]</td><td>✗</td><td>✓</td><td>English</td><td>12,634</td></tr><tr><td>EmoBank (Buechel and Hahn, 2017)</td><td>VAD</td><td>\\{1, 2, 3, 4, 5\\}</td><td>✗</td><td>✓</td><td>English</td><td>10,062</td></tr><tr><td>GoodNewsEveryone (Bostan et al., 2020)</td><td>P8</td><td>\\{Low, Med., High\\}</td><td>✗</td><td>✓</td><td>English</td><td>5,000</td></tr><tr><td>WRIME (Ours)</td><td>P8</td><td>\\{0, 1, 2, 3\\}</td><td>✓</td><td>✓</td><td>Japanese</td><td>17,000</td></tr></table>",
+            "block_bbox": [
+                142,
+                141,
+                1051,
+                355
+            ],
+            "block_id": 0,
+            "block_order": null,
+            "group_id": 0,
+            "global_block_id": 17,
+            "global_group_id": 17,
+            "block_polygon_points": [
+                [
+                    142.0,
+                    141.0
+                ],
+                [
+                    1051.0,
+                    141.0
+                ],
+                [
+                    1051.0,
+                    355.0
+                ],
+                [
+                    142.0,
+                    355.0
+                ]
+            ]
+        },
+        {
+            "block_label": "figure_title",
+            "block_content": "Table 1: List of datasets with emotional intensity. In the “Emotion” column, datasets with E6 adopt the six emotions by Ekman (1992): anger, disgust, fear, joy, sadness, surprise, ones with P8 adopts the eight emotions by Plutchik (1980): anger, disgust, fear, joy, sadness, surprise, trust, anticipation, and ones with M4 adopts the four emotions by Mohammad et al.: joy, sadness, anger, fear.",
+            "block_bbox": [
+                136,
+                375,
+                1053,
+                473
+            ],
+            "block_id": 1,
+            "block_order": null,
+            "group_id": 1,
+            "global_block_id": 18,
+            "global_group_id": 18,
+            "block_polygon_points": [
+                [
+                    136.0,
+                    375.0
+                ],
+                [
+                    1053.0,
+                    375.0
+                ],
+                [
+                    1053.0,
+                    473.0
+                ],
+                [
+                    136.0,
+                    473.0
+                ]
+            ]
+        },
+        {
+            "block_label": "text",
+            "block_content": "participants via crowdsourcing service. They annotated their own past posts on a social networking service (SNS) with the subjective emotional intensity. We also hired 3 annotators, who annotated all posts with the objective emotional intensity. Consequently, our Japanese emotion analysis dataset consists of 17,000 posts with both subjective and objective emotional intensities for Plutchik's eight emotions (Plutchik, 1980), which are given in a four-point scale (no, weak, medium, and strong).",
+            "block_bbox": [
+                134,
+                514,
+                585,
+                787
+            ],
+            "block_id": 2,
+            "block_order": 1,
+            "group_id": 2,
+            "global_block_id": 19,
+            "global_group_id": 19,
+            "block_polygon_points": [
+                [
+                    134.0,
+                    514.0
+                ],
+                [
+                    585.0,
+                    514.0
+                ],
+                [
+                    585.0,
+                    787.0
+                ],
+                [
+                    134.0,
+                    787.0
+                ]
+            ]
+        },
+        {
+            "block_label": "text",
+            "block_content": "Our comparative study over subjective and objective labels demonstrates that readers may not well infer the emotions of the writers, especially of anger and trust. For example, even for posts written by the writer with a strong anger emotion, our readers (i.e., the annotators) did not assign the anger label at all to more than half of the posts with the subjective anger label. Overall, readers may tend to underestimate the writers' emotional intensities. In addition, experimental results on emotional intensity estimation with BERT (Devlin et al., 2019) show that predicting the subjective labels is a more difficult task than predicting the objective ones. This large gap between the subjective and objective annotations implies the challenge in predicting the subjective emotional intensity for a machine learning model, which can be viewed as a \"reader\" of the posts.",
+            "block_bbox": [
+                134,
+                788,
+                584,
+                1276
+            ],
+            "block_id": 3,
+            "block_order": 2,
+            "group_id": 3,
+            "global_block_id": 20,
+            "global_group_id": 20,
+            "block_polygon_points": [
+                [
+                    134.0,
+                    788.0
+                ],
+                [
+                    584.0,
+                    788.0
+                ],
+                [
+                    584.0,
+                    1276.0
+                ],
+                [
+                    134.0,
+                    1276.0
+                ]
+            ]
+        },
+        {
+            "block_label": "paragraph_title",
+            "block_content": "2 Related Work",
+            "block_bbox": [
+                136,
+                1298,
+                325,
+                1325
+            ],
+            "block_id": 4,
+            "block_order": 3,
+            "group_id": 4,
+            "global_block_id": 21,
+            "global_group_id": 21,
+            "block_polygon_points": [
+                [
+                    136.0,
+                    1298.0
+                ],
+                [
+                    325.0,
+                    1298.0
+                ],
+                [
+                    325.0,
+                    1325.0
+                ],
+                [
+                    136.0,
+                    1325.0
+                ]
+            ]
+        },
+        {
+            "block_label": "text",
+            "block_content": "To estimate the emotional intensity of the text, datasets labeled with Ekman's six emotions (Ekman, 1992) and Plutchik's eight emotions (Plutchik, 1980) has been constructed for languages such as English, as shown in Table 1. EmoBank $ ^{4} $ (Buechel and Hahn, 2017), which is most relevant to ours, labels the emotional intensity of both the writers and readers of the text. However, the annotators for EmoBank are not writers, and readers are required to guess the writer's emotion; therefore, to be strict, this dataset only contains the objective labels. Our dataset is the first to collect the subjective emotional intensity of the writers themselves.",
+            "block_bbox": [
+                134,
+                1344,
+                585,
+                1508
+            ],
+            "block_id": 5,
+            "block_order": 4,
+            "group_id": 5,
+            "global_block_id": 22,
+            "global_group_id": 22,
+            "block_polygon_points": [
+                [
+                    134.0,
+                    1344.0
+                ],
+                [
+                    585.0,
+                    1344.0
+                ],
+                [
+                    585.0,
+                    1508.0
+                ],
+                [
+                    134.0,
+                    1508.0
+                ]
+            ]
+        },
+        {
+            "block_label": "text",
+            "block_content": "",
+            "block_bbox": [
+                604,
+                515,
+                1057,
+                703
+            ],
+            "block_id": 6,
+            "block_order": 5,
+            "group_id": 5,
+            "global_block_id": 23,
+            "global_group_id": 23,
+            "block_polygon_points": [
+                [
+                    604.0,
+                    515.0
+                ],
+                [
+                    1057.0,
+                    515.0
+                ],
+                [
+                    1057.0,
+                    703.0
+                ],
+                [
+                    604.0,
+                    703.0
+                ]
+            ]
+        },
+        {
+            "block_label": "text",
+            "block_content": "ISEAR (Scherer and Wallbott, 1994) is a dataset with subjective emotional labels. This is a dataset in which annotators describe their own past events in each emotion. They use a label set that adds shame and guilt to Ekman's six emotions. Although ISEAR is the only dataset with subjective emotional labels, their intensity is not considered.",
+            "block_bbox": [
+                604,
+                705,
+                1055,
+                893
+            ],
+            "block_id": 7,
+            "block_order": 6,
+            "group_id": 7,
+            "global_block_id": 24,
+            "global_group_id": 24,
+            "block_polygon_points": [
+                [
+                    604.0,
+                    705.0
+                ],
+                [
+                    1055.0,
+                    705.0
+                ],
+                [
+                    1055.0,
+                    893.0
+                ],
+                [
+                    604.0,
+                    893.0
+                ]
+            ]
+        },
+        {
+            "block_label": "text",
+            "block_content": "Early studies in collecting objective emotional labels were annotated by experts. Aman and Szpakowicz (2007) labeled each sentence of English blog posts with Ekman's six emotions and their intensity on a three-point scale. Strapparava and Mihalcea (2007) labeled Ekman's six emotional intensities to English news headlines and held a competition of SemEval-2007 Task 14. $ ^{5} $",
+            "block_bbox": [
+                605,
+                894,
+                1056,
+                1110
+            ],
+            "block_id": 8,
+            "block_order": 7,
+            "group_id": 8,
+            "global_block_id": 25,
+            "global_group_id": 25,
+            "block_polygon_points": [
+                [
+                    605.0,
+                    894.0
+                ],
+                [
+                    1056.0,
+                    894.0
+                ],
+                [
+                    1056.0,
+                    1110.0
+                ],
+                [
+                    605.0,
+                    1110.0
+                ]
+            ]
+        },
+        {
+            "block_label": "text",
+            "block_content": "In recent years, there have been many studies on collecting objective emotional labels using crowdsourcing. Mohammad and Bravo-Marquez (2017a); Mohammad and Kiritchenko (2018) labeled tweets in English, Arabic, and Spanish with the intensity of four emotions (joy, sadness, anger, and fear). Using these datasets, they held a series of competitions to estimate the emotional intensity in WASSA-2017 Shared Task on Emotion Intensity $ ^{6} $ (Mohammad and Bravo-Marquez, 2017b) and SemEval-2018 Task 1 $ ^{7} $ (Mohammad et al., 2018).",
+            "block_bbox": [
+                604,
+                1112,
+                1057,
+                1411
+            ],
+            "block_id": 9,
+            "block_order": 8,
+            "group_id": 9,
+            "global_block_id": 26,
+            "global_group_id": 26,
+            "block_polygon_points": [
+                [
+                    604.0,
+                    1112.0
+                ],
+                [
+                    1057.0,
+                    1112.0
+                ],
+                [
+                    1057.0,
+                    1411.0
+                ],
+                [
+                    604.0,
+                    1411.0
+                ]
+            ]
+        },
+        {
+            "block_label": "footnote",
+            "block_content": " $ ^{5} $http://web.eecs.umich.edu/~mihalcea/affectivetext/",
+            "block_bbox": [
+                607,
+                1422,
+                1035,
+                1464
+            ],
+            "block_id": 10,
+            "block_order": null,
+            "group_id": 10,
+            "global_block_id": 27,
+            "global_group_id": 27,
+            "block_polygon_points": [
+                [
+                    607.0,
+                    1422.0
+                ],
+                [
+                    1035.0,
+                    1422.0
+                ],
+                [
+                    1035.0,
+                    1464.0
+                ],
+                [
+                    607.0,
+                    1464.0
+                ]
+            ]
+        },
+        {
+            "block_label": "footnote",
+            "block_content": " $ ^{4} $https://github.com/JULIELab/EmoBank",
+            "block_bbox": [
+                162,
+                1524,
+                553,
+                1549
+            ],
+            "block_id": 11,
+            "block_order": null,
+            "group_id": 11,
+            "global_block_id": 28,
+            "global_group_id": 28,
+            "block_polygon_points": [
+                [
+                    162.0,
+                    1524.0
+                ],
+                [
+                    553.0,
+                    1524.0
+                ],
+                [
+                    553.0,
+                    1549.0
+                ],
+                [
+                    162.0,
+                    1549.0
+                ]
+            ]
+        },
+        {
+            "block_label": "footnote",
+            "block_content": " $ ^{6} $https://saifmohammad.com/WebPages/EmotionIntensity-SharedTask.html",
+            "block_bbox": [
+                607,
+                1465,
+                1016,
+                1507
+            ],
+            "block_id": 12,
+            "block_order": null,
+            "group_id": 12,
+            "global_block_id": 29,
+            "global_group_id": 29,
+            "block_polygon_points": [
+                [
+                    607.0,
+                    1465.0
+                ],
+                [
+                    1016.0,
+                    1465.0
+                ],
+                [
+                    1016.0,
+                    1507.0
+                ],
+                [
+                    607.0,
+                    1507.0
+                ]
+            ]
+        },
+        {
+            "block_label": "footnote",
+            "block_content": " $ ^{7} $https://competitions.codalab.org/competitions/17751",
+            "block_bbox": [
+                609,
+                1507,
+                1005,
+                1548
+            ],
+            "block_id": 13,
+            "block_order": null,
+            "group_id": 13,
+            "global_block_id": 30,
+            "global_group_id": 30,
+            "block_polygon_points": [
+                [
+                    609.0,
+                    1507.0
+                ],
+                [
+                    1005.0,
+                    1507.0
+                ],
+                [
+                    1005.0,
+                    1548.0
+                ],
+                [
+                    609.0,
+                    1548.0
+                ]
+            ]
+        },
+        {
+            "block_label": "number",
+            "block_content": "2096",
+            "block_bbox": [
+                573,
+                1552,
+                623,
+                1575
+            ],
+            "block_id": 14,
+            "block_order": null,
+            "group_id": 14,
+            "global_block_id": 31,
+            "global_group_id": 31,
+            "block_polygon_points": [
+                [
+                    573.0,
+                    1552.0
+                ],
+                [
+                    622.0,
+                    1552.0
+                ],
+                [
+                    622.0,
+                    1574.0
+                ],
+                [
+                    573.0,
+                    1574.0
+                ]
+            ]
+        }
+    ],
+    "layout_det_res": {
+        "input_path": null,
+        "page_index": null,
+        "boxes": [
+            {
+                "cls_id": 21,
+                "label": "table",
+                "score": 0.9597992300987244,
+                "coordinate": [
+                    142,
+                    141,
+                    1051,
+                    355
+                ],
+                "order": null,
+                "polygon_points": [
+                    [
+                        142.0,
+                        141.0
+                    ],
+                    [
+                        1051.0,
+                        141.0
+                    ],
+                    [
+                        1051.0,
+                        355.0
+                    ],
+                    [
+                        142.0,
+                        355.0
+                    ]
+                ]
+            },
+            {
+                "cls_id": 7,
+                "label": "figure_title",
+                "score": 0.8916754722595215,
+                "coordinate": [
+                    136,
+                    375,
+                    1053,
+                    473
+                ],
+                "order": null,
+                "polygon_points": [
+                    [
+                        136.0,
+                        375.0
+                    ],
+                    [
+                        1053.0,
+                        375.0
+                    ],
+                    [
+                        1053.0,
+                        473.0
+                    ],
+                    [
+                        136.0,
+                        473.0
+                    ]
+                ]
+            },
+            {
+                "cls_id": 22,
+                "label": "text",
+                "score": 0.9614940881729126,
+                "coordinate": [
+                    134,
+                    514,
+                    585,
+                    787
+                ],
+                "order": 1,
+                "polygon_points": [
+                    [
+                        134.0,
+                        514.0
+                    ],
+                    [
+                        585.0,
+                        514.0
+                    ],
+                    [
+                        585.0,
+                        787.0
+                    ],
+                    [
+                        134.0,
+                        787.0
+                    ]
+                ]
+            },
+            {
+                "cls_id": 22,
+                "label": "text",
+                "score": 0.9672868847846985,
+                "coordinate": [
+                    134,
+                    788,
+                    584,
+                    1276
+                ],
+                "order": 2,
+                "polygon_points": [
+                    [
+                        134.0,
+                        788.0
+                    ],
+                    [
+                        584.0,
+                        788.0
+                    ],
+                    [
+                        584.0,
+                        1276.0
+                    ],
+                    [
+                        134.0,
+                        1276.0
+                    ]
+                ]
+            },
+            {
+                "cls_id": 17,
+                "label": "paragraph_title",
+                "score": 0.841552734375,
+                "coordinate": [
+                    136,
+                    1298,
+                    325,
+                    1325
+                ],
+                "order": 3,
+                "polygon_points": [
+                    [
+                        136.0,
+                        1298.0
+                    ],
+                    [
+                        325.0,
+                        1298.0
+                    ],
+                    [
+                        325.0,
+                        1325.0
+                    ],
+                    [
+                        136.0,
+                        1325.0
+                    ]
+                ]
+            },
+            {
+                "cls_id": 22,
+                "label": "text",
+                "score": 0.9494981169700623,
+                "coordinate": [
+                    134,
+                    1344,
+                    585,
+                    1508
+                ],
+                "order": 4,
+                "polygon_points": [
+                    [
+                        134.0,
+                        1344.0
+                    ],
+                    [
+                        585.0,
+                        1344.0
+                    ],
+                    [
+                        585.0,
+                        1508.0
+                    ],
+                    [
+                        134.0,
+                        1508.0
+                    ]
+                ]
+            },
+            {
+                "cls_id": 22,
+                "label": "text",
+                "score": 0.9642766714096069,
+                "coordinate": [
+                    604,
+                    515,
+                    1057,
+                    703
+                ],
+                "order": 5,
+                "polygon_points": [
+                    [
+                        604.0,
+                        515.0
+                    ],
+                    [
+                        1057.0,
+                        515.0
+                    ],
+                    [
+                        1057.0,
+                        703.0
+                    ],
+                    [
+                        604.0,
+                        703.0
+                    ]
+                ]
+            },
+            {
+                "cls_id": 22,
+                "label": "text",
+                "score": 0.9633005261421204,
+                "coordinate": [
+                    604,
+                    705,
+                    1055,
+                    893
+                ],
+                "order": 6,
+                "polygon_points": [
+                    [
+                        604.0,
+                        705.0
+                    ],
+                    [
+                        1055.0,
+                        705.0
+                    ],
+                    [
+                        1055.0,
+                        893.0
+                    ],
+                    [
+                        604.0,
+                        893.0
+                    ]
+                ]
+            },
+            {
+                "cls_id": 22,
+                "label": "text",
+                "score": 0.9616953730583191,
+                "coordinate": [
+                    605,
+                    894,
+                    1056,
+                    1110
+                ],
+                "order": 7,
+                "polygon_points": [
+                    [
+                        605.0,
+                        894.0
+                    ],
+                    [
+                        1056.0,
+                        894.0
+                    ],
+                    [
+                        1056.0,
+                        1110.0
+                    ],
+                    [
+                        605.0,
+                        1110.0
+                    ]
+                ]
+            },
+            {
+                "cls_id": 22,
+                "label": "text",
+                "score": 0.9617162942886353,
+                "coordinate": [
+                    604,
+                    1112,
+                    1057,
+                    1411
+                ],
+                "order": 8,
+                "polygon_points": [
+                    [
+                        604.0,
+                        1112.0
+                    ],
+                    [
+                        1057.0,
+                        1112.0
+                    ],
+                    [
+                        1057.0,
+                        1411.0
+                    ],
+                    [
+                        604.0,
+                        1411.0
+                    ]
+                ]
+            },
+            {
+                "cls_id": 10,
+                "label": "footnote",
+                "score": 0.9471721053123474,
+                "coordinate": [
+                    607,
+                    1422,
+                    1035,
+                    1464
+                ],
+                "order": null,
+                "polygon_points": [
+                    [
+                        607.0,
+                        1422.0
+                    ],
+                    [
+                        1035.0,
+                        1422.0
+                    ],
+                    [
+                        1035.0,
+                        1464.0
+                    ],
+                    [
+                        607.0,
+                        1464.0
+                    ]
+                ]
+            },
+            {
+                "cls_id": 10,
+                "label": "footnote",
+                "score": 0.8565424084663391,
+                "coordinate": [
+                    162,
+                    1524,
+                    553,
+                    1549
+                ],
+                "order": null,
+                "polygon_points": [
+                    [
+                        162.0,
+                        1524.0
+                    ],
+                    [
+                        553.0,
+                        1524.0
+                    ],
+                    [
+                        553.0,
+                        1549.0
+                    ],
+                    [
+                        162.0,
+                        1549.0
+                    ]
+                ]
+            },
+            {
+                "cls_id": 10,
+                "label": "footnote",
+                "score": 0.915835976600647,
+                "coordinate": [
+                    607,
+                    1465,
+                    1016,
+                    1507
+                ],
+                "order": null,
+                "polygon_points": [
+                    [
+                        607.0,
+                        1465.0
+                    ],
+                    [
+                        1016.0,
+                        1465.0
+                    ],
+                    [
+                        1016.0,
+                        1507.0
+                    ],
+                    [
+                        607.0,
+                        1507.0
+                    ]
+                ]
+            },
+            {
+                "cls_id": 10,
+                "label": "footnote",
+                "score": 0.8703933358192444,
+                "coordinate": [
+                    609,
+                    1507,
+                    1005,
+                    1548
+                ],
+                "order": null,
+                "polygon_points": [
+                    [
+                        609.0,
+                        1507.0
+                    ],
+                    [
+                        1005.0,
+                        1507.0
+                    ],
+                    [
+                        1005.0,
+                        1548.0
+                    ],
+                    [
+                        609.0,
+                        1548.0
+                    ]
+                ]
+            },
+            {
+                "cls_id": 16,
+                "label": "number",
+                "score": 0.7301046848297119,
+                "coordinate": [
+                    573,
+                    1552,
+                    623,
+                    1575
+                ],
+                "order": 9,
+                "polygon_points": [
+                    [
+                        573.0,
+                        1552.0
+                    ],
+                    [
+                        622.0,
+                        1552.0
+                    ],
+                    [
+                        622.0,
+                        1574.0
+                    ],
+                    [
+                        573.0,
+                        1574.0
+                    ]
+                ]
+            }
+        ]
+    }
+}
