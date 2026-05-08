@@ -1,0 +1,664 @@
+{
+    "input_path": "pdfs/2021.naacl-main.169.pdf",
+    "page_index": 4,
+    "page_count": 10,
+    "width": 1191,
+    "height": 1684,
+    "model_settings": {
+        "use_doc_preprocessor": false,
+        "use_layout_detection": true,
+        "use_chart_recognition": false,
+        "use_seal_recognition": false,
+        "use_ocr_for_image_block": false,
+        "format_block_content": false,
+        "merge_layout_blocks": true,
+        "markdown_ignore_labels": [
+            "number",
+            "footnote",
+            "header",
+            "header_image",
+            "footer",
+            "footer_image",
+            "aside_text"
+        ],
+        "return_layout_polygon_points": true
+    },
+    "parsing_res_list": [
+        {
+            "block_label": "table",
+            "block_content": "<table><tr><td rowspan=\"2\">Intensity</td><td colspan=\"4\">Joy</td><td colspan=\"4\">Sadness</td><td colspan=\"4\">Anticipation</td></tr><tr><td>W</td><td>R1</td><td>R2</td><td>R3</td><td>W</td><td>R1</td><td>R2</td><td>R3</td><td>W</td><td>R1</td><td>R2</td><td>R3</td></tr><tr><td>0</td><td>9,942</td><td>12,043</td><td>12,379</td><td>11,213</td><td>10,472</td><td>13,205</td><td>11,961</td><td>12,559</td><td>9,991</td><td>11,714</td><td>12,509</td><td>10,796</td></tr><tr><td>1</td><td>2,454</td><td>291</td><td>1,074</td><td>1,397</td><td>2,837</td><td>389</td><td>1,881</td><td>2,123</td><td>2,996</td><td>610</td><td>1,245</td><td>2,683</td></tr><tr><td>2</td><td>2,283</td><td>2,285</td><td>2,055</td><td>3,475</td><td>2,140</td><td>2,127</td><td>2,168</td><td>1,846</td><td>2,172</td><td>2,507</td><td>1,825</td><td>2,119</td></tr><tr><td>3</td><td>2,321</td><td>2,381</td><td>1,492</td><td>915</td><td>1,551</td><td>1,279</td><td>990</td><td>472</td><td>1,841</td><td>2,169</td><td>1,421</td><td>1,402</td></tr><tr><td rowspan=\"2\">Intensity</td><td colspan=\"4\">Surprise</td><td colspan=\"4\">Anger</td><td colspan=\"4\">Fear</td></tr><tr><td>W</td><td>R1</td><td>R2</td><td>R3</td><td>W</td><td>R1</td><td>R2</td><td>R3</td><td>W</td><td>R1</td><td>R2</td><td>R3</td></tr><tr><td>0</td><td>11,148</td><td>10,534</td><td>14,143</td><td>10,974</td><td>14,408</td><td>16,278</td><td>16,180</td><td>16,223</td><td>13,355</td><td>13,285</td><td>15,163</td><td>13,877</td></tr><tr><td>1</td><td>2,605</td><td>997</td><td>1,429</td><td>2,840</td><td>1,284</td><td>156</td><td>304</td><td>311</td><td>1,815</td><td>384</td><td>626</td><td>1,478</td></tr><tr><td>2</td><td>1,778</td><td>3,234</td><td>971</td><td>2,027</td><td>661</td><td>285</td><td>315</td><td>266</td><td>1,082</td><td>2,032</td><td>838</td><td>1,070</td></tr><tr><td>3</td><td>1,469</td><td>2,235</td><td>457</td><td>1,159</td><td>647</td><td>281</td><td>201</td><td>200</td><td>748</td><td>1,299</td><td>373</td><td>575</td></tr><tr><td rowspan=\"2\">Intensity</td><td colspan=\"4\">Disgust</td><td colspan=\"4\">Trust</td><td colspan=\"4\">Overall</td></tr><tr><td>W</td><td>R1</td><td>R2</td><td>R3</td><td>W</td><td>R1</td><td>R2</td><td>R3</td><td>W</td><td>R1</td><td>R2</td><td>R3</td></tr><tr><td>0</td><td>13,258</td><td>14,538</td><td>14,333</td><td>11,959</td><td>12,682</td><td>16,165</td><td>15,920</td><td>15,979</td><td>95,256</td><td>107,762</td><td>112,588</td><td>103,580</td></tr><tr><td>1</td><td>1,882</td><td>449</td><td>1,248</td><td>2,436</td><td>2,162</td><td>470</td><td>466</td><td>609</td><td>18,035</td><td>3,746</td><td>8,273</td><td>13,877</td></tr><tr><td>2</td><td>959</td><td>1,190</td><td>934</td><td>1,242</td><td>1,239</td><td>239</td><td>395</td><td>300</td><td>12,314</td><td>13,899</td><td>9,501</td><td>12,345</td></tr><tr><td>3</td><td>901</td><td>823</td><td>485</td><td>1,363</td><td>917</td><td>126</td><td>219</td><td>112</td><td>10,395</td><td>10,593</td><td>5,638</td><td>6,198</td></tr></table>",
+            "block_bbox": [
+                138,
+                137,
+                1052,
+                633
+            ],
+            "block_id": 0,
+            "block_order": null,
+            "group_id": 0,
+            "global_block_id": 64,
+            "global_group_id": 64,
+            "block_polygon_points": [
+                [
+                    138.0,
+                    137.0
+                ],
+                [
+                    1052.0,
+                    137.0
+                ],
+                [
+                    1052.0,
+                    633.0
+                ],
+                [
+                    138.0,
+                    633.0
+                ]
+            ]
+        },
+        {
+            "block_label": "figure_title",
+            "block_content": "Table 4: Distribution of emotional intensity labels. W, R1, R2, and R3 represent writer, reader 1, reader 2, and reader 3, respectively.",
+            "block_bbox": [
+                135,
+                653,
+                1053,
+                701
+            ],
+            "block_id": 1,
+            "block_order": null,
+            "group_id": 1,
+            "global_block_id": 65,
+            "global_group_id": 65,
+            "block_polygon_points": [
+                [
+                    135.0,
+                    653.0
+                ],
+                [
+                    1053.0,
+                    653.0
+                ],
+                [
+                    1053.0,
+                    701.0
+                ],
+                [
+                    135.0,
+                    701.0
+                ]
+            ]
+        },
+        {
+            "block_label": "paragraph_title",
+            "block_content": "4.1 Distribution of Emotional Intensity",
+            "block_bbox": [
+                135,
+                743,
+                522,
+                768
+            ],
+            "block_id": 2,
+            "block_order": 1,
+            "group_id": 2,
+            "global_block_id": 66,
+            "global_group_id": 66,
+            "block_polygon_points": [
+                [
+                    135.0,
+                    743.0
+                ],
+                [
+                    522.0,
+                    743.0
+                ],
+                [
+                    522.0,
+                    768.0
+                ],
+                [
+                    135.0,
+                    768.0
+                ]
+            ]
+        },
+        {
+            "block_label": "text",
+            "block_content": "Table 4 shows the distribution of emotional intensity labels. For all emotions, intensity 0 is most frequently assigned. This is not surprising, as it is rare for a single post to come with many emotions, which may be contradictory to each other, at the same time. $ ^{11} $ However, for emotions of anger and trust, about 95% of labels by the objective annotators have an intensity 0, which is particularly high. In other words, with regard to emotions of anger and trust, readers may tend to underestimate the emotions of the writers. In addition, we can see some characteristics of each objective annotator, e.g., the number of times that reader 1 gives intensity 1 is small.",
+            "block_bbox": [
+                134,
+                778,
+                585,
+                1159
+            ],
+            "block_id": 3,
+            "block_order": 2,
+            "group_id": 3,
+            "global_block_id": 67,
+            "global_group_id": 67,
+            "block_polygon_points": [
+                [
+                    134.0,
+                    778.0
+                ],
+                [
+                    585.0,
+                    778.0
+                ],
+                [
+                    585.0,
+                    1159.0
+                ],
+                [
+                    134.0,
+                    1159.0
+                ]
+            ]
+        },
+        {
+            "block_label": "paragraph_title",
+            "block_content": "4.2 Difference between Writers and Readers",
+            "block_bbox": [
+                136,
+                1178,
+                575,
+                1204
+            ],
+            "block_id": 4,
+            "block_order": 3,
+            "group_id": 4,
+            "global_block_id": 68,
+            "global_group_id": 68,
+            "block_polygon_points": [
+                [
+                    136.0,
+                    1178.0
+                ],
+                [
+                    575.0,
+                    1178.0
+                ],
+                [
+                    575.0,
+                    1204.0
+                ],
+                [
+                    136.0,
+                    1204.0
+                ]
+            ]
+        },
+        {
+            "block_label": "text",
+            "block_content": "The lower part of Table 2 shows the agreement between the subjective and the objective annotators. As with the agreement between the objective annotators in Section 3.2, we calculated the quadratic weighted kappa (Cohen, 1968). Agreement between subjective and objective annotators are lower than agreement between objective annotators (the upper part of Table 2). Especially for the emotion of anger, there is a large gap between the reader-reader agreements and writer-reader agreements. In addition, for the emotion of trust, the writer-reader agreement is even lower, although the reader-reader agreements are also low. These results imply that there is a large difference between the subjective and objective emotion.",
+            "block_bbox": [
+                133,
+                1215,
+                586,
+                1513
+            ],
+            "block_id": 5,
+            "block_order": 4,
+            "group_id": 5,
+            "global_block_id": 69,
+            "global_group_id": 69,
+            "block_polygon_points": [
+                [
+                    133.0,
+                    1215.0
+                ],
+                [
+                    586.0,
+                    1215.0
+                ],
+                [
+                    586.0,
+                    1513.0
+                ],
+                [
+                    133.0,
+                    1513.0
+                ]
+            ]
+        },
+        {
+            "block_label": "text",
+            "block_content": "",
+            "block_bbox": [
+                604,
+                743,
+                1055,
+                852
+            ],
+            "block_id": 6,
+            "block_order": 5,
+            "group_id": 5,
+            "global_block_id": 70,
+            "global_group_id": 70,
+            "block_polygon_points": [
+                [
+                    604.0,
+                    743.0
+                ],
+                [
+                    1055.0,
+                    743.0
+                ],
+                [
+                    1055.0,
+                    852.0
+                ],
+                [
+                    604.0,
+                    852.0
+                ]
+            ]
+        },
+        {
+            "block_label": "text",
+            "block_content": "Table 5 shows the confusion matrix between the subjective emotional intensity labels and the objective ones for respective emotions. For example, in posts where the writer labeled intensity 0 for joy, the percentages where the reader labeled intensities 0, 1, 2, and 3 were 91.7%, 3.1%, 4.0%, and 1.2%, respectively. This confusion matrix shows the fine-grained differences in emotional intensity between writers and readers, which reinforces our discussion in Section 3 that readers hardly detect the emotions associated with the post. Focusing on the emotion of anger in the confusion matrix, in 58.6% of the posts where the writer labeled intensity 3 (strong anger), the reader labeled intensity 0 (no emotions of anger). This is more prominent in the emotion of trust: for 81.5% of posts that the writer labeled intensity 3, the reader labeled intensity 0. This clearly demonstrates that the readers cannot infer the emotion trust of the writer. As for other emotions, readers are most likely to label an intensity 0 in posts labeled with an intensity 2 or less by the writer. Overall, the readers tend to underestimate the writer's emotions, and they rarely label intensity 1 or more when the writer label intensity 0.",
+            "block_bbox": [
+                603,
+                874,
+                1058,
+                1552
+            ],
+            "block_id": 7,
+            "block_order": 6,
+            "group_id": 7,
+            "global_block_id": 71,
+            "global_group_id": 71,
+            "block_polygon_points": [
+                [
+                    603.0,
+                    874.0
+                ],
+                [
+                    1058.0,
+                    874.0
+                ],
+                [
+                    1058.0,
+                    1552.0
+                ],
+                [
+                    603.0,
+                    1552.0
+                ]
+            ]
+        },
+        {
+            "block_label": "footnote",
+            "block_content": " $ ^{11} $90% of posts have less than 4 emotions at the same time.",
+            "block_bbox": [
+                154,
+                1525,
+                581,
+                1548
+            ],
+            "block_id": 8,
+            "block_order": null,
+            "group_id": 8,
+            "global_block_id": 72,
+            "global_group_id": 72,
+            "block_polygon_points": [
+                [
+                    154.0,
+                    1525.0
+                ],
+                [
+                    581.0,
+                    1525.0
+                ],
+                [
+                    581.0,
+                    1548.0
+                ],
+                [
+                    154.0,
+                    1548.0
+                ]
+            ]
+        },
+        {
+            "block_label": "number",
+            "block_content": "2099",
+            "block_bbox": [
+                574,
+                1553,
+                622,
+                1574
+            ],
+            "block_id": 9,
+            "block_order": null,
+            "group_id": 9,
+            "global_block_id": 73,
+            "global_group_id": 73,
+            "block_polygon_points": [
+                [
+                    573.9999389648438,
+                    1553.0
+                ],
+                [
+                    620.9999389648438,
+                    1553.0
+                ],
+                [
+                    620.9999389648438,
+                    1573.0
+                ],
+                [
+                    573.9999389648438,
+                    1573.0
+                ]
+            ]
+        }
+    ],
+    "layout_det_res": {
+        "input_path": null,
+        "page_index": null,
+        "boxes": [
+            {
+                "cls_id": 21,
+                "label": "table",
+                "score": 0.891552746295929,
+                "coordinate": [
+                    138,
+                    137,
+                    1052,
+                    633
+                ],
+                "order": null,
+                "polygon_points": [
+                    [
+                        138.0,
+                        137.0
+                    ],
+                    [
+                        1052.0,
+                        137.0
+                    ],
+                    [
+                        1052.0,
+                        633.0
+                    ],
+                    [
+                        138.0,
+                        633.0
+                    ]
+                ]
+            },
+            {
+                "cls_id": 7,
+                "label": "figure_title",
+                "score": 0.9032996892929077,
+                "coordinate": [
+                    135,
+                    653,
+                    1053,
+                    701
+                ],
+                "order": null,
+                "polygon_points": [
+                    [
+                        135.0,
+                        653.0
+                    ],
+                    [
+                        1053.0,
+                        653.0
+                    ],
+                    [
+                        1053.0,
+                        701.0
+                    ],
+                    [
+                        135.0,
+                        701.0
+                    ]
+                ]
+            },
+            {
+                "cls_id": 17,
+                "label": "paragraph_title",
+                "score": 0.8498320579528809,
+                "coordinate": [
+                    135,
+                    743,
+                    522,
+                    768
+                ],
+                "order": 1,
+                "polygon_points": [
+                    [
+                        135.0,
+                        743.0
+                    ],
+                    [
+                        522.0,
+                        743.0
+                    ],
+                    [
+                        522.0,
+                        768.0
+                    ],
+                    [
+                        135.0,
+                        768.0
+                    ]
+                ]
+            },
+            {
+                "cls_id": 22,
+                "label": "text",
+                "score": 0.9595316052436829,
+                "coordinate": [
+                    134,
+                    778,
+                    585,
+                    1159
+                ],
+                "order": 2,
+                "polygon_points": [
+                    [
+                        134.0,
+                        778.0
+                    ],
+                    [
+                        585.0,
+                        778.0
+                    ],
+                    [
+                        585.0,
+                        1159.0
+                    ],
+                    [
+                        134.0,
+                        1159.0
+                    ]
+                ]
+            },
+            {
+                "cls_id": 17,
+                "label": "paragraph_title",
+                "score": 0.8535324931144714,
+                "coordinate": [
+                    136,
+                    1178,
+                    575,
+                    1204
+                ],
+                "order": 3,
+                "polygon_points": [
+                    [
+                        136.0,
+                        1178.0
+                    ],
+                    [
+                        575.0,
+                        1178.0
+                    ],
+                    [
+                        575.0,
+                        1204.0
+                    ],
+                    [
+                        136.0,
+                        1204.0
+                    ]
+                ]
+            },
+            {
+                "cls_id": 22,
+                "label": "text",
+                "score": 0.9536901712417603,
+                "coordinate": [
+                    133,
+                    1215,
+                    586,
+                    1513
+                ],
+                "order": 4,
+                "polygon_points": [
+                    [
+                        133.0,
+                        1215.0
+                    ],
+                    [
+                        586.0,
+                        1215.0
+                    ],
+                    [
+                        586.0,
+                        1513.0
+                    ],
+                    [
+                        133.0,
+                        1513.0
+                    ]
+                ]
+            },
+            {
+                "cls_id": 22,
+                "label": "text",
+                "score": 0.9434424042701721,
+                "coordinate": [
+                    604,
+                    743,
+                    1055,
+                    852
+                ],
+                "order": 5,
+                "polygon_points": [
+                    [
+                        604.0,
+                        743.0
+                    ],
+                    [
+                        1055.0,
+                        743.0
+                    ],
+                    [
+                        1055.0,
+                        852.0
+                    ],
+                    [
+                        604.0,
+                        852.0
+                    ]
+                ]
+            },
+            {
+                "cls_id": 22,
+                "label": "text",
+                "score": 0.9649699330329895,
+                "coordinate": [
+                    603,
+                    874,
+                    1058,
+                    1552
+                ],
+                "order": 6,
+                "polygon_points": [
+                    [
+                        603.0,
+                        874.0
+                    ],
+                    [
+                        1058.0,
+                        874.0
+                    ],
+                    [
+                        1058.0,
+                        1552.0
+                    ],
+                    [
+                        603.0,
+                        1552.0
+                    ]
+                ]
+            },
+            {
+                "cls_id": 10,
+                "label": "footnote",
+                "score": 0.8800721168518066,
+                "coordinate": [
+                    154,
+                    1525,
+                    581,
+                    1548
+                ],
+                "order": null,
+                "polygon_points": [
+                    [
+                        154.0,
+                        1525.0
+                    ],
+                    [
+                        581.0,
+                        1525.0
+                    ],
+                    [
+                        581.0,
+                        1548.0
+                    ],
+                    [
+                        154.0,
+                        1548.0
+                    ]
+                ]
+            },
+            {
+                "cls_id": 16,
+                "label": "number",
+                "score": 0.7193899750709534,
+                "coordinate": [
+                    574,
+                    1553,
+                    622,
+                    1574
+                ],
+                "order": 7,
+                "polygon_points": [
+                    [
+                        573.9999389648438,
+                        1553.0
+                    ],
+                    [
+                        620.9999389648438,
+                        1553.0
+                    ],
+                    [
+                        620.9999389648438,
+                        1573.0
+                    ],
+                    [
+                        573.9999389648438,
+                        1573.0
+                    ]
+                ]
+            }
+        ]
+    }
+}
