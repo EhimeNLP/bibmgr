@@ -27,7 +27,7 @@ Context: {context}
 
     try:
         response = client.models.generate_content(
-            model=settings.gemini_model_name,
+            model=settings.model_name,
             contents=prompt,
             config=types.GenerateContentConfig(
                 temperature=settings.temperature,
