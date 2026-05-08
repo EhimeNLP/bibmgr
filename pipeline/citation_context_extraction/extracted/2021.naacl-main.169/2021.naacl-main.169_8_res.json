@@ -1,0 +1,1669 @@
+{
+    "input_path": "pdfs/2021.naacl-main.169.pdf",
+    "page_index": 8,
+    "page_count": 10,
+    "width": 1191,
+    "height": 1684,
+    "model_settings": {
+        "use_doc_preprocessor": false,
+        "use_layout_detection": true,
+        "use_chart_recognition": false,
+        "use_seal_recognition": false,
+        "use_ocr_for_image_block": false,
+        "format_block_content": false,
+        "merge_layout_blocks": true,
+        "markdown_ignore_labels": [
+            "number",
+            "footnote",
+            "header",
+            "header_image",
+            "footer",
+            "footer_image",
+            "aside_text"
+        ],
+        "return_layout_polygon_points": true
+    },
+    "parsing_res_list": [
+        {
+            "block_label": "paragraph_title",
+            "block_content": "References",
+            "block_bbox": [
+                138,
+                144,
+                256,
+                170
+            ],
+            "block_id": 0,
+            "block_order": 1,
+            "group_id": 0,
+            "global_block_id": 129,
+            "global_group_id": 129,
+            "block_polygon_points": [
+                [
+                    138.0,
+                    144.0
+                ],
+                [
+                    256.0,
+                    144.0
+                ],
+                [
+                    256.0,
+                    170.0
+                ],
+                [
+                    138.0,
+                    170.0
+                ]
+            ]
+        },
+        {
+            "block_label": "reference_content",
+            "block_content": "Francisca Adoma Acheampong, Chen Wenyu, and Henry Nunoo-Mensah. 2020. Text-based Emotion Detection: Advances, Challenges, and Opportunities. Engineering Reports, 2(7):1–24.",
+            "block_bbox": [
+                139,
+                186,
+                582,
+                275
+            ],
+            "block_id": 1,
+            "block_order": 2,
+            "group_id": 1,
+            "global_block_id": 130,
+            "global_group_id": 130,
+            "block_polygon_points": [
+                [
+                    139.0,
+                    186.0
+                ],
+                [
+                    582.0,
+                    186.0
+                ],
+                [
+                    582.0,
+                    275.0
+                ],
+                [
+                    139.0,
+                    275.0
+                ]
+            ]
+        },
+        {
+            "block_label": "reference_content",
+            "block_content": "Saima Aman and Stan Szpakowicz. 2007. Identifying Expressions of Emotion in Text. In International Conference on Text, Speech and Dialogue, pages 196–205.",
+            "block_bbox": [
+                139,
+                297,
+                581,
+                387
+            ],
+            "block_id": 2,
+            "block_order": 3,
+            "group_id": 2,
+            "global_block_id": 131,
+            "global_group_id": 131,
+            "block_polygon_points": [
+                [
+                    139.0,
+                    297.0
+                ],
+                [
+                    581.0,
+                    297.0
+                ],
+                [
+                    581.0,
+                    387.0
+                ],
+                [
+                    139.0,
+                    387.0
+                ]
+            ]
+        },
+        {
+            "block_label": "reference_content",
+            "block_content": "Piotr Bojanowski, Edouard Grave, Armand Joulin, and Tomas Mikolov. 2017. Enriching Word Vectors with Subword Information. Transactions of the Association for Computational Linguistics, 5:135–146.",
+            "block_bbox": [
+                140,
+                410,
+                583,
+                500
+            ],
+            "block_id": 3,
+            "block_order": 4,
+            "group_id": 3,
+            "global_block_id": 132,
+            "global_group_id": 132,
+            "block_polygon_points": [
+                [
+                    140.0,
+                    410.0
+                ],
+                [
+                    583.0,
+                    410.0
+                ],
+                [
+                    583.0,
+                    500.0
+                ],
+                [
+                    140.0,
+                    500.0
+                ]
+            ]
+        },
+        {
+            "block_label": "reference_content",
+            "block_content": "Laura-Ana-Maria Bostan, Evgeny Kim, and Roman Klinger. 2020. GoodNewsEveryone: A Corpus of News Headlines Annotated with Emotions, Semantic Roles, and Reader Perception. In Proceedings of the 12th Language Resources and Evaluation Conference, pages 1554–1566.",
+            "block_bbox": [
+                139,
+                523,
+                584,
+                655
+            ],
+            "block_id": 4,
+            "block_order": 5,
+            "group_id": 4,
+            "global_block_id": 133,
+            "global_group_id": 133,
+            "block_polygon_points": [
+                [
+                    139.0,
+                    523.0
+                ],
+                [
+                    584.0,
+                    523.0
+                ],
+                [
+                    584.0,
+                    655.0
+                ],
+                [
+                    139.0,
+                    655.0
+                ]
+            ]
+        },
+        {
+            "block_label": "reference_content",
+            "block_content": "Laura-Ana-Maria Bostan and Roman Klinger. 2018. An Analysis of Annotated Corpora for Emotion Classification in Text. In Proceedings of the 27th International Conference on Computational Linguistics, pages 2104–2119.",
+            "block_bbox": [
+                139,
+                678,
+                582,
+                789
+            ],
+            "block_id": 5,
+            "block_order": 6,
+            "group_id": 5,
+            "global_block_id": 134,
+            "global_group_id": 134,
+            "block_polygon_points": [
+                [
+                    139.0,
+                    678.0
+                ],
+                [
+                    582.0,
+                    678.0
+                ],
+                [
+                    582.0,
+                    789.0
+                ],
+                [
+                    139.0,
+                    789.0
+                ]
+            ]
+        },
+        {
+            "block_label": "reference_content",
+            "block_content": "Sven Buechel and Udo Hahn. 2017. EmoBank: Studying the Impact of Annotation Perspective and Representation Format on Dimensional Emotion Analysis. In Proceedings of the 15th Conference of the European Chapter of the Association for Computational Linguistics, pages 578–585.",
+            "block_bbox": [
+                139,
+                812,
+                584,
+                944
+            ],
+            "block_id": 6,
+            "block_order": 7,
+            "group_id": 6,
+            "global_block_id": 135,
+            "global_group_id": 135,
+            "block_polygon_points": [
+                [
+                    139.0,
+                    812.0
+                ],
+                [
+                    584.0,
+                    812.0
+                ],
+                [
+                    584.0,
+                    944.0
+                ],
+                [
+                    139.0,
+                    944.0
+                ]
+            ]
+        },
+        {
+            "block_label": "reference_content",
+            "block_content": "Jacob Cohen. 1968. Weighted Kappa: Nominal Scale Agreement Provision for Scaled Disagreement or Partial Credit. Psychological Bulletin, 70(4):213–220.",
+            "block_bbox": [
+                138,
+                968,
+                582,
+                1054
+            ],
+            "block_id": 7,
+            "block_order": 8,
+            "group_id": 7,
+            "global_block_id": 136,
+            "global_group_id": 136,
+            "block_polygon_points": [
+                [
+                    138.0,
+                    968.0
+                ],
+                [
+                    582.0,
+                    968.0
+                ],
+                [
+                    582.0,
+                    1054.0
+                ],
+                [
+                    138.0,
+                    1054.0
+                ]
+            ]
+        },
+        {
+            "block_label": "reference_content",
+            "block_content": "Jacob Devlin, Ming-Wei Chang, Kenton Lee, and Kristina Toutanova. 2019. BERT: Pre-training of Deep Bidirectional Transformers for Language Understanding. In Proceedings of the 2019 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies, pages 4171–4186.",
+            "block_bbox": [
+                138,
+                1081,
+                582,
+                1234
+            ],
+            "block_id": 8,
+            "block_order": 9,
+            "group_id": 8,
+            "global_block_id": 137,
+            "global_group_id": 137,
+            "block_polygon_points": [
+                [
+                    138.0,
+                    1081.0
+                ],
+                [
+                    582.0,
+                    1081.0
+                ],
+                [
+                    582.0,
+                    1234.0
+                ],
+                [
+                    138.0,
+                    1234.0
+                ]
+            ]
+        },
+        {
+            "block_label": "reference_content",
+            "block_content": "Paul Ekman. 1992. An Argument for Basic Emotions. Cognition and Emotion, 6(3–4):169–200.",
+            "block_bbox": [
+                139,
+                1257,
+                583,
+                1302
+            ],
+            "block_id": 9,
+            "block_order": 10,
+            "group_id": 9,
+            "global_block_id": 138,
+            "global_group_id": 138,
+            "block_polygon_points": [
+                [
+                    139.0,
+                    1257.0
+                ],
+                [
+                    583.0,
+                    1257.0
+                ],
+                [
+                    583.0,
+                    1302.0
+                ],
+                [
+                    139.0,
+                    1302.0
+                ]
+            ]
+        },
+        {
+            "block_label": "reference_content",
+            "block_content": "Lewis R. Goldberg. 1992. The Development of Markers for the Big-Five Factor Structure. Psychological Assessment, 4(1):26–42.",
+            "block_bbox": [
+                138,
+                1326,
+                582,
+                1391
+            ],
+            "block_id": 10,
+            "block_order": 11,
+            "group_id": 10,
+            "global_block_id": 139,
+            "global_group_id": 139,
+            "block_polygon_points": [
+                [
+                    138.0,
+                    1326.0
+                ],
+                [
+                    582.0,
+                    1326.0
+                ],
+                [
+                    582.0,
+                    1391.0
+                ],
+                [
+                    138.0,
+                    1391.0
+                ]
+            ]
+        },
+        {
+            "block_label": "reference_content",
+            "block_content": "Nobuhiro Kaji and Masaru Kitsuregawa. 2006. Automatic Construction of Polarity-Tagged Corpus from HTML Documents. In Proceedings of the 21st International Conference on Computational Linguistics and 44th Annual Meeting of the Association for Computational Linguistics, pages 452–459.",
+            "block_bbox": [
+                140,
+                1417,
+                584,
+                1547
+            ],
+            "block_id": 11,
+            "block_order": 12,
+            "group_id": 11,
+            "global_block_id": 140,
+            "global_group_id": 140,
+            "block_polygon_points": [
+                [
+                    140.0,
+                    1417.0
+                ],
+                [
+                    584.0,
+                    1417.0
+                ],
+                [
+                    584.0,
+                    1547.0
+                ],
+                [
+                    140.0,
+                    1547.0
+                ]
+            ]
+        },
+        {
+            "block_label": "reference_content",
+            "block_content": "Diederik P. Kingma and Jimmy Lei Ba. 2015. Adam: A Method for Stochastic Optimization. In Proceedings of the 3rd International Conference on Learning Representations.",
+            "block_bbox": [
+                611,
+                148,
+                1054,
+                236
+            ],
+            "block_id": 12,
+            "block_order": 13,
+            "group_id": 12,
+            "global_block_id": 141,
+            "global_group_id": 141,
+            "block_polygon_points": [
+                [
+                    611.0,
+                    148.0
+                ],
+                [
+                    1054.0,
+                    148.0
+                ],
+                [
+                    1054.0,
+                    236.0
+                ],
+                [
+                    611.0,
+                    236.0
+                ]
+            ]
+        },
+        {
+            "block_label": "reference_content",
+            "block_content": "Taku Kudo, Kaoru Yamamoto, and Yuji Matsumoto. 2004. Applying Conditional Random Fields to Japanese Morphological Analysis. In Proceedings of the 2004 Conference on Empirical Methods in Natural Language Processing, pages 230–237.",
+            "block_bbox": [
+                611,
+                252,
+                1054,
+                363
+            ],
+            "block_id": 13,
+            "block_order": 14,
+            "group_id": 13,
+            "global_block_id": 142,
+            "global_group_id": 142,
+            "block_polygon_points": [
+                [
+                    611.0,
+                    252.0
+                ],
+                [
+                    1054.0,
+                    252.0
+                ],
+                [
+                    1054.0,
+                    363.0
+                ],
+                [
+                    611.0,
+                    363.0
+                ]
+            ]
+        },
+        {
+            "block_label": "reference_content",
+            "block_content": "Saif Mohammad and Felipe Bravo-Marquez. 2017a. Emotion Intensities in Tweets. In Proceedings of the 6th Joint Conference on Lexical and Computational Semantics, pages 65–77.",
+            "block_bbox": [
+                610,
+                379,
+                1054,
+                468
+            ],
+            "block_id": 14,
+            "block_order": 15,
+            "group_id": 14,
+            "global_block_id": 143,
+            "global_group_id": 143,
+            "block_polygon_points": [
+                [
+                    610.0,
+                    379.0
+                ],
+                [
+                    1054.0,
+                    379.0
+                ],
+                [
+                    1054.0,
+                    468.0
+                ],
+                [
+                    610.0,
+                    468.0
+                ]
+            ]
+        },
+        {
+            "block_label": "reference_content",
+            "block_content": "Saif Mohammad and Felipe Bravo-Marquez. 2017b. WASSA-2017 Shared Task on Emotion Intensity. In Proceedings of the 8th Workshop on Computational Approaches to Subjectivity, Sentiment and Social Media Analysis, pages 34–49.",
+            "block_bbox": [
+                610,
+                484,
+                1054,
+                594
+            ],
+            "block_id": 15,
+            "block_order": 16,
+            "group_id": 15,
+            "global_block_id": 144,
+            "global_group_id": 144,
+            "block_polygon_points": [
+                [
+                    610.0,
+                    484.0
+                ],
+                [
+                    1054.0,
+                    484.0
+                ],
+                [
+                    1054.0,
+                    594.0
+                ],
+                [
+                    610.0,
+                    594.0
+                ]
+            ]
+        },
+        {
+            "block_label": "reference_content",
+            "block_content": "Saif Mohammad, Felipe Bravo-Marquez, Mohammad Salameh, and Svetlana Kiritchenko. 2018. SemEval-2018 Task 1: Affect in Tweets. In Proceedings of The 12th International Workshop on Semantic Evaluation, pages 1–17.",
+            "block_bbox": [
+                609,
+                611,
+                1054,
+                722
+            ],
+            "block_id": 16,
+            "block_order": 17,
+            "group_id": 16,
+            "global_block_id": 145,
+            "global_group_id": 145,
+            "block_polygon_points": [
+                [
+                    609.0,
+                    611.0
+                ],
+                [
+                    1054.0,
+                    611.0
+                ],
+                [
+                    1054.0,
+                    722.0
+                ],
+                [
+                    609.0,
+                    722.0
+                ]
+            ]
+        },
+        {
+            "block_label": "reference_content",
+            "block_content": "Saif Mohammad and Svetlana Kiritchenko. 2018. Understanding Emotions: A Dataset of Tweets to Study Interactions between Affect Categories. In Proceedings of the Eleventh International Conference on Language Resources and Evaluation, pages 198–209.",
+            "block_bbox": [
+                609,
+                738,
+                1054,
+                869
+            ],
+            "block_id": 17,
+            "block_order": 18,
+            "group_id": 17,
+            "global_block_id": 146,
+            "global_group_id": 146,
+            "block_polygon_points": [
+                [
+                    609.0,
+                    738.0
+                ],
+                [
+                    1054.0,
+                    738.0
+                ],
+                [
+                    1054.0,
+                    869.0
+                ],
+                [
+                    609.0,
+                    869.0
+                ]
+            ]
+        },
+        {
+            "block_label": "reference_content",
+            "block_content": "Fabian Pedregosa, Gaël Varoquaux, Alexandre Gramfort, Vincent Michel, Bertrand Thirion, Olivier Grisel, Mathieu Blondel, Peter Prettenhofer, Ron Weiss, Vincent Dubourg, Jake Vanderplas, Alexandre Passos, David Cournapeau, Matthieu Brucher, Matthieu Perrot, and Édouard Duchesnay. 2011. Scikit-learn: Machine Learning in Python. Journal of Machine Learning Research, 12(85):2825–2830.",
+            "block_bbox": [
+                608,
+                887,
+                1054,
+                1066
+            ],
+            "block_id": 18,
+            "block_order": 19,
+            "group_id": 18,
+            "global_block_id": 147,
+            "global_group_id": 147,
+            "block_polygon_points": [
+                [
+                    608.0,
+                    887.0
+                ],
+                [
+                    1054.0,
+                    887.0
+                ],
+                [
+                    1054.0,
+                    1066.0
+                ],
+                [
+                    608.0,
+                    1066.0
+                ]
+            ]
+        },
+        {
+            "block_label": "reference_content",
+            "block_content": "Robert Plutchik. 1980. A General Psychoevolutionary Theory of Emotion. Theories of Emotion, 1:3–31.",
+            "block_bbox": [
+                610,
+                1084,
+                1052,
+                1127
+            ],
+            "block_id": 19,
+            "block_order": 20,
+            "group_id": 19,
+            "global_block_id": 148,
+            "global_group_id": 148,
+            "block_polygon_points": [
+                [
+                    610.0,
+                    1084.0
+                ],
+                [
+                    1052.0,
+                    1084.0
+                ],
+                [
+                    1052.0,
+                    1127.0
+                ],
+                [
+                    610.0,
+                    1127.0
+                ]
+            ]
+        },
+        {
+            "block_label": "reference_content",
+            "block_content": "James A. Russell. 1980. A Circumplex Model of Affect. Journal of Personality and Social Psychology, 39(6):1161–1178.",
+            "block_bbox": [
+                611,
+                1144,
+                1053,
+                1210
+            ],
+            "block_id": 20,
+            "block_order": 21,
+            "group_id": 20,
+            "global_block_id": 149,
+            "global_group_id": 149,
+            "block_polygon_points": [
+                [
+                    611.0,
+                    1144.0
+                ],
+                [
+                    1053.0,
+                    1144.0
+                ],
+                [
+                    1053.0,
+                    1210.0
+                ],
+                [
+                    611.0,
+                    1210.0
+                ]
+            ]
+        },
+        {
+            "block_label": "reference_content",
+            "block_content": "Takako Saito, Tomoyasu Nakamura, Toshihiko Endo, and Madoka Yokoyama. 2001. Standardization of Big Five Scales Using the Adjective Check List. Kyushu University Psychological Research, 2:135–144.",
+            "block_bbox": [
+                611,
+                1228,
+                1054,
+                1337
+            ],
+            "block_id": 21,
+            "block_order": 22,
+            "group_id": 21,
+            "global_block_id": 150,
+            "global_group_id": 150,
+            "block_polygon_points": [
+                [
+                    611.0,
+                    1228.0
+                ],
+                [
+                    1054.0,
+                    1228.0
+                ],
+                [
+                    1054.0,
+                    1337.0
+                ],
+                [
+                    611.0,
+                    1337.0
+                ]
+            ]
+        },
+        {
+            "block_label": "reference_content",
+            "block_content": "Klaus R. Scherer and Harald G. Wallbott. 1994. Evidence for Universality and Cultural Variation of Differential Emotion Response Patterning. Journal of Personality and Social Psychology, 66(2):310–328.",
+            "block_bbox": [
+                610,
+                1354,
+                1055,
+                1444
+            ],
+            "block_id": 22,
+            "block_order": 23,
+            "group_id": 22,
+            "global_block_id": 151,
+            "global_group_id": 151,
+            "block_polygon_points": [
+                [
+                    610.0,
+                    1354.0
+                ],
+                [
+                    1055.0,
+                    1354.0
+                ],
+                [
+                    1055.0,
+                    1444.0
+                ],
+                [
+                    610.0,
+                    1444.0
+                ]
+            ]
+        },
+        {
+            "block_label": "reference_content",
+            "block_content": "Richard Socher, Alex Perelygin, Jean Y. Wu, Jason Chuang, Christopher D. Manning, Andrew Y. Ng, and Christopher Potts. 2013. Recursive Deep Models for Semantic Compositionality Over a Sentiment",
+            "block_bbox": [
+                610,
+                1460,
+                1054,
+                1547
+            ],
+            "block_id": 23,
+            "block_order": 24,
+            "group_id": 23,
+            "global_block_id": 152,
+            "global_group_id": 152,
+            "block_polygon_points": [
+                [
+                    610.0,
+                    1460.0
+                ],
+                [
+                    1054.0,
+                    1460.0
+                ],
+                [
+                    1054.0,
+                    1547.0
+                ],
+                [
+                    610.0,
+                    1547.0
+                ]
+            ]
+        },
+        {
+            "block_label": "number",
+            "block_content": "2103",
+            "block_bbox": [
+                573,
+                1553,
+                621,
+                1574
+            ],
+            "block_id": 24,
+            "block_order": null,
+            "group_id": 24,
+            "global_block_id": 153,
+            "global_group_id": 153,
+            "block_polygon_points": [
+                [
+                    572.9999389648438,
+                    1553.0
+                ],
+                [
+                    619.9999389648438,
+                    1553.0
+                ],
+                [
+                    619.9999389648438,
+                    1573.0
+                ],
+                [
+                    572.9999389648438,
+                    1573.0
+                ]
+            ]
+        }
+    ],
+    "layout_det_res": {
+        "input_path": null,
+        "page_index": null,
+        "boxes": [
+            {
+                "cls_id": 17,
+                "label": "paragraph_title",
+                "score": 0.8403853178024292,
+                "coordinate": [
+                    138,
+                    144,
+                    256,
+                    170
+                ],
+                "order": 1,
+                "polygon_points": [
+                    [
+                        138.0,
+                        144.0
+                    ],
+                    [
+                        256.0,
+                        144.0
+                    ],
+                    [
+                        256.0,
+                        170.0
+                    ],
+                    [
+                        138.0,
+                        170.0
+                    ]
+                ]
+            },
+            {
+                "cls_id": 18,
+                "label": "reference",
+                "score": 0.9681267142295837,
+                "coordinate": [
+                    132,
+                    179,
+                    585,
+                    1544
+                ],
+                "order": 2,
+                "polygon_points": [
+                    [
+                        132.0,
+                        179.0
+                    ],
+                    [
+                        585.0,
+                        179.0
+                    ],
+                    [
+                        585.0,
+                        1544.0
+                    ],
+                    [
+                        132.0,
+                        1544.0
+                    ]
+                ]
+            },
+            {
+                "cls_id": 19,
+                "label": "reference_content",
+                "score": 0.9605711102485657,
+                "coordinate": [
+                    139,
+                    186,
+                    582,
+                    275
+                ],
+                "order": 3,
+                "polygon_points": [
+                    [
+                        139.0,
+                        186.0
+                    ],
+                    [
+                        582.0,
+                        186.0
+                    ],
+                    [
+                        582.0,
+                        275.0
+                    ],
+                    [
+                        139.0,
+                        275.0
+                    ]
+                ]
+            },
+            {
+                "cls_id": 19,
+                "label": "reference_content",
+                "score": 0.952366054058075,
+                "coordinate": [
+                    139,
+                    297,
+                    581,
+                    387
+                ],
+                "order": 4,
+                "polygon_points": [
+                    [
+                        139.0,
+                        297.0
+                    ],
+                    [
+                        581.0,
+                        297.0
+                    ],
+                    [
+                        581.0,
+                        387.0
+                    ],
+                    [
+                        139.0,
+                        387.0
+                    ]
+                ]
+            },
+            {
+                "cls_id": 19,
+                "label": "reference_content",
+                "score": 0.9492377638816833,
+                "coordinate": [
+                    140,
+                    410,
+                    583,
+                    500
+                ],
+                "order": 5,
+                "polygon_points": [
+                    [
+                        140.0,
+                        410.0
+                    ],
+                    [
+                        583.0,
+                        410.0
+                    ],
+                    [
+                        583.0,
+                        500.0
+                    ],
+                    [
+                        140.0,
+                        500.0
+                    ]
+                ]
+            },
+            {
+                "cls_id": 19,
+                "label": "reference_content",
+                "score": 0.9584672451019287,
+                "coordinate": [
+                    139,
+                    523,
+                    584,
+                    655
+                ],
+                "order": 6,
+                "polygon_points": [
+                    [
+                        139.0,
+                        523.0
+                    ],
+                    [
+                        584.0,
+                        523.0
+                    ],
+                    [
+                        584.0,
+                        655.0
+                    ],
+                    [
+                        139.0,
+                        655.0
+                    ]
+                ]
+            },
+            {
+                "cls_id": 19,
+                "label": "reference_content",
+                "score": 0.9593868255615234,
+                "coordinate": [
+                    139,
+                    678,
+                    582,
+                    789
+                ],
+                "order": 7,
+                "polygon_points": [
+                    [
+                        139.0,
+                        678.0
+                    ],
+                    [
+                        582.0,
+                        678.0
+                    ],
+                    [
+                        582.0,
+                        789.0
+                    ],
+                    [
+                        139.0,
+                        789.0
+                    ]
+                ]
+            },
+            {
+                "cls_id": 19,
+                "label": "reference_content",
+                "score": 0.9657229781150818,
+                "coordinate": [
+                    139,
+                    812,
+                    584,
+                    944
+                ],
+                "order": 8,
+                "polygon_points": [
+                    [
+                        139.0,
+                        812.0
+                    ],
+                    [
+                        584.0,
+                        812.0
+                    ],
+                    [
+                        584.0,
+                        944.0
+                    ],
+                    [
+                        139.0,
+                        944.0
+                    ]
+                ]
+            },
+            {
+                "cls_id": 19,
+                "label": "reference_content",
+                "score": 0.9572581052780151,
+                "coordinate": [
+                    138,
+                    968,
+                    582,
+                    1054
+                ],
+                "order": 9,
+                "polygon_points": [
+                    [
+                        138.0,
+                        968.0
+                    ],
+                    [
+                        582.0,
+                        968.0
+                    ],
+                    [
+                        582.0,
+                        1054.0
+                    ],
+                    [
+                        138.0,
+                        1054.0
+                    ]
+                ]
+            },
+            {
+                "cls_id": 19,
+                "label": "reference_content",
+                "score": 0.9656151533126831,
+                "coordinate": [
+                    138,
+                    1081,
+                    582,
+                    1234
+                ],
+                "order": 10,
+                "polygon_points": [
+                    [
+                        138.0,
+                        1081.0
+                    ],
+                    [
+                        582.0,
+                        1081.0
+                    ],
+                    [
+                        582.0,
+                        1234.0
+                    ],
+                    [
+                        138.0,
+                        1234.0
+                    ]
+                ]
+            },
+            {
+                "cls_id": 19,
+                "label": "reference_content",
+                "score": 0.9276965856552124,
+                "coordinate": [
+                    139,
+                    1257,
+                    583,
+                    1302
+                ],
+                "order": 11,
+                "polygon_points": [
+                    [
+                        139.0,
+                        1257.0
+                    ],
+                    [
+                        583.0,
+                        1257.0
+                    ],
+                    [
+                        583.0,
+                        1302.0
+                    ],
+                    [
+                        139.0,
+                        1302.0
+                    ]
+                ]
+            },
+            {
+                "cls_id": 19,
+                "label": "reference_content",
+                "score": 0.9401305317878723,
+                "coordinate": [
+                    138,
+                    1326,
+                    582,
+                    1391
+                ],
+                "order": 12,
+                "polygon_points": [
+                    [
+                        138.0,
+                        1326.0
+                    ],
+                    [
+                        582.0,
+                        1326.0
+                    ],
+                    [
+                        582.0,
+                        1391.0
+                    ],
+                    [
+                        138.0,
+                        1391.0
+                    ]
+                ]
+            },
+            {
+                "cls_id": 19,
+                "label": "reference_content",
+                "score": 0.9660047888755798,
+                "coordinate": [
+                    140,
+                    1417,
+                    584,
+                    1547
+                ],
+                "order": 13,
+                "polygon_points": [
+                    [
+                        140.0,
+                        1417.0
+                    ],
+                    [
+                        584.0,
+                        1417.0
+                    ],
+                    [
+                        584.0,
+                        1547.0
+                    ],
+                    [
+                        140.0,
+                        1547.0
+                    ]
+                ]
+            },
+            {
+                "cls_id": 18,
+                "label": "reference",
+                "score": 0.9532381296157837,
+                "coordinate": [
+                    607,
+                    141,
+                    1056,
+                    1556
+                ],
+                "order": 14,
+                "polygon_points": [
+                    [
+                        607.0,
+                        141.0
+                    ],
+                    [
+                        1056.0,
+                        141.0
+                    ],
+                    [
+                        1056.0,
+                        1556.0
+                    ],
+                    [
+                        607.0,
+                        1556.0
+                    ]
+                ]
+            },
+            {
+                "cls_id": 19,
+                "label": "reference_content",
+                "score": 0.9615207314491272,
+                "coordinate": [
+                    611,
+                    148,
+                    1054,
+                    236
+                ],
+                "order": 15,
+                "polygon_points": [
+                    [
+                        611.0,
+                        148.0
+                    ],
+                    [
+                        1054.0,
+                        148.0
+                    ],
+                    [
+                        1054.0,
+                        236.0
+                    ],
+                    [
+                        611.0,
+                        236.0
+                    ]
+                ]
+            },
+            {
+                "cls_id": 19,
+                "label": "reference_content",
+                "score": 0.9613410234451294,
+                "coordinate": [
+                    611,
+                    252,
+                    1054,
+                    363
+                ],
+                "order": 16,
+                "polygon_points": [
+                    [
+                        611.0,
+                        252.0
+                    ],
+                    [
+                        1054.0,
+                        252.0
+                    ],
+                    [
+                        1054.0,
+                        363.0
+                    ],
+                    [
+                        611.0,
+                        363.0
+                    ]
+                ]
+            },
+            {
+                "cls_id": 19,
+                "label": "reference_content",
+                "score": 0.9464089274406433,
+                "coordinate": [
+                    610,
+                    379,
+                    1054,
+                    468
+                ],
+                "order": 17,
+                "polygon_points": [
+                    [
+                        610.0,
+                        379.0
+                    ],
+                    [
+                        1054.0,
+                        379.0
+                    ],
+                    [
+                        1054.0,
+                        468.0
+                    ],
+                    [
+                        610.0,
+                        468.0
+                    ]
+                ]
+            },
+            {
+                "cls_id": 19,
+                "label": "reference_content",
+                "score": 0.9496690630912781,
+                "coordinate": [
+                    610,
+                    484,
+                    1054,
+                    594
+                ],
+                "order": 18,
+                "polygon_points": [
+                    [
+                        610.0,
+                        484.0
+                    ],
+                    [
+                        1054.0,
+                        484.0
+                    ],
+                    [
+                        1054.0,
+                        594.0
+                    ],
+                    [
+                        610.0,
+                        594.0
+                    ]
+                ]
+            },
+            {
+                "cls_id": 19,
+                "label": "reference_content",
+                "score": 0.9543116092681885,
+                "coordinate": [
+                    609,
+                    611,
+                    1054,
+                    722
+                ],
+                "order": 19,
+                "polygon_points": [
+                    [
+                        609.0,
+                        611.0
+                    ],
+                    [
+                        1054.0,
+                        611.0
+                    ],
+                    [
+                        1054.0,
+                        722.0
+                    ],
+                    [
+                        609.0,
+                        722.0
+                    ]
+                ]
+            },
+            {
+                "cls_id": 19,
+                "label": "reference_content",
+                "score": 0.963315486907959,
+                "coordinate": [
+                    609,
+                    738,
+                    1054,
+                    869
+                ],
+                "order": 20,
+                "polygon_points": [
+                    [
+                        609.0,
+                        738.0
+                    ],
+                    [
+                        1054.0,
+                        738.0
+                    ],
+                    [
+                        1054.0,
+                        869.0
+                    ],
+                    [
+                        609.0,
+                        869.0
+                    ]
+                ]
+            },
+            {
+                "cls_id": 19,
+                "label": "reference_content",
+                "score": 0.9703017473220825,
+                "coordinate": [
+                    608,
+                    887,
+                    1054,
+                    1066
+                ],
+                "order": 21,
+                "polygon_points": [
+                    [
+                        608.0,
+                        887.0
+                    ],
+                    [
+                        1054.0,
+                        887.0
+                    ],
+                    [
+                        1054.0,
+                        1066.0
+                    ],
+                    [
+                        608.0,
+                        1066.0
+                    ]
+                ]
+            },
+            {
+                "cls_id": 19,
+                "label": "reference_content",
+                "score": 0.9137324690818787,
+                "coordinate": [
+                    610,
+                    1084,
+                    1052,
+                    1127
+                ],
+                "order": 22,
+                "polygon_points": [
+                    [
+                        610.0,
+                        1084.0
+                    ],
+                    [
+                        1052.0,
+                        1084.0
+                    ],
+                    [
+                        1052.0,
+                        1127.0
+                    ],
+                    [
+                        610.0,
+                        1127.0
+                    ]
+                ]
+            },
+            {
+                "cls_id": 19,
+                "label": "reference_content",
+                "score": 0.9245482087135315,
+                "coordinate": [
+                    611,
+                    1144,
+                    1053,
+                    1210
+                ],
+                "order": 23,
+                "polygon_points": [
+                    [
+                        611.0,
+                        1144.0
+                    ],
+                    [
+                        1053.0,
+                        1144.0
+                    ],
+                    [
+                        1053.0,
+                        1210.0
+                    ],
+                    [
+                        611.0,
+                        1210.0
+                    ]
+                ]
+            },
+            {
+                "cls_id": 19,
+                "label": "reference_content",
+                "score": 0.9420784115791321,
+                "coordinate": [
+                    611,
+                    1228,
+                    1054,
+                    1337
+                ],
+                "order": 24,
+                "polygon_points": [
+                    [
+                        611.0,
+                        1228.0
+                    ],
+                    [
+                        1054.0,
+                        1228.0
+                    ],
+                    [
+                        1054.0,
+                        1337.0
+                    ],
+                    [
+                        611.0,
+                        1337.0
+                    ]
+                ]
+            },
+            {
+                "cls_id": 19,
+                "label": "reference_content",
+                "score": 0.9490219354629517,
+                "coordinate": [
+                    610,
+                    1354,
+                    1055,
+                    1444
+                ],
+                "order": 25,
+                "polygon_points": [
+                    [
+                        610.0,
+                        1354.0
+                    ],
+                    [
+                        1055.0,
+                        1354.0
+                    ],
+                    [
+                        1055.0,
+                        1444.0
+                    ],
+                    [
+                        610.0,
+                        1444.0
+                    ]
+                ]
+            },
+            {
+                "cls_id": 19,
+                "label": "reference_content",
+                "score": 0.9330719709396362,
+                "coordinate": [
+                    610,
+                    1460,
+                    1054,
+                    1547
+                ],
+                "order": 26,
+                "polygon_points": [
+                    [
+                        610.0,
+                        1460.0
+                    ],
+                    [
+                        1054.0,
+                        1460.0
+                    ],
+                    [
+                        1054.0,
+                        1547.0
+                    ],
+                    [
+                        610.0,
+                        1547.0
+                    ]
+                ]
+            },
+            {
+                "cls_id": 16,
+                "label": "number",
+                "score": 0.7228382229804993,
+                "coordinate": [
+                    573,
+                    1553,
+                    621,
+                    1574
+                ],
+                "order": 27,
+                "polygon_points": [
+                    [
+                        572.9999389648438,
+                        1553.0
+                    ],
+                    [
+                        619.9999389648438,
+                        1553.0
+                    ],
+                    [
+                        619.9999389648438,
+                        1573.0
+                    ],
+                    [
+                        572.9999389648438,
+                        1573.0
+                    ]
+                ]
+            }
+        ]
+    }
+}
