@@ -74,7 +74,10 @@ class BaseAPIClient(ABC):
             if not metadata or not metadata.title.strip():
                 return None, None
 
-            raw_bibtex = custom_bibtex  # 4. Determine BibTeX string
+            if not self._validate_metadata(metadata):   # 4. Common metadata validation
+                return None, None
+
+            raw_bibtex = custom_bibtex  # 5. Determine BibTeX string
             
             if not raw_bibtex and metadata.doi:
                 raw_bibtex = self._fetch_bibtex_from_doi(metadata.doi)  # Fetch from DOI if not provided by the specific API logic
@@ -101,6 +104,42 @@ class BaseAPIClient(ABC):
             A tuple of (extracted metadata, API-specific BibTeX).
         """
         pass
+
+    def _validate_metadata(self, metadata: VerifiedCitationInfo) -> bool:
+        """
+        Validates that the metadata returned by _execute_search() meets
+        the minimum requirements for downstream processing.
+
+        Rules (common to all clients):
+            - title   : must be a non-empty string after stripping whitespace.
+            - year    : if present, must be a 4-digit integer (1000–2999).
+            - authors : empty list is allowed; individual entries must be non-empty strings.
+            - url     : no constraint (None is fine).
+            - venue   : no constraint (None is fine).
+
+        Subclasses may override this method to add stricter checks
+        (e.g. CrossrefClient requiring a DOI).
+
+        Args:
+            metadata (VerifiedCitationInfo): Metadata to validate.
+
+        Returns:
+            bool: True if metadata passes all checks, False otherwise.
+        """
+        if not metadata.title or not metadata.title.strip():
+            print(f"[{self.api_name}] Validation failed: title is empty.")
+            return False
+
+        if metadata.year is not None:
+            if not isinstance(metadata.year, int) or not (1000 <= metadata.year <= 2999):
+                print(f"[{self.api_name}] Validation failed: year '{metadata.year}' is not a valid 4-digit year.")
+                return False
+
+        if any(not isinstance(a, str) or not a.strip() for a in metadata.authors):
+            print(f"[{self.api_name}] Validation failed: authors list contains empty or non-string entries.")
+            return False
+
+        return True
 
     def _make_request(self, url: Optional[str] = None, params: dict = None, headers: dict = None, 
                       timeout: Optional[int] = None, max_retries: Optional[int] = None) -> Optional[requests.Response]:

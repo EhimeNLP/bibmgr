@@ -1,15 +1,8 @@
-import re
 from typing import Optional, Tuple
 from api_clients.base_client import BaseAPIClient
 from core.config import settings
+from core.bibtex_utils import extract_bibtex_field
 from models import InputData, VerifiedCitationInfo
-
-def _extract_field(raw_bibtex: str, field_name: str) -> Optional[str]:
-    """Helper function to extract specific fields from a raw BibTeX string."""
-    if not raw_bibtex: return None
-    pattern = rf"{field_name}\s*=\s*[{{|\"](.*?)[}}|\"]\s*(?:,|$)"
-    match = re.search(pattern, raw_bibtex, re.IGNORECASE | re.DOTALL)
-    return match.group(1).strip() if match else None
 
 class CiNiiClient(BaseAPIClient):
     """Client for searching academic papers via the CiNii API."""
@@ -69,7 +62,7 @@ class CiNiiClient(BaseAPIClient):
             bib_resp = self._make_request(url=f"{crid_url}.bib")
             if bib_resp:
                 custom_bibtex = bib_resp.text
-                extracted_doi = _extract_field(custom_bibtex, "doi")
+                extracted_doi = extract_bibtex_field(custom_bibtex, "doi")
                 if extracted_doi:
                     metadata.doi = extracted_doi
 

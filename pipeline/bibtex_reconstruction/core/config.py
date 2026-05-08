@@ -14,7 +14,7 @@ class Settings(BaseSettings):
     similarity_threshold: float = 0.95
     max_parallel_requests: int = 5
     # --- LLM Settings ---
-    gemini_model_name: str = "gemini-flash-lite-latest"
+    model_name: str = "gemini-flash-lite-latest"
     gemini_api_key: str = Field("", validation_alias="GEMINI_API_KEY")
     temperature: float = 0.0
     max_output_tokens: int = 150
@@ -46,6 +46,8 @@ class Settings(BaseSettings):
     arxiv_base_url: str = "http://export.arxiv.org/api/query"
     arxiv_timeout: int = 10
     arxiv_wait_sec: float = 0
+    ## --- localdb ---
+    localdb_enabled: bool = False
     # --- venue abbreviations ---
     venue_abbrev_map: dict[str, str] = Field(default_factory=dict)
     # --- API Keys / Environment Variables ---
@@ -69,6 +71,9 @@ class Settings(BaseSettings):
                 conf_data["max_retries"] = api_section.get("max_retries", 3)
                 conf_data["retry_backoff_sec"] = api_section.get("retry_backoff_sec", 2)
                 if isinstance(api_section, dict):
+                    localdb = api_section.get("localdb", {})
+                    conf_data["localdb_enabled"] = localdb.get("enabled", False)
+
                     for service in ["crossref", "cinii", "semanticscholar", "jstage", "arxiv"]:
                         detail = api_section.get(service, {})
                         conf_data[f"{service}_base_url"] = detail.get("base_url")

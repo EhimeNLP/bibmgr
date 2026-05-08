@@ -2,21 +2,22 @@ import concurrent.futures
 from typing import List
 from models import InputData, ProcessedReference, CandidateResult
 from api_clients import (
-    LocalDBClient, CrossrefClient, CiNiiClient, 
+    LocalDBClient, CrossrefClient, CiNiiClient,
     SemanticScholarClient, JStageClient, ArxivClient,
 )
 from core import calculate_similarity, settings
 from core.constants import ProcessingStatus
 from services.formatter import apply_lab_rules
 
+
 class SearchOrchestrator:
     def __init__(self):
         self.local_client = LocalDBClient()
         self.external_clients = [
-            CrossrefClient(), 
-            SemanticScholarClient(), 
+            CrossrefClient(),
+            SemanticScholarClient(),
             CiNiiClient(),
-            JStageClient(), 
+            JStageClient(),
             ArxivClient(),
         ]
 
@@ -28,27 +29,29 @@ class SearchOrchestrator:
         original_title = input_data.parsed_data.title or ""
         ref_id = input_data.parsed_data.id
         candidates = []
-        
-        # Local DB check
-        local_metadata, local_bibtex = self.local_client.search(input_data)
-        if local_metadata:
-            return ProcessedReference(
-                ref_id=ref_id,
-                overall_status=ProcessingStatus.SUCCESS,
-                original_data=input_data.parsed_data,
-                candidates=[CandidateResult(
-                    source_api=self.local_client.api_name,
-                    status=ProcessingStatus.SUCCESS,
-                    confidence_score=1.0,
-                    verified_info=local_metadata,
-                    bibtex=local_bibtex
-                )]
-            )
-        
+
+        # Local DB check — skipped entirely when disabled in config.yml.
+        if settings.localdb_enabled:
+            local_metadata, local_bibtex = self.local_client.search(input_data)
+            if local_metadata:
+                return ProcessedReference(
+                    ref_id=ref_id,
+                    overall_status=ProcessingStatus.SUCCESS,
+                    original_data=input_data.parsed_data,
+                    candidates=[CandidateResult(
+                        source_api=self.local_client.api_name,
+                        status=ProcessingStatus.SUCCESS,
+                        confidence_score=1.0,
+                        verified_info=local_metadata,
+                        bibtex=local_bibtex,
+                    )]
+                )
+
         # External APIs (Parallel)
-        with concurrent.futures.ThreadPoolExecutor(max_workers=len(self.external_clients)) as executor:
+        max_workers = min(len(self.external_clients), settings.max_parallel_requests)
+        with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
             future_to_client = {
-                executor.submit(client.search, input_data): client 
+                executor.submit(client.search, input_data): client
                 for client in self.external_clients
             }
             for future in concurrent.futures.as_completed(future_to_client):
@@ -60,7 +63,7 @@ class SearchOrchestrator:
                         status = ProcessingStatus.SUCCESS if score >= settings.similarity_threshold else ProcessingStatus.NEEDS_REVIEW
                         candidates.append(CandidateResult(
                             source_api=client.api_name, status=status,
-                            confidence_score=score, verified_info=ext_metadata, bibtex=ext_bibtex
+                            confidence_score=score, verified_info=ext_metadata, bibtex=ext_bibtex,
                         ))
                     else:
                         candidates.append(CandidateResult(source_api=client.api_name, status=ProcessingStatus.NOT_FOUND))
@@ -72,7 +75,7 @@ class SearchOrchestrator:
             ref_id=ref_id,
             overall_status=ProcessingStatus.determine_overall([c.status for c in candidates]),
             original_data=input_data.parsed_data,
-            candidates=sorted(candidates, key=lambda x: x.confidence_score, reverse=True)
+            candidates=sorted(candidates, key=lambda x: x.confidence_score, reverse=True),
         )
 
     def _format_candidates_parallel(self, result: ProcessedReference, raw_text: str) -> ProcessedReference:
@@ -80,9 +83,9 @@ class SearchOrchestrator:
         if not targets:
             return result
 
-        with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
+        with concurrent.futures.ThreadPoolExecutor(max_workers=settings.max_parallel_requests) as executor:
             future_to_cand = {
-                executor.submit(apply_lab_rules, c.bibtex, c.verified_info, raw_text): c 
+                executor.submit(apply_lab_rules, c.bibtex, c.verified_info, raw_text): c
                 for c in targets
             }
             for future in concurrent.futures.as_completed(future_to_cand):
@@ -90,7 +93,7 @@ class SearchOrchestrator:
                 try:
                     formatted_bib = future.result()
                     cand.bibtex = formatted_bib
-                    
+
                     if formatted_bib and "unknown" in formatted_bib.split('\n')[0].lower():
                         if cand.status == ProcessingStatus.SUCCESS:
                             cand.status = ProcessingStatus.NEEDS_REVIEW
