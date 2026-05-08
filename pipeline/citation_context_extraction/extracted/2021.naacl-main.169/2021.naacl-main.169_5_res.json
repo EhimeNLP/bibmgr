@@ -1,0 +1,1168 @@
+{
+    "input_path": "pdfs/2021.naacl-main.169.pdf",
+    "page_index": 5,
+    "page_count": 10,
+    "width": 1191,
+    "height": 1684,
+    "model_settings": {
+        "use_doc_preprocessor": false,
+        "use_layout_detection": true,
+        "use_chart_recognition": false,
+        "use_seal_recognition": false,
+        "use_ocr_for_image_block": false,
+        "format_block_content": false,
+        "merge_layout_blocks": true,
+        "markdown_ignore_labels": [
+            "number",
+            "footnote",
+            "header",
+            "header_image",
+            "footer",
+            "footer_image",
+            "aside_text"
+        ],
+        "return_layout_polygon_points": true
+    },
+    "parsing_res_list": [
+        {
+            "block_label": "table",
+            "block_content": "<table><tr><td rowspan=\"2\">Writer \\ Reader</td><td colspan=\"4\">Joy</td><td colspan=\"4\">Sadness</td><td colspan=\"4\">Anticipation</td></tr><tr><td>0</td><td>1</td><td>2</td><td>3</td><td>0</td><td>1</td><td>2</td><td>3</td><td>0</td><td>1</td><td>2</td><td>3</td></tr><tr><td>0</td><td>91.7</td><td>3.1</td><td>4.0</td><td>1.2</td><td>90.2</td><td>4.7</td><td>4.0</td><td>1.1</td><td>84.1</td><td>6.7</td><td>6.0</td><td>3.1</td></tr><tr><td>1</td><td>60.7</td><td>9.7</td><td>22.5</td><td>7.0</td><td>57.9</td><td>15.7</td><td>19.9</td><td>6.5</td><td>55.2</td><td>13.5</td><td>19.7</td><td>11.6</td></tr><tr><td>2</td><td>37.2</td><td>9.4</td><td>34.1</td><td>19.3</td><td>45.1</td><td>15.4</td><td>26.8</td><td>12.7</td><td>46.8</td><td>11.5</td><td>23.3</td><td>18.3</td></tr><tr><td>3</td><td>18.2</td><td>6.6</td><td>37.7</td><td>37.4</td><td>33.6</td><td>12.4</td><td>31.7</td><td>22.3</td><td>32.4</td><td>10.1</td><td>24.6</td><td>32.8</td></tr><tr><td rowspan=\"2\">Writer \\ Reader</td><td colspan=\"4\">Surprise</td><td colspan=\"4\">Anger</td><td colspan=\"4\">Fear</td></tr><tr><td>0</td><td>1</td><td>2</td><td>3</td><td>0</td><td>1</td><td>2</td><td>3</td><td>0</td><td>1</td><td>2</td><td>3</td></tr><tr><td>0</td><td>80.9</td><td>7.8</td><td>7.8</td><td>3.5</td><td>98.6</td><td>0.7</td><td>0.5</td><td>0.2</td><td>89.0</td><td>3.9</td><td>5.1</td><td>2.1</td></tr><tr><td>1</td><td>56.5</td><td>16.0</td><td>17.7</td><td>9.7</td><td>87.5</td><td>5.2</td><td>4.8</td><td>2.5</td><td>70.3</td><td>8.7</td><td>14.0</td><td>7.0</td></tr><tr><td>2</td><td>48.8</td><td>14.8</td><td>22.0</td><td>14.3</td><td>77.4</td><td>7.2</td><td>9.6</td><td>5.8</td><td>57.5</td><td>9.3</td><td>19.7</td><td>13.5</td></tr><tr><td>3</td><td>35.8</td><td>14.0</td><td>23.8</td><td>26.3</td><td>58.6</td><td>6.7</td><td>15.2</td><td>19.5</td><td>44.2</td><td>6.9</td><td>22.8</td><td>26.1</td></tr><tr><td rowspan=\"2\">Writer \\ Reader</td><td colspan=\"4\">Disgust</td><td colspan=\"4\">Trust</td><td colspan=\"4\">Overall</td></tr><tr><td>0</td><td>1</td><td>2</td><td>3</td><td>0</td><td>1</td><td>2</td><td>3</td><td>0</td><td>1</td><td>2</td><td>3</td></tr><tr><td>0</td><td>87.9</td><td>6.3</td><td>3.8</td><td>2.0</td><td>96.2</td><td>2.2</td><td>1.1</td><td>0.5</td><td>90.2</td><td>4.3</td><td>3.9</td><td>1.6</td></tr><tr><td>1</td><td>62.2</td><td>16.1</td><td>13.1</td><td>8.6</td><td>92.6</td><td>4.2</td><td>2.2</td><td>1.1</td><td>65.6</td><td>11.8</td><td>15.4</td><td>7.2</td></tr><tr><td>2</td><td>49.1</td><td>14.5</td><td>18.9</td><td>17.5</td><td>86.3</td><td>6.5</td><td>5.1</td><td>2.0</td><td>51.8</td><td>11.6</td><td>22.5</td><td>14.1</td></tr><tr><td>3</td><td>34.7</td><td>11.4</td><td>21.3</td><td>32.6</td><td>81.5</td><td>7.2</td><td>6.4</td><td>4.8</td><td>36.9</td><td>9.7</td><td>25.9</td><td>27.6</td></tr></table>",
+            "block_bbox": [
+                145,
+                139,
+                1046,
+                740
+            ],
+            "block_id": 0,
+            "block_order": null,
+            "group_id": 0,
+            "global_block_id": 74,
+            "global_group_id": 74,
+            "block_polygon_points": [
+                [
+                    145.0,
+                    139.0
+                ],
+                [
+                    1046.0,
+                    139.0
+                ],
+                [
+                    1046.0,
+                    740.0
+                ],
+                [
+                    145.0,
+                    740.0
+                ]
+            ]
+        },
+        {
+            "block_label": "figure_title",
+            "block_content": "Table 5: Confusion matrix of subjective and objective labels. (%) This is a total of the three sub-matrices. Each sub-matrix is a confusion matrix for each reader.",
+            "block_bbox": [
+                135,
+                761,
+                1053,
+                811
+            ],
+            "block_id": 1,
+            "block_order": null,
+            "group_id": 1,
+            "global_block_id": 75,
+            "global_group_id": 75,
+            "block_polygon_points": [
+                [
+                    135.0,
+                    761.0
+                ],
+                [
+                    1053.0,
+                    761.0
+                ],
+                [
+                    1053.0,
+                    811.0
+                ],
+                [
+                    135.0,
+                    811.0
+                ]
+            ]
+        },
+        {
+            "block_label": "paragraph_title",
+            "block_content": "5 Emotional Intensity Estimation",
+            "block_bbox": [
+                136,
+                851,
+                501,
+                879
+            ],
+            "block_id": 2,
+            "block_order": 1,
+            "group_id": 2,
+            "global_block_id": 76,
+            "global_group_id": 76,
+            "block_polygon_points": [
+                [
+                    136.0,
+                    851.0
+                ],
+                [
+                    501.0,
+                    851.0
+                ],
+                [
+                    501.0,
+                    879.0
+                ],
+                [
+                    136.0,
+                    879.0
+                ]
+            ]
+        },
+        {
+            "block_label": "text",
+            "block_content": "We conduct experiments on the four-class classification as an ordinal classification to estimate emotional intensity  $ \\{0, 1, 2, 3\\} $ using the dataset constructed in Section 3.",
+            "block_bbox": [
+                135,
+                895,
+                586,
+                1004
+            ],
+            "block_id": 3,
+            "block_order": 2,
+            "group_id": 3,
+            "global_block_id": 77,
+            "global_group_id": 77,
+            "block_polygon_points": [
+                [
+                    135.0,
+                    895.0
+                ],
+                [
+                    586.0,
+                    895.0
+                ],
+                [
+                    586.0,
+                    1004.0
+                ],
+                [
+                    135.0,
+                    1004.0
+                ]
+            ]
+        },
+        {
+            "block_label": "paragraph_title",
+            "block_content": "5.1 Experimental Settings",
+            "block_bbox": [
+                137,
+                1023,
+                402,
+                1050
+            ],
+            "block_id": 4,
+            "block_order": 3,
+            "group_id": 4,
+            "global_block_id": 78,
+            "global_group_id": 78,
+            "block_polygon_points": [
+                [
+                    137.0,
+                    1023.0
+                ],
+                [
+                    402.0,
+                    1023.0
+                ],
+                [
+                    402.0,
+                    1050.0
+                ],
+                [
+                    137.0,
+                    1050.0
+                ]
+            ]
+        },
+        {
+            "block_label": "text",
+            "block_content": "In this experiment, we divided the dataset $ ^{12} $ into training set of 15,000 posts from 30 writers, validation set of 1,000 posts from 10 writers, and evaluation set of 1,000 posts from 10 writers. That is, there is no duplication of writers between the splits. We used MeCab (IPADIC-2.7.0) $ ^{13} $ (Kudo et al., 2004) to tokenize Japanese text.",
+            "block_bbox": [
+                134,
+                1059,
+                585,
+                1248
+            ],
+            "block_id": 5,
+            "block_order": 4,
+            "group_id": 5,
+            "global_block_id": 79,
+            "global_group_id": 79,
+            "block_polygon_points": [
+                [
+                    134.0,
+                    1059.0
+                ],
+                [
+                    585.0,
+                    1059.0
+                ],
+                [
+                    585.0,
+                    1248.0
+                ],
+                [
+                    134.0,
+                    1248.0
+                ]
+            ]
+        },
+        {
+            "block_label": "text",
+            "block_content": "The performance of the emotional intensity estimation models is evaluated by the mean absolute error (MAE) and the quadratic weighted kappa (QWK). We evaluated the model using both the emotional intensity labels given by the subjective annotators (subjective labels) and the average of the emotional intensity labels given by the three objective annotators (objective labels).\nFollowing the standard emotional intensity estimation models (Acheampong et al., 2020), we train the following three types of four-class classification models for each emotion.",
+            "block_bbox": [
+                134,
+                1251,
+                584,
+                1470
+            ],
+            "block_id": 6,
+            "block_order": 5,
+            "group_id": 6,
+            "global_block_id": 80,
+            "global_group_id": 80,
+            "block_polygon_points": [
+                [
+                    134.0,
+                    1251.0
+                ],
+                [
+                    584.0,
+                    1251.0
+                ],
+                [
+                    584.0,
+                    1470.0
+                ],
+                [
+                    134.0,
+                    1470.0
+                ]
+            ]
+        },
+        {
+            "block_label": "text",
+            "block_content": "",
+            "block_bbox": [
+                603,
+                851,
+                1055,
+                963
+            ],
+            "block_id": 7,
+            "block_order": 6,
+            "group_id": 6,
+            "global_block_id": 81,
+            "global_group_id": 81,
+            "block_polygon_points": [
+                [
+                    603.0,
+                    851.0
+                ],
+                [
+                    1055.0,
+                    851.0
+                ],
+                [
+                    1055.0,
+                    963.0
+                ],
+                [
+                    603.0,
+                    963.0
+                ]
+            ]
+        },
+        {
+            "block_label": "text",
+            "block_content": "• BoW+LogReg employs Bag-of-Words to extract features and Logistic Regression to the estimate emotional intensity.",
+            "block_bbox": [
+                633,
+                985,
+                1055,
+                1068
+            ],
+            "block_id": 8,
+            "block_order": 7,
+            "group_id": 8,
+            "global_block_id": 82,
+            "global_group_id": 82,
+            "block_polygon_points": [
+                [
+                    633.0,
+                    985.0
+                ],
+                [
+                    1055.0,
+                    985.0
+                ],
+                [
+                    1055.0,
+                    1068.0
+                ],
+                [
+                    633.0,
+                    1068.0
+                ]
+            ]
+        },
+        {
+            "block_label": "text",
+            "block_content": "• fastText+SVM vectorizes each word with fastText $ ^{14} $ (Bojanowski et al., 2017) and estimates the emotional intensity with a Support Vector Machine based on their average vector.",
+            "block_bbox": [
+                632,
+                1092,
+                1057,
+                1203
+            ],
+            "block_id": 9,
+            "block_order": 8,
+            "group_id": 9,
+            "global_block_id": 83,
+            "global_group_id": 83,
+            "block_polygon_points": [
+                [
+                    632.0,
+                    1092.0
+                ],
+                [
+                    1057.0,
+                    1092.0
+                ],
+                [
+                    1057.0,
+                    1203.0
+                ],
+                [
+                    632.0,
+                    1203.0
+                ]
+            ]
+        },
+        {
+            "block_label": "text",
+            "block_content": "• BERT is a model that fine-tunes the pre-trained BERT $ ^{15} $ (Devlin et al., 2019) and estimates the emotional intensity as  $ y = \\text{softmax}(hW) $, where  $ h $ is a feature vector obtained for the [CLS] token of BERT. We investigate the performance of both BERT trained with subjective labels (Subj. BERT) and BERT trained with objective labels (Obj.",
+            "block_bbox": [
+                631,
+                1225,
+                1056,
+                1445
+            ],
+            "block_id": 10,
+            "block_order": 9,
+            "group_id": 10,
+            "global_block_id": 84,
+            "global_group_id": 84,
+            "block_polygon_points": [
+                [
+                    631.0,
+                    1225.0
+                ],
+                [
+                    1056.0,
+                    1225.0
+                ],
+                [
+                    1056.0,
+                    1445.0
+                ],
+                [
+                    631.0,
+                    1445.0
+                ]
+            ]
+        },
+        {
+            "block_label": "footnote",
+            "block_content": " $ ^{12} $Each writer provided 500 posts for the training set and 100 posts for the validation and test sets.",
+            "block_bbox": [
+                135,
+                1482,
+                584,
+                1527
+            ],
+            "block_id": 11,
+            "block_order": null,
+            "group_id": 11,
+            "global_block_id": 85,
+            "global_group_id": 85,
+            "block_polygon_points": [
+                [
+                    135.0,
+                    1482.0
+                ],
+                [
+                    584.0,
+                    1482.0
+                ],
+                [
+                    584.0,
+                    1527.0
+                ],
+                [
+                    135.0,
+                    1527.0
+                ]
+            ]
+        },
+        {
+            "block_label": "footnote",
+            "block_content": " $ ^{14} $https://dl.fbaipublicfiles.com/",
+            "block_bbox": [
+                626,
+                1463,
+                984,
+                1486
+            ],
+            "block_id": 12,
+            "block_order": null,
+            "group_id": 12,
+            "global_block_id": 86,
+            "global_group_id": 86,
+            "block_polygon_points": [
+                [
+                    626.0,
+                    1463.0
+                ],
+                [
+                    984.0,
+                    1463.0
+                ],
+                [
+                    984.0,
+                    1486.0
+                ],
+                [
+                    626.0,
+                    1486.0
+                ]
+            ]
+        },
+        {
+            "block_label": "footnote",
+            "block_content": "fasttext/vectors-crawl/cc.ja.300.bin.gz",
+            "block_bbox": [
+                609,
+                1485,
+                1038,
+                1508
+            ],
+            "block_id": 13,
+            "block_order": null,
+            "group_id": 13,
+            "global_block_id": 87,
+            "global_group_id": 87,
+            "block_polygon_points": [
+                [
+                    609.0,
+                    1485.0
+                ],
+                [
+                    1038.0,
+                    1485.0
+                ],
+                [
+                    1038.0,
+                    1508.0
+                ],
+                [
+                    609.0,
+                    1508.0
+                ]
+            ]
+        },
+        {
+            "block_label": "footnote",
+            "block_content": " $ ^{13} $https://taku910.github.io/mecab/",
+            "block_bbox": [
+                156,
+                1526,
+                523,
+                1549
+            ],
+            "block_id": 14,
+            "block_order": null,
+            "group_id": 14,
+            "global_block_id": 88,
+            "global_group_id": 88,
+            "block_polygon_points": [
+                [
+                    156.0,
+                    1526.0
+                ],
+                [
+                    523.0,
+                    1526.0
+                ],
+                [
+                    523.0,
+                    1549.0
+                ],
+                [
+                    156.0,
+                    1549.0
+                ]
+            ]
+        },
+        {
+            "block_label": "footnote",
+            "block_content": " $ ^{15} $https://huggingface.co/cl-tohoku/",
+            "block_bbox": [
+                608,
+                1506,
+                1007,
+                1536
+            ],
+            "block_id": 15,
+            "block_order": null,
+            "group_id": 15,
+            "global_block_id": 89,
+            "global_group_id": 89,
+            "block_polygon_points": [
+                [
+                    608.0,
+                    1506.0
+                ],
+                [
+                    1007.0,
+                    1506.0
+                ],
+                [
+                    1007.0,
+                    1536.0
+                ],
+                [
+                    608.0,
+                    1536.0
+                ]
+            ]
+        },
+        {
+            "block_label": "footnote",
+            "block_content": "bert-base-japanese-whole-word-masking",
+            "block_bbox": [
+                609,
+                1522,
+                1020,
+                1549
+            ],
+            "block_id": 16,
+            "block_order": null,
+            "group_id": 16,
+            "global_block_id": 90,
+            "global_group_id": 90,
+            "block_polygon_points": [
+                [
+                    609.0,
+                    1522.0
+                ],
+                [
+                    1020.0,
+                    1522.0
+                ],
+                [
+                    1020.0,
+                    1549.0
+                ],
+                [
+                    609.0,
+                    1549.0
+                ]
+            ]
+        },
+        {
+            "block_label": "number",
+            "block_content": "2100",
+            "block_bbox": [
+                573,
+                1552,
+                623,
+                1575
+            ],
+            "block_id": 17,
+            "block_order": null,
+            "group_id": 17,
+            "global_block_id": 91,
+            "global_group_id": 91,
+            "block_polygon_points": [
+                [
+                    573.0,
+                    1552.0
+                ],
+                [
+                    622.0,
+                    1552.0
+                ],
+                [
+                    622.0,
+                    1574.0
+                ],
+                [
+                    573.0,
+                    1574.0
+                ]
+            ]
+        }
+    ],
+    "layout_det_res": {
+        "input_path": null,
+        "page_index": null,
+        "boxes": [
+            {
+                "cls_id": 21,
+                "label": "table",
+                "score": 0.9710462093353271,
+                "coordinate": [
+                    145,
+                    139,
+                    1046,
+                    740
+                ],
+                "order": null,
+                "polygon_points": [
+                    [
+                        145.0,
+                        139.0
+                    ],
+                    [
+                        1046.0,
+                        139.0
+                    ],
+                    [
+                        1046.0,
+                        740.0
+                    ],
+                    [
+                        145.0,
+                        740.0
+                    ]
+                ]
+            },
+            {
+                "cls_id": 7,
+                "label": "figure_title",
+                "score": 0.915131151676178,
+                "coordinate": [
+                    135,
+                    761,
+                    1053,
+                    811
+                ],
+                "order": null,
+                "polygon_points": [
+                    [
+                        135.0,
+                        761.0
+                    ],
+                    [
+                        1053.0,
+                        761.0
+                    ],
+                    [
+                        1053.0,
+                        811.0
+                    ],
+                    [
+                        135.0,
+                        811.0
+                    ]
+                ]
+            },
+            {
+                "cls_id": 17,
+                "label": "paragraph_title",
+                "score": 0.8327646255493164,
+                "coordinate": [
+                    136,
+                    851,
+                    501,
+                    879
+                ],
+                "order": 1,
+                "polygon_points": [
+                    [
+                        136.0,
+                        851.0
+                    ],
+                    [
+                        501.0,
+                        851.0
+                    ],
+                    [
+                        501.0,
+                        879.0
+                    ],
+                    [
+                        136.0,
+                        879.0
+                    ]
+                ]
+            },
+            {
+                "cls_id": 22,
+                "label": "text",
+                "score": 0.9385442137718201,
+                "coordinate": [
+                    135,
+                    895,
+                    586,
+                    1004
+                ],
+                "order": 2,
+                "polygon_points": [
+                    [
+                        135.0,
+                        895.0
+                    ],
+                    [
+                        586.0,
+                        895.0
+                    ],
+                    [
+                        586.0,
+                        1004.0
+                    ],
+                    [
+                        135.0,
+                        1004.0
+                    ]
+                ]
+            },
+            {
+                "cls_id": 17,
+                "label": "paragraph_title",
+                "score": 0.8407622575759888,
+                "coordinate": [
+                    137,
+                    1023,
+                    402,
+                    1050
+                ],
+                "order": 3,
+                "polygon_points": [
+                    [
+                        137.0,
+                        1023.0
+                    ],
+                    [
+                        402.0,
+                        1023.0
+                    ],
+                    [
+                        402.0,
+                        1050.0
+                    ],
+                    [
+                        137.0,
+                        1050.0
+                    ]
+                ]
+            },
+            {
+                "cls_id": 22,
+                "label": "text",
+                "score": 0.9493444561958313,
+                "coordinate": [
+                    134,
+                    1059,
+                    585,
+                    1248
+                ],
+                "order": 4,
+                "polygon_points": [
+                    [
+                        134.0,
+                        1059.0
+                    ],
+                    [
+                        585.0,
+                        1059.0
+                    ],
+                    [
+                        585.0,
+                        1248.0
+                    ],
+                    [
+                        134.0,
+                        1248.0
+                    ]
+                ]
+            },
+            {
+                "cls_id": 22,
+                "label": "text",
+                "score": 0.9530454874038696,
+                "coordinate": [
+                    134,
+                    1251,
+                    584,
+                    1470
+                ],
+                "order": 5,
+                "polygon_points": [
+                    [
+                        134.0,
+                        1251.0
+                    ],
+                    [
+                        584.0,
+                        1251.0
+                    ],
+                    [
+                        584.0,
+                        1470.0
+                    ],
+                    [
+                        134.0,
+                        1470.0
+                    ]
+                ]
+            },
+            {
+                "cls_id": 22,
+                "label": "text",
+                "score": 0.9437289237976074,
+                "coordinate": [
+                    603,
+                    851,
+                    1055,
+                    963
+                ],
+                "order": 6,
+                "polygon_points": [
+                    [
+                        603.0,
+                        851.0
+                    ],
+                    [
+                        1055.0,
+                        851.0
+                    ],
+                    [
+                        1055.0,
+                        963.0
+                    ],
+                    [
+                        603.0,
+                        963.0
+                    ]
+                ]
+            },
+            {
+                "cls_id": 22,
+                "label": "text",
+                "score": 0.9240455031394958,
+                "coordinate": [
+                    633,
+                    985,
+                    1055,
+                    1068
+                ],
+                "order": 7,
+                "polygon_points": [
+                    [
+                        633.0,
+                        985.0
+                    ],
+                    [
+                        1055.0,
+                        985.0
+                    ],
+                    [
+                        1055.0,
+                        1068.0
+                    ],
+                    [
+                        633.0,
+                        1068.0
+                    ]
+                ]
+            },
+            {
+                "cls_id": 22,
+                "label": "text",
+                "score": 0.9309572577476501,
+                "coordinate": [
+                    632,
+                    1092,
+                    1057,
+                    1203
+                ],
+                "order": 8,
+                "polygon_points": [
+                    [
+                        632.0,
+                        1092.0
+                    ],
+                    [
+                        1057.0,
+                        1092.0
+                    ],
+                    [
+                        1057.0,
+                        1203.0
+                    ],
+                    [
+                        632.0,
+                        1203.0
+                    ]
+                ]
+            },
+            {
+                "cls_id": 22,
+                "label": "text",
+                "score": 0.9428489208221436,
+                "coordinate": [
+                    631,
+                    1225,
+                    1056,
+                    1445
+                ],
+                "order": 9,
+                "polygon_points": [
+                    [
+                        631.0,
+                        1225.0
+                    ],
+                    [
+                        1056.0,
+                        1225.0
+                    ],
+                    [
+                        1056.0,
+                        1445.0
+                    ],
+                    [
+                        631.0,
+                        1445.0
+                    ]
+                ]
+            },
+            {
+                "cls_id": 10,
+                "label": "footnote",
+                "score": 0.892739474773407,
+                "coordinate": [
+                    135,
+                    1482,
+                    584,
+                    1527
+                ],
+                "order": null,
+                "polygon_points": [
+                    [
+                        135.0,
+                        1482.0
+                    ],
+                    [
+                        584.0,
+                        1482.0
+                    ],
+                    [
+                        584.0,
+                        1527.0
+                    ],
+                    [
+                        135.0,
+                        1527.0
+                    ]
+                ]
+            },
+            {
+                "cls_id": 10,
+                "label": "footnote",
+                "score": 0.6769394278526306,
+                "coordinate": [
+                    626,
+                    1463,
+                    984,
+                    1486
+                ],
+                "order": null,
+                "polygon_points": [
+                    [
+                        626.0,
+                        1463.0
+                    ],
+                    [
+                        984.0,
+                        1463.0
+                    ],
+                    [
+                        984.0,
+                        1486.0
+                    ],
+                    [
+                        626.0,
+                        1486.0
+                    ]
+                ]
+            },
+            {
+                "cls_id": 10,
+                "label": "footnote",
+                "score": 0.7145477533340454,
+                "coordinate": [
+                    609,
+                    1485,
+                    1038,
+                    1508
+                ],
+                "order": null,
+                "polygon_points": [
+                    [
+                        609.0,
+                        1485.0
+                    ],
+                    [
+                        1038.0,
+                        1485.0
+                    ],
+                    [
+                        1038.0,
+                        1508.0
+                    ],
+                    [
+                        609.0,
+                        1508.0
+                    ]
+                ]
+            },
+            {
+                "cls_id": 10,
+                "label": "footnote",
+                "score": 0.8258968591690063,
+                "coordinate": [
+                    156,
+                    1526,
+                    523,
+                    1549
+                ],
+                "order": null,
+                "polygon_points": [
+                    [
+                        156.0,
+                        1526.0
+                    ],
+                    [
+                        523.0,
+                        1526.0
+                    ],
+                    [
+                        523.0,
+                        1549.0
+                    ],
+                    [
+                        156.0,
+                        1549.0
+                    ]
+                ]
+            },
+            {
+                "cls_id": 10,
+                "label": "footnote",
+                "score": 0.6550289988517761,
+                "coordinate": [
+                    608,
+                    1506,
+                    1007,
+                    1536
+                ],
+                "order": null,
+                "polygon_points": [
+                    [
+                        608.0,
+                        1506.0
+                    ],
+                    [
+                        1007.0,
+                        1506.0
+                    ],
+                    [
+                        1007.0,
+                        1536.0
+                    ],
+                    [
+                        608.0,
+                        1536.0
+                    ]
+                ]
+            },
+            {
+                "cls_id": 10,
+                "label": "footnote",
+                "score": 0.4513757526874542,
+                "coordinate": [
+                    609,
+                    1522,
+                    1020,
+                    1549
+                ],
+                "order": null,
+                "polygon_points": [
+                    [
+                        609.0,
+                        1522.0
+                    ],
+                    [
+                        1020.0,
+                        1522.0
+                    ],
+                    [
+                        1020.0,
+                        1549.0
+                    ],
+                    [
+                        609.0,
+                        1549.0
+                    ]
+                ]
+            },
+            {
+                "cls_id": 16,
+                "label": "number",
+                "score": 0.7498696446418762,
+                "coordinate": [
+                    573,
+                    1552,
+                    623,
+                    1575
+                ],
+                "order": 10,
+                "polygon_points": [
+                    [
+                        573.0,
+                        1552.0
+                    ],
+                    [
+                        622.0,
+                        1552.0
+                    ],
+                    [
+                        622.0,
+                        1574.0
+                    ],
+                    [
+                        573.0,
+                        1574.0
+                    ]
+                ]
+            }
+        ]
+    }
+}
