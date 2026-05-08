@@ -1,0 +1,1261 @@
+{
+    "input_path": "pdfs/2021.naacl-main.169.pdf",
+    "page_index": 2,
+    "page_count": 10,
+    "width": 1191,
+    "height": 1684,
+    "model_settings": {
+        "use_doc_preprocessor": false,
+        "use_layout_detection": true,
+        "use_chart_recognition": false,
+        "use_seal_recognition": false,
+        "use_ocr_for_image_block": false,
+        "format_block_content": false,
+        "merge_layout_blocks": true,
+        "markdown_ignore_labels": [
+            "number",
+            "footnote",
+            "header",
+            "header_image",
+            "footer",
+            "footer_image",
+            "aside_text"
+        ],
+        "return_layout_polygon_points": true
+    },
+    "parsing_res_list": [
+        {
+            "block_label": "table",
+            "block_content": "<table><tr><td></td><td>Joy</td><td>Sadness</td><td>Anticipation</td><td>Surprise</td><td>Anger</td><td>Fear</td><td>Disgust</td><td>Trust</td><td>Overall</td></tr><tr><td>Reader 1 vs. Reader 2</td><td>0.697</td><td>0.607</td><td>0.594</td><td>0.342</td><td>0.627</td><td>0.359</td><td>0.527</td><td>0.203</td><td>0.547</td></tr><tr><td>Reader 1 vs. Reader 3</td><td>0.662</td><td>0.545</td><td>0.567</td><td>0.443</td><td>0.581</td><td>0.429</td><td>0.455</td><td>0.196</td><td>0.549</td></tr><tr><td>Reader 2 vs. Reader 3</td><td>0.700</td><td>0.597</td><td>0.632</td><td>0.415</td><td>0.630</td><td>0.476</td><td>0.512</td><td>0.295</td><td>0.585</td></tr><tr><td>Writer vs. Reader 1</td><td>0.622</td><td>0.461</td><td>0.423</td><td>0.348</td><td>0.363</td><td>0.333</td><td>0.394</td><td>0.089</td><td>0.439</td></tr><tr><td>Writer vs. Reader 2</td><td>0.633</td><td>0.526</td><td>0.432</td><td>0.339</td><td>0.386</td><td>0.361</td><td>0.442</td><td>0.153</td><td>0.465</td></tr><tr><td>Writer vs. Reader 3</td><td>0.624</td><td>0.450</td><td>0.459</td><td>0.396</td><td>0.374</td><td>0.380</td><td>0.467</td><td>0.134</td><td>0.463</td></tr><tr><td>Writer vs. Avg. Readers</td><td>0.683</td><td>0.536</td><td>0.498</td><td>0.441</td><td>0.401</td><td>0.433</td><td>0.514</td><td>0.132</td><td>0.515</td></tr></table>",
+            "block_bbox": [
+                139,
+                141,
+                1052,
+                361
+            ],
+            "block_id": 0,
+            "block_order": null,
+            "group_id": 0,
+            "global_block_id": 32,
+            "global_group_id": 32,
+            "block_polygon_points": [
+                [
+                    139.0,
+                    141.0
+                ],
+                [
+                    1052.0,
+                    141.0
+                ],
+                [
+                    1052.0,
+                    361.0
+                ],
+                [
+                    139.0,
+                    361.0
+                ]
+            ]
+        },
+        {
+            "block_label": "figure_title",
+            "block_content": "Table 2: Inter-annotator agreement by quadratic weighted kappa.",
+            "block_bbox": [
+                331,
+                383,
+                857,
+                408
+            ],
+            "block_id": 1,
+            "block_order": null,
+            "group_id": 1,
+            "global_block_id": 33,
+            "global_group_id": 33,
+            "block_polygon_points": [
+                [
+                    331.0,
+                    383.0
+                ],
+                [
+                    857.0,
+                    383.0
+                ],
+                [
+                    857.0,
+                    408.0
+                ],
+                [
+                    331.0,
+                    408.0
+                ]
+            ]
+        },
+        {
+            "block_label": "text",
+            "block_content": "Some datasets (Kaji and Kitsuregawa, 2006; Suzuki, 2019) are available in Japanese. However, these are sentences with sentiment polarity, and do not cover the various emotions dealt with in this study. Our study is the first to label Japanese texts with various emotional intensity.",
+            "block_bbox": [
+                135,
+                449,
+                585,
+                612
+            ],
+            "block_id": 2,
+            "block_order": 1,
+            "group_id": 2,
+            "global_block_id": 34,
+            "global_group_id": 34,
+            "block_polygon_points": [
+                [
+                    135.0,
+                    449.0
+                ],
+                [
+                    585.0,
+                    449.0
+                ],
+                [
+                    585.0,
+                    612.0
+                ],
+                [
+                    135.0,
+                    612.0
+                ]
+            ]
+        },
+        {
+            "block_label": "paragraph_title",
+            "block_content": "3 Emotional Intensity Annotation",
+            "block_bbox": [
+                136,
+                634,
+                506,
+                661
+            ],
+            "block_id": 3,
+            "block_order": 2,
+            "group_id": 3,
+            "global_block_id": 35,
+            "global_group_id": 35,
+            "block_polygon_points": [
+                [
+                    136.0,
+                    634.0
+                ],
+                [
+                    506.0,
+                    634.0
+                ],
+                [
+                    506.0,
+                    661.0
+                ],
+                [
+                    136.0,
+                    661.0
+                ]
+            ]
+        },
+        {
+            "block_label": "paragraph_title",
+            "block_content": "3.1 Annotating Subjective Labels",
+            "block_bbox": [
+                136,
+                679,
+                470,
+                705
+            ],
+            "block_id": 4,
+            "block_order": 3,
+            "group_id": 4,
+            "global_block_id": 36,
+            "global_group_id": 36,
+            "block_polygon_points": [
+                [
+                    136.0,
+                    679.0
+                ],
+                [
+                    470.0,
+                    679.0
+                ],
+                [
+                    470.0,
+                    705.0
+                ],
+                [
+                    136.0,
+                    705.0
+                ]
+            ]
+        },
+        {
+            "block_label": "text",
+            "block_content": "We hired 50 participants via crowdsourcing service Lancers. $ ^{8} $ Those participants include 22 men and 28 women, where 2 are teens, 26 are in their 20s, 18 are in their 30s, and 4 are above 40 years old. They copy and paste their own past SNS posts and then labeled the posts with the subjective emotional intensity according to Plutchik's eight emotional intensities (Plutchik, 1980) with a four-point scale (0: no, 1: weak, 2: medium, and 3: strong). They did not provide us with all the posts, but chose only those posts that they could agree to publish. Here, for the purpose of emotion analysis from the text, posts with images or URLs were excluded. Each participant labeled 100 to 500 posts, resulting in 17,000 posts in total. We did not limit the posts to be annotated based on when they are posted. As a result, our dataset contains posts in the 9-year range from June 2011 to May 2020. We assumed that each post would require 50 seconds for annotation and paid 21.5 JPY per post. This roughly corresponds to 15 USD per hour, which is a good reward for crowdsourcing. $ ^{9} $",
+            "block_bbox": [
+                134,
+                714,
+                585,
+                1310
+            ],
+            "block_id": 5,
+            "block_order": 4,
+            "group_id": 5,
+            "global_block_id": 37,
+            "global_group_id": 37,
+            "block_polygon_points": [
+                [
+                    134.0,
+                    714.0
+                ],
+                [
+                    585.0,
+                    714.0
+                ],
+                [
+                    585.0,
+                    1310.0
+                ],
+                [
+                    134.0,
+                    1310.0
+                ]
+            ]
+        },
+        {
+            "block_label": "text",
+            "block_content": "To assess the quality of annotations, we randomly sampled 30 posts for each participant. One of our graduate students evaluated the posts and the corresponding eight emotional intensity labels on a four-point scale based on the following criteria.\n• 2: I can find the relevance between the post and label.",
+            "block_bbox": [
+                135,
+                1313,
+                584,
+                1449
+            ],
+            "block_id": 6,
+            "block_order": 5,
+            "group_id": 6,
+            "global_block_id": 38,
+            "global_group_id": 38,
+            "block_polygon_points": [
+                [
+                    135.0,
+                    1313.0
+                ],
+                [
+                    584.0,
+                    1313.0
+                ],
+                [
+                    584.0,
+                    1449.0
+                ],
+                [
+                    135.0,
+                    1449.0
+                ]
+            ]
+        },
+        {
+            "block_label": "text",
+            "block_content": "",
+            "block_bbox": [
+                633,
+                496,
+                1053,
+                550
+            ],
+            "block_id": 7,
+            "block_order": 6,
+            "group_id": 6,
+            "global_block_id": 39,
+            "global_group_id": 39,
+            "block_polygon_points": [
+                [
+                    633.0,
+                    496.0
+                ],
+                [
+                    1053.0,
+                    496.0
+                ],
+                [
+                    1053.0,
+                    550.0
+                ],
+                [
+                    633.0,
+                    550.0
+                ]
+            ]
+        },
+        {
+            "block_label": "text",
+            "block_content": "• 3: I fully agree with the label given.",
+            "block_bbox": [
+                632,
+                449,
+                972,
+                478
+            ],
+            "block_id": 8,
+            "block_order": 7,
+            "group_id": 8,
+            "global_block_id": 40,
+            "global_group_id": 40,
+            "block_polygon_points": [
+                [
+                    632.0,
+                    449.0
+                ],
+                [
+                    972.0,
+                    449.0
+                ],
+                [
+                    972.0,
+                    478.0
+                ],
+                [
+                    632.0,
+                    478.0
+                ]
+            ]
+        },
+        {
+            "block_label": "text",
+            "block_content": "- 1: I hardly find the relevance between the post and label.",
+            "block_bbox": [
+                632,
+                568,
+                1053,
+                622
+            ],
+            "block_id": 9,
+            "block_order": 8,
+            "group_id": 9,
+            "global_block_id": 41,
+            "global_group_id": 41,
+            "block_polygon_points": [
+                [
+                    632.0,
+                    568.0
+                ],
+                [
+                    1053.0,
+                    568.0
+                ],
+                [
+                    1053.0,
+                    622.0
+                ],
+                [
+                    632.0,
+                    622.0
+                ]
+            ]
+        },
+        {
+            "block_label": "text",
+            "block_content": "- 0: I do not think the annotator seriously engaged for this post.",
+            "block_bbox": [
+                632,
+                641,
+                1055,
+                696
+            ],
+            "block_id": 10,
+            "block_order": 9,
+            "group_id": 10,
+            "global_block_id": 42,
+            "global_group_id": 42,
+            "block_polygon_points": [
+                [
+                    632.0,
+                    641.0
+                ],
+                [
+                    1055.0,
+                    641.0
+                ],
+                [
+                    1055.0,
+                    696.0
+                ],
+                [
+                    632.0,
+                    696.0
+                ]
+            ]
+        },
+        {
+            "block_label": "text",
+            "block_content": "The average score for each participant was 2.1, where 1.8 at minimum, and 2.5 at maximum. There were no posts rated as 0. We had five annotators whose average score was below 2, but reviewing their posts and labels does not necessarily show obvious clues of improper annotation.",
+            "block_bbox": [
+                604,
+                712,
+                1055,
+                877
+            ],
+            "block_id": 11,
+            "block_order": 10,
+            "group_id": 11,
+            "global_block_id": 43,
+            "global_group_id": 43,
+            "block_polygon_points": [
+                [
+                    604.0,
+                    712.0
+                ],
+                [
+                    1055.0,
+                    712.0
+                ],
+                [
+                    1055.0,
+                    877.0
+                ],
+                [
+                    604.0,
+                    877.0
+                ]
+            ]
+        },
+        {
+            "block_label": "paragraph_title",
+            "block_content": "3.2 Annotating Objective Labels",
+            "block_bbox": [
+                606,
+                894,
+                935,
+                920
+            ],
+            "block_id": 12,
+            "block_order": 11,
+            "group_id": 12,
+            "global_block_id": 44,
+            "global_group_id": 44,
+            "block_polygon_points": [
+                [
+                    606.0,
+                    894.0
+                ],
+                [
+                    935.0,
+                    894.0
+                ],
+                [
+                    935.0,
+                    920.0
+                ],
+                [
+                    606.0,
+                    920.0
+                ]
+            ]
+        },
+        {
+            "block_label": "text",
+            "block_content": "We hired three objective annotators via the same crowdsourcing service as in Section 3.1. Annotators include two women in their 30s and one woman in their 40s. They labeled all the 17,000 posts with Plutchik's eight emotional intensities (Plutchik, 1980) in the same way as subjective annotation. Note that while the subjective annotators labeled their own emotions as the writer of each post, the objective annotators labeled each post based on the emotions they received from the post. Objective annotators do not have to fill in the text, so their task is simply to label emotional intensity. We assumed that each post takes 10 seconds and paid 3.8 JPY per post, which results in the reward of roughly 13 USD per hour.",
+            "block_bbox": [
+                604,
+                929,
+                1057,
+                1335
+            ],
+            "block_id": 13,
+            "block_order": 12,
+            "group_id": 13,
+            "global_block_id": 45,
+            "global_group_id": 45,
+            "block_polygon_points": [
+                [
+                    604.0,
+                    929.0
+                ],
+                [
+                    1057.0,
+                    929.0
+                ],
+                [
+                    1057.0,
+                    1335.0
+                ],
+                [
+                    604.0,
+                    1335.0
+                ]
+            ]
+        },
+        {
+            "block_label": "text",
+            "block_content": "To assess the quality of annotations, we calculated the quadratic weighted kappa $ ^{10} $ (Cohen, 1968) as a metric of the inter-annotator agreement. The upper part of Table 2 shows the agreement between the objective annotators. The best case, joy, shows",
+            "block_bbox": [
+                604,
+                1337,
+                1057,
+                1471
+            ],
+            "block_id": 14,
+            "block_order": 13,
+            "group_id": 14,
+            "global_block_id": 46,
+            "global_group_id": 46,
+            "block_polygon_points": [
+                [
+                    604.0,
+                    1337.0
+                ],
+                [
+                    1057.0,
+                    1337.0
+                ],
+                [
+                    1057.0,
+                    1471.0
+                ],
+                [
+                    604.0,
+                    1471.0
+                ]
+            ]
+        },
+        {
+            "block_label": "footnote",
+            "block_content": " $ ^{8} $https://www.lancers.jp/",
+            "block_bbox": [
+                161,
+                1463,
+                426,
+                1487
+            ],
+            "block_id": 15,
+            "block_order": null,
+            "group_id": 15,
+            "global_block_id": 47,
+            "global_group_id": 47,
+            "block_polygon_points": [
+                [
+                    161.0,
+                    1463.0
+                ],
+                [
+                    426.0,
+                    1463.0
+                ],
+                [
+                    426.0,
+                    1487.0
+                ],
+                [
+                    161.0,
+                    1487.0
+                ]
+            ]
+        },
+        {
+            "block_label": "footnote",
+            "block_content": " $ ^{9} $One of the popular crowdsourcing services, Prolific, has a minimum payment of 6.5 USD per hour. https://www.prolific.co/pricing",
+            "block_bbox": [
+                136,
+                1485,
+                585,
+                1549
+            ],
+            "block_id": 16,
+            "block_order": null,
+            "group_id": 16,
+            "global_block_id": 48,
+            "global_group_id": 48,
+            "block_polygon_points": [
+                [
+                    136.0,
+                    1485.0
+                ],
+                [
+                    585.0,
+                    1485.0
+                ],
+                [
+                    585.0,
+                    1549.0
+                ],
+                [
+                    136.0,
+                    1549.0
+                ]
+            ]
+        },
+        {
+            "block_label": "footnote",
+            "block_content": " $ ^{10} $https://scikit-learn.org/stable/modules/generated/sklearn.metrics.cohen_kappa_score.html",
+            "block_bbox": [
+                606,
+                1487,
+                1045,
+                1548
+            ],
+            "block_id": 17,
+            "block_order": null,
+            "group_id": 17,
+            "global_block_id": 49,
+            "global_group_id": 49,
+            "block_polygon_points": [
+                [
+                    606.0,
+                    1487.0
+                ],
+                [
+                    1045.0,
+                    1487.0
+                ],
+                [
+                    1045.0,
+                    1548.0
+                ],
+                [
+                    606.0,
+                    1548.0
+                ]
+            ]
+        },
+        {
+            "block_label": "number",
+            "block_content": "2097",
+            "block_bbox": [
+                573,
+                1552,
+                622,
+                1575
+            ],
+            "block_id": 18,
+            "block_order": null,
+            "group_id": 18,
+            "global_block_id": 50,
+            "global_group_id": 50,
+            "block_polygon_points": [
+                [
+                    573.0,
+                    1552.0
+                ],
+                [
+                    621.0,
+                    1552.0
+                ],
+                [
+                    621.0,
+                    1574.0
+                ],
+                [
+                    573.0,
+                    1574.0
+                ]
+            ]
+        }
+    ],
+    "layout_det_res": {
+        "input_path": null,
+        "page_index": null,
+        "boxes": [
+            {
+                "cls_id": 21,
+                "label": "table",
+                "score": 0.9685793519020081,
+                "coordinate": [
+                    139,
+                    141,
+                    1052,
+                    361
+                ],
+                "order": null,
+                "polygon_points": [
+                    [
+                        139.0,
+                        141.0
+                    ],
+                    [
+                        1052.0,
+                        141.0
+                    ],
+                    [
+                        1052.0,
+                        361.0
+                    ],
+                    [
+                        139.0,
+                        361.0
+                    ]
+                ]
+            },
+            {
+                "cls_id": 7,
+                "label": "figure_title",
+                "score": 0.8564505577087402,
+                "coordinate": [
+                    331,
+                    383,
+                    857,
+                    408
+                ],
+                "order": null,
+                "polygon_points": [
+                    [
+                        331.0,
+                        383.0
+                    ],
+                    [
+                        857.0,
+                        383.0
+                    ],
+                    [
+                        857.0,
+                        408.0
+                    ],
+                    [
+                        331.0,
+                        408.0
+                    ]
+                ]
+            },
+            {
+                "cls_id": 22,
+                "label": "text",
+                "score": 0.9487760066986084,
+                "coordinate": [
+                    135,
+                    449,
+                    585,
+                    612
+                ],
+                "order": 1,
+                "polygon_points": [
+                    [
+                        135.0,
+                        449.0
+                    ],
+                    [
+                        585.0,
+                        449.0
+                    ],
+                    [
+                        585.0,
+                        612.0
+                    ],
+                    [
+                        135.0,
+                        612.0
+                    ]
+                ]
+            },
+            {
+                "cls_id": 17,
+                "label": "paragraph_title",
+                "score": 0.8634436726570129,
+                "coordinate": [
+                    136,
+                    634,
+                    506,
+                    661
+                ],
+                "order": 2,
+                "polygon_points": [
+                    [
+                        136.0,
+                        634.0
+                    ],
+                    [
+                        506.0,
+                        634.0
+                    ],
+                    [
+                        506.0,
+                        661.0
+                    ],
+                    [
+                        136.0,
+                        661.0
+                    ]
+                ]
+            },
+            {
+                "cls_id": 17,
+                "label": "paragraph_title",
+                "score": 0.8453313708305359,
+                "coordinate": [
+                    136,
+                    679,
+                    470,
+                    705
+                ],
+                "order": 3,
+                "polygon_points": [
+                    [
+                        136.0,
+                        679.0
+                    ],
+                    [
+                        470.0,
+                        679.0
+                    ],
+                    [
+                        470.0,
+                        705.0
+                    ],
+                    [
+                        136.0,
+                        705.0
+                    ]
+                ]
+            },
+            {
+                "cls_id": 22,
+                "label": "text",
+                "score": 0.967807412147522,
+                "coordinate": [
+                    134,
+                    714,
+                    585,
+                    1310
+                ],
+                "order": 4,
+                "polygon_points": [
+                    [
+                        134.0,
+                        714.0
+                    ],
+                    [
+                        585.0,
+                        714.0
+                    ],
+                    [
+                        585.0,
+                        1310.0
+                    ],
+                    [
+                        134.0,
+                        1310.0
+                    ]
+                ]
+            },
+            {
+                "cls_id": 22,
+                "label": "text",
+                "score": 0.9429988265037537,
+                "coordinate": [
+                    135,
+                    1313,
+                    584,
+                    1449
+                ],
+                "order": 5,
+                "polygon_points": [
+                    [
+                        135.0,
+                        1313.0
+                    ],
+                    [
+                        584.0,
+                        1313.0
+                    ],
+                    [
+                        584.0,
+                        1449.0
+                    ],
+                    [
+                        135.0,
+                        1449.0
+                    ]
+                ]
+            },
+            {
+                "cls_id": 22,
+                "label": "text",
+                "score": 0.9045867323875427,
+                "coordinate": [
+                    633,
+                    496,
+                    1053,
+                    550
+                ],
+                "order": 6,
+                "polygon_points": [
+                    [
+                        633.0,
+                        496.0
+                    ],
+                    [
+                        1053.0,
+                        496.0
+                    ],
+                    [
+                        1053.0,
+                        550.0
+                    ],
+                    [
+                        633.0,
+                        550.0
+                    ]
+                ]
+            },
+            {
+                "cls_id": 22,
+                "label": "text",
+                "score": 0.8530806303024292,
+                "coordinate": [
+                    632,
+                    449,
+                    972,
+                    478
+                ],
+                "order": 7,
+                "polygon_points": [
+                    [
+                        632.0,
+                        449.0
+                    ],
+                    [
+                        972.0,
+                        449.0
+                    ],
+                    [
+                        972.0,
+                        478.0
+                    ],
+                    [
+                        632.0,
+                        478.0
+                    ]
+                ]
+            },
+            {
+                "cls_id": 22,
+                "label": "text",
+                "score": 0.8915377259254456,
+                "coordinate": [
+                    632,
+                    568,
+                    1053,
+                    622
+                ],
+                "order": 8,
+                "polygon_points": [
+                    [
+                        632.0,
+                        568.0
+                    ],
+                    [
+                        1053.0,
+                        568.0
+                    ],
+                    [
+                        1053.0,
+                        622.0
+                    ],
+                    [
+                        632.0,
+                        622.0
+                    ]
+                ]
+            },
+            {
+                "cls_id": 22,
+                "label": "text",
+                "score": 0.8977479338645935,
+                "coordinate": [
+                    632,
+                    641,
+                    1055,
+                    696
+                ],
+                "order": 9,
+                "polygon_points": [
+                    [
+                        632.0,
+                        641.0
+                    ],
+                    [
+                        1055.0,
+                        641.0
+                    ],
+                    [
+                        1055.0,
+                        696.0
+                    ],
+                    [
+                        632.0,
+                        696.0
+                    ]
+                ]
+            },
+            {
+                "cls_id": 22,
+                "label": "text",
+                "score": 0.9510321021080017,
+                "coordinate": [
+                    604,
+                    712,
+                    1055,
+                    877
+                ],
+                "order": 10,
+                "polygon_points": [
+                    [
+                        604.0,
+                        712.0
+                    ],
+                    [
+                        1055.0,
+                        712.0
+                    ],
+                    [
+                        1055.0,
+                        877.0
+                    ],
+                    [
+                        604.0,
+                        877.0
+                    ]
+                ]
+            },
+            {
+                "cls_id": 17,
+                "label": "paragraph_title",
+                "score": 0.8472467660903931,
+                "coordinate": [
+                    606,
+                    894,
+                    935,
+                    920
+                ],
+                "order": 11,
+                "polygon_points": [
+                    [
+                        606.0,
+                        894.0
+                    ],
+                    [
+                        935.0,
+                        894.0
+                    ],
+                    [
+                        935.0,
+                        920.0
+                    ],
+                    [
+                        606.0,
+                        920.0
+                    ]
+                ]
+            },
+            {
+                "cls_id": 22,
+                "label": "text",
+                "score": 0.9655724763870239,
+                "coordinate": [
+                    604,
+                    929,
+                    1057,
+                    1335
+                ],
+                "order": 12,
+                "polygon_points": [
+                    [
+                        604.0,
+                        929.0
+                    ],
+                    [
+                        1057.0,
+                        929.0
+                    ],
+                    [
+                        1057.0,
+                        1335.0
+                    ],
+                    [
+                        604.0,
+                        1335.0
+                    ]
+                ]
+            },
+            {
+                "cls_id": 22,
+                "label": "text",
+                "score": 0.9450362920761108,
+                "coordinate": [
+                    604,
+                    1337,
+                    1057,
+                    1471
+                ],
+                "order": 13,
+                "polygon_points": [
+                    [
+                        604.0,
+                        1337.0
+                    ],
+                    [
+                        1057.0,
+                        1337.0
+                    ],
+                    [
+                        1057.0,
+                        1471.0
+                    ],
+                    [
+                        604.0,
+                        1471.0
+                    ]
+                ]
+            },
+            {
+                "cls_id": 10,
+                "label": "footnote",
+                "score": 0.7885589599609375,
+                "coordinate": [
+                    161,
+                    1463,
+                    426,
+                    1487
+                ],
+                "order": null,
+                "polygon_points": [
+                    [
+                        161.0,
+                        1463.0
+                    ],
+                    [
+                        426.0,
+                        1463.0
+                    ],
+                    [
+                        426.0,
+                        1487.0
+                    ],
+                    [
+                        161.0,
+                        1487.0
+                    ]
+                ]
+            },
+            {
+                "cls_id": 10,
+                "label": "footnote",
+                "score": 0.385751873254776,
+                "coordinate": [
+                    612,
+                    1485,
+                    995,
+                    1508
+                ],
+                "order": null,
+                "polygon_points": [
+                    [
+                        618.0,
+                        1485.0
+                    ],
+                    [
+                        994.0,
+                        1485.0
+                    ],
+                    [
+                        994.0,
+                        1507.0
+                    ],
+                    [
+                        618.0,
+                        1507.0
+                    ]
+                ]
+            },
+            {
+                "cls_id": 10,
+                "label": "footnote",
+                "score": 0.8892439603805542,
+                "coordinate": [
+                    136,
+                    1485,
+                    585,
+                    1549
+                ],
+                "order": null,
+                "polygon_points": [
+                    [
+                        136.0,
+                        1485.0
+                    ],
+                    [
+                        585.0,
+                        1485.0
+                    ],
+                    [
+                        585.0,
+                        1549.0
+                    ],
+                    [
+                        136.0,
+                        1549.0
+                    ]
+                ]
+            },
+            {
+                "cls_id": 10,
+                "label": "footnote",
+                "score": 0.809377908706665,
+                "coordinate": [
+                    606,
+                    1487,
+                    1045,
+                    1548
+                ],
+                "order": null,
+                "polygon_points": [
+                    [
+                        606.0,
+                        1487.0
+                    ],
+                    [
+                        1045.0,
+                        1487.0
+                    ],
+                    [
+                        1045.0,
+                        1548.0
+                    ],
+                    [
+                        606.0,
+                        1548.0
+                    ]
+                ]
+            },
+            {
+                "cls_id": 16,
+                "label": "number",
+                "score": 0.7445307374000549,
+                "coordinate": [
+                    573,
+                    1552,
+                    622,
+                    1575
+                ],
+                "order": 14,
+                "polygon_points": [
+                    [
+                        573.0,
+                        1552.0
+                    ],
+                    [
+                        621.0,
+                        1552.0
+                    ],
+                    [
+                        621.0,
+                        1574.0
+                    ],
+                    [
+                        573.0,
+                        1574.0
+                    ]
+                ]
+            }
+        ]
+    }
+}
