@@ -1,0 +1,1543 @@
+{
+    "input_path": "pdfs/120_file_paper.pdf",
+    "page_index": 4,
+    "page_count": 5,
+    "width": 1191,
+    "height": 1684,
+    "model_settings": {
+        "use_doc_preprocessor": false,
+        "use_layout_detection": true,
+        "use_chart_recognition": false,
+        "use_seal_recognition": false,
+        "use_ocr_for_image_block": false,
+        "format_block_content": false,
+        "merge_layout_blocks": true,
+        "markdown_ignore_labels": [
+            "number",
+            "footnote",
+            "header",
+            "header_image",
+            "footer",
+            "footer_image",
+            "aside_text"
+        ],
+        "return_layout_polygon_points": true
+    },
+    "parsing_res_list": [
+        {
+            "block_label": "paragraph_title",
+            "block_content": "謝辞",
+            "block_bbox": [
+                110,
+                178,
+                173,
+                212
+            ],
+            "block_id": 0,
+            "block_order": 1,
+            "group_id": 0,
+            "global_block_id": 63,
+            "global_group_id": 63,
+            "block_polygon_points": [
+                [
+                    110.0,
+                    178.0
+                ],
+                [
+                    173.0,
+                    178.0
+                ],
+                [
+                    173.0,
+                    212.0
+                ],
+                [
+                    110.0,
+                    212.0
+                ]
+            ]
+        },
+        {
+            "block_label": "text",
+            "block_content": "本研究は，JSPS 科研費（基盤研究 C，課題番号：JP24K13195）の助成を受けて実施した。",
+            "block_bbox": [
+                108,
+                226,
+                571,
+                284
+            ],
+            "block_id": 1,
+            "block_order": 2,
+            "group_id": 1,
+            "global_block_id": 64,
+            "global_group_id": 64,
+            "block_polygon_points": [
+                [
+                    108.0,
+                    226.0
+                ],
+                [
+                    571.0,
+                    226.0
+                ],
+                [
+                    571.0,
+                    284.0
+                ],
+                [
+                    108.0,
+                    284.0
+                ]
+            ]
+        },
+        {
+            "block_label": "paragraph_title",
+            "block_content": "参考文献",
+            "block_bbox": [
+                110,
+                328,
+                229,
+                361
+            ],
+            "block_id": 2,
+            "block_order": 3,
+            "group_id": 2,
+            "global_block_id": 65,
+            "global_group_id": 65,
+            "block_polygon_points": [
+                [
+                    110.0,
+                    328.0
+                ],
+                [
+                    229.0,
+                    328.0
+                ],
+                [
+                    229.0,
+                    361.0
+                ],
+                [
+                    110.0,
+                    361.0
+                ]
+            ]
+        },
+        {
+            "block_label": "reference_content",
+            "block_content": "[1] 西原大貴, 梶原智之, 谷川千尋, 清水優仁, 長原一. 矯正歯科治療における所見文書からの自動診断に向けて. 情報処理学会第 83 回全国大会, pp. 591–592, 2021.",
+            "block_bbox": [
+                119,
+                372,
+                576,
+                461
+            ],
+            "block_id": 3,
+            "block_order": 4,
+            "group_id": 3,
+            "global_block_id": 66,
+            "global_group_id": 66,
+            "block_polygon_points": [
+                [
+                    119.0,
+                    372.0
+                ],
+                [
+                    576.0,
+                    372.0
+                ],
+                [
+                    576.0,
+                    461.0
+                ],
+                [
+                    119.0,
+                    461.0
+                ]
+            ]
+        },
+        {
+            "block_label": "reference_content",
+            "block_content": "[2] Takumi Ohtsuka, Tomoyuki Kajiwara, Chihiro Tanikawa, Yuujin Shimizu, Hajime Nagahara, and Takashi Ninomiya. Automated Orthodontic Diagnosis from a Summary of Medical Findings. In Proceedings of the 5th Clinical Natural Language Processing Workshop, pp. 156–160, 2023.",
+            "block_bbox": [
+                121,
+                466,
+                577,
+                598
+            ],
+            "block_id": 4,
+            "block_order": 5,
+            "group_id": 4,
+            "global_block_id": 67,
+            "global_group_id": 67,
+            "block_polygon_points": [
+                [
+                    121.0,
+                    466.0
+                ],
+                [
+                    577.0,
+                    466.0
+                ],
+                [
+                    577.0,
+                    598.0
+                ],
+                [
+                    121.0,
+                    598.0
+                ]
+            ]
+        },
+        {
+            "block_label": "reference_content",
+            "block_content": "[3] 杉原壮一郎, 梶原智之, 池田直樹, 谷川千尋, 二宮崇. 大規模言語モデルによる矯正歯科治療の自動診断に向けて. 人工知能学会第 39 回全国大会, 2Win535, 2025.",
+            "block_bbox": [
+                121,
+                601,
+                576,
+                688
+            ],
+            "block_id": 5,
+            "block_order": 6,
+            "group_id": 5,
+            "global_block_id": 68,
+            "global_group_id": 68,
+            "block_polygon_points": [
+                [
+                    121.0,
+                    601.0
+                ],
+                [
+                    576.0,
+                    601.0
+                ],
+                [
+                    576.0,
+                    688.0
+                ],
+                [
+                    121.0,
+                    688.0
+                ]
+            ]
+        },
+        {
+            "block_label": "reference_content",
+            "block_content": "[4] 杉原壮一郎, 梶原智之, 池田直樹, 谷川千尋, 二宮崇. 矯正歯科医と大規模言語モデルの協働による効率的な自動診断に向けて. 第 24 回情報科学技術フォーラム, pp. 259–262, 2025.",
+            "block_bbox": [
+                121,
+                693,
+                576,
+                781
+            ],
+            "block_id": 6,
+            "block_order": 7,
+            "group_id": 6,
+            "global_block_id": 69,
+            "global_group_id": 69,
+            "block_polygon_points": [
+                [
+                    121.0,
+                    693.0
+                ],
+                [
+                    576.0,
+                    693.0
+                ],
+                [
+                    576.0,
+                    781.0
+                ],
+                [
+                    121.0,
+                    781.0
+                ]
+            ]
+        },
+        {
+            "block_label": "reference_content",
+            "block_content": "[5] Yuujin Shimizu, Chihiro Tanikawa, Tomoyuki Kajiwara, Hajime Nagahara, and Takashi Yamashiro. The Validation of Orthodontic Artificial Intelligence Systems That Perform Orthodontic Diagnoses and Treatment Planning. European Journal of Orthodontics, Vol. 44, No. 4, pp. 436–444, 2022.",
+            "block_bbox": [
+                121,
+                786,
+                576,
+                919
+            ],
+            "block_id": 7,
+            "block_order": 8,
+            "group_id": 7,
+            "global_block_id": 70,
+            "global_group_id": 70,
+            "block_polygon_points": [
+                [
+                    121.0,
+                    786.0
+                ],
+                [
+                    576.0,
+                    786.0
+                ],
+                [
+                    576.0,
+                    919.0
+                ],
+                [
+                    121.0,
+                    919.0
+                ]
+            ]
+        },
+        {
+            "block_label": "reference_content",
+            "block_content": "[6] Emily Alsentzer, John Murphy, William Boag, Wei-Hung Weng, Di Jindi, Tristan Naumann, and Matthew McDermott. Publicly Available Clinical BERT Embeddings. In Proceedings of the 2nd Clinical Natural Language Processing Workshop, pp. 72–78, 2019.",
+            "block_bbox": [
+                121,
+                923,
+                577,
+                1034
+            ],
+            "block_id": 8,
+            "block_order": 9,
+            "group_id": 8,
+            "global_block_id": 71,
+            "global_group_id": 71,
+            "block_polygon_points": [
+                [
+                    121.0,
+                    923.0
+                ],
+                [
+                    577.0,
+                    923.0
+                ],
+                [
+                    577.0,
+                    1034.0
+                ],
+                [
+                    121.0,
+                    1034.0
+                ]
+            ]
+        },
+        {
+            "block_label": "reference_content",
+            "block_content": "[7] Yu Gu, Robert Tinn, Hao Cheng, Michael Lucas, Naoto Usuyama, Xiaodong Liu, Tristan Naumann, Jianfeng Gao, and Hoifung Poon. Domain-Specific Language Model Pretraining for Biomedical Natural Language Processing. ACM Transactions on Computing for Healthcare, Vol. 3, No. 1, pp. 1–23, 2021.",
+            "block_bbox": [
+                121,
+                1038,
+                577,
+                1172
+            ],
+            "block_id": 9,
+            "block_order": 10,
+            "group_id": 9,
+            "global_block_id": 72,
+            "global_group_id": 72,
+            "block_polygon_points": [
+                [
+                    121.0,
+                    1038.0
+                ],
+                [
+                    577.0,
+                    1038.0
+                ],
+                [
+                    577.0,
+                    1172.0
+                ],
+                [
+                    121.0,
+                    1172.0
+                ]
+            ]
+        },
+        {
+            "block_label": "reference_content",
+            "block_content": "[8] Chaoyi Wu, Weixiong Lin, Xiaoman Zhang, Ya Zhang, Weidi Xie, and Yanfeng Wang. PMC-LLaMA: Towards Building Open-source Language Models for Medicine. Journal of the American Medical Informatics Association, Vol. 31, No. 9, pp. 1833–1843, 2024.",
+            "block_bbox": [
+                121,
+                1175,
+                577,
+                1286
+            ],
+            "block_id": 10,
+            "block_order": 11,
+            "group_id": 10,
+            "global_block_id": 73,
+            "global_group_id": 73,
+            "block_polygon_points": [
+                [
+                    121.0,
+                    1175.0
+                ],
+                [
+                    577.0,
+                    1175.0
+                ],
+                [
+                    577.0,
+                    1286.0
+                ],
+                [
+                    121.0,
+                    1286.0
+                ]
+            ]
+        },
+        {
+            "block_label": "reference_content",
+            "block_content": "[9] Karan Singhal, Shekoofeh Azizi, Tao Tu, et al. Large Language Models Encode Clinical Knowledge. Nature, Vol. 620, pp. 172–180, 2023.",
+            "block_bbox": [
+                117,
+                1290,
+                577,
+                1354
+            ],
+            "block_id": 11,
+            "block_order": 12,
+            "group_id": 11,
+            "global_block_id": 74,
+            "global_group_id": 74,
+            "block_polygon_points": [
+                [
+                    117.0,
+                    1290.0
+                ],
+                [
+                    577.0,
+                    1290.0
+                ],
+                [
+                    577.0,
+                    1354.0
+                ],
+                [
+                    117.0,
+                    1354.0
+                ]
+            ]
+        },
+        {
+            "block_label": "reference_content",
+            "block_content": "[10] Google Research and Google DeepMind. MedGemma Technical Report. arXiv:2507.05201, 2025.",
+            "block_bbox": [
+                112,
+                1357,
+                577,
+                1400
+            ],
+            "block_id": 12,
+            "block_order": 13,
+            "group_id": 12,
+            "global_block_id": 75,
+            "global_group_id": 75,
+            "block_polygon_points": [
+                [
+                    112.0,
+                    1357.0
+                ],
+                [
+                    577.0,
+                    1357.0
+                ],
+                [
+                    577.0,
+                    1400.0
+                ],
+                [
+                    112.0,
+                    1400.0
+                ]
+            ]
+        },
+        {
+            "block_label": "reference_content",
+            "block_content": "[11] Asma Alkhaldi, Raneem Alnajim, Layan Alabdullatef, Rawan Alyahya, Jun Chen, Deyao Zhu, Ahmed Alsinan, and Mohamed Elhoseiny. MiniGPT-Med: Large Language Model as a General Interface for Radiology Diagnosis. arXiv:2407.04106, 2024.",
+            "block_bbox": [
+                112,
+                1403,
+                578,
+                1514
+            ],
+            "block_id": 13,
+            "block_order": 14,
+            "group_id": 13,
+            "global_block_id": 76,
+            "global_group_id": 76,
+            "block_polygon_points": [
+                [
+                    112.0,
+                    1403.0
+                ],
+                [
+                    578.0,
+                    1403.0
+                ],
+                [
+                    578.0,
+                    1514.0
+                ],
+                [
+                    112.0,
+                    1514.0
+                ]
+            ]
+        },
+        {
+            "block_label": "reference_content",
+            "block_content": "[12] Qwen Team. Qwen2.5 Technical Report. arXiv:2412.15115, 2025.",
+            "block_bbox": [
+                613,
+                172,
+                1078,
+                214
+            ],
+            "block_id": 14,
+            "block_order": 15,
+            "group_id": 14,
+            "global_block_id": 77,
+            "global_group_id": 77,
+            "block_polygon_points": [
+                [
+                    613.0,
+                    172.0
+                ],
+                [
+                    1078.0,
+                    172.0
+                ],
+                [
+                    1078.0,
+                    214.0
+                ],
+                [
+                    613.0,
+                    214.0
+                ]
+            ]
+        },
+        {
+            "block_label": "reference_content",
+            "block_content": "[13] Huan Zhao, Qian Ling, Yi Pan, Tianyang Zhong, Jin-Yu Hu, Junjie Yao, Fengqian Xiao, Zhenxiang Xiao, Yutong Zhang, San-Hua Xu, Shi-Nan Wu, Min Kang, Zihao Wu, Zhengliang Liu, Xi Jiang, Tianming Liu, and Yi Shao. Ophthalmology. arXiv:2312.04906, 2023.",
+            "block_bbox": [
+                614,
+                218,
+                1078,
+                351
+            ],
+            "block_id": 15,
+            "block_order": 16,
+            "group_id": 15,
+            "global_block_id": 78,
+            "global_group_id": 78,
+            "block_polygon_points": [
+                [
+                    614.0,
+                    218.0
+                ],
+                [
+                    1078.0,
+                    218.0
+                ],
+                [
+                    1078.0,
+                    351.0
+                ],
+                [
+                    614.0,
+                    351.0
+                ]
+            ]
+        },
+        {
+            "block_label": "reference_content",
+            "block_content": "[14] Zijie Meng, Jin Hao, Xiwei Dai, Yang Feng, Jiaxiang Liu, Bin Feng, Huikai Wu, Xiaotang Gai, Hengchuan Zhu, Tianxiang Hu, Yangyang Wu, Hongxia Xu, Jin Li, Jun Xiao, Xiaoqiang Liu, Joey Tianyi Zhou, Fudong Zhu, Zhihe Zhao, Lunguo Xia, Bing Fang, Jimeng Sun, Jian Wu, and Zuozhu Liu. DentVLM: A Multimodal Vision-Language Model for Comprehensive Dental Diagnosis and Enhanced Clinical Practice. arXiv:2509.23344, 2025.",
+            "block_bbox": [
+                614,
+                356,
+                1080,
+                535
+            ],
+            "block_id": 16,
+            "block_order": 17,
+            "group_id": 16,
+            "global_block_id": 79,
+            "global_group_id": 79,
+            "block_polygon_points": [
+                [
+                    614.0,
+                    356.0
+                ],
+                [
+                    1080.0,
+                    356.0
+                ],
+                [
+                    1080.0,
+                    535.0
+                ],
+                [
+                    614.0,
+                    535.0
+                ]
+            ]
+        },
+        {
+            "block_label": "reference_content",
+            "block_content": "[15] Jia Zhang, Bodong Du, Yitong Miao, Dongwei Sun, and Xiangyong Cao. OralGPT: A Two-Stage Vision-Language Model for Oral Mucosal Disease Diagnosis and Description. arXiv:2510.13911, 2025.",
+            "block_bbox": [
+                614,
+                538,
+                1079,
+                625
+            ],
+            "block_id": 17,
+            "block_order": 18,
+            "group_id": 17,
+            "global_block_id": 80,
+            "global_group_id": 80,
+            "block_polygon_points": [
+                [
+                    614.0,
+                    538.0
+                ],
+                [
+                    1079.0,
+                    538.0
+                ],
+                [
+                    1079.0,
+                    625.0
+                ],
+                [
+                    614.0,
+                    625.0
+                ]
+            ]
+        },
+        {
+            "block_label": "reference_content",
+            "block_content": "[16] Jia He, Mukund Rungta, David Koleczek, Arshdeep Sekhon, Franklin X Wang, and Sadid Hasan. Does Prompt Formatting Have Any Impact on LLM Performance? arXiv:2411.10541, 2024.",
+            "block_bbox": [
+                614,
+                630,
+                1079,
+                717
+            ],
+            "block_id": 18,
+            "block_order": 19,
+            "group_id": 18,
+            "global_block_id": 81,
+            "global_group_id": 81,
+            "block_polygon_points": [
+                [
+                    614.0,
+                    630.0
+                ],
+                [
+                    1079.0,
+                    630.0
+                ],
+                [
+                    1079.0,
+                    717.0
+                ],
+                [
+                    614.0,
+                    717.0
+                ]
+            ]
+        },
+        {
+            "block_label": "reference_content",
+            "block_content": "[17] Søren Keiser-Nielsen. Federation Dentaire Internationale: Two-digit System of Designating Teeth. Dent Pract (Ewell), Vol. 3, No. 4, pp. 6–10, 1971.",
+            "block_bbox": [
+                613,
+                722,
+                1078,
+                787
+            ],
+            "block_id": 19,
+            "block_order": 20,
+            "group_id": 19,
+            "global_block_id": 82,
+            "global_group_id": 82,
+            "block_polygon_points": [
+                [
+                    613.0,
+                    722.0
+                ],
+                [
+                    1078.0,
+                    722.0
+                ],
+                [
+                    1078.0,
+                    787.0
+                ],
+                [
+                    613.0,
+                    787.0
+                ]
+            ]
+        },
+        {
+            "block_label": "reference_content",
+            "block_content": "[18] Qwen Team. Qwen2.5-VL Technical Report. arXiv:2502.13923, 2025.",
+            "block_bbox": [
+                614,
+                790,
+                1077,
+                832
+            ],
+            "block_id": 20,
+            "block_order": 21,
+            "group_id": 20,
+            "global_block_id": 83,
+            "global_group_id": 83,
+            "block_polygon_points": [
+                [
+                    614.0,
+                    790.0
+                ],
+                [
+                    1077.0,
+                    790.0
+                ],
+                [
+                    1077.0,
+                    832.0
+                ],
+                [
+                    614.0,
+                    832.0
+                ]
+            ]
+        },
+        {
+            "block_label": "reference_content",
+            "block_content": "[19] Tim Dettmers, Artidoro Pagnoni, Ari Holtzman, and Luke Zettlemoyer. QLoRA: Efficient Finetuning of Quantized LLMs. In Proceedings of the 37th Conference on Neural Information Processing Systems, pp. 10088–10115, 2023.",
+            "block_bbox": [
+                614,
+                836,
+                1078,
+                946
+            ],
+            "block_id": 21,
+            "block_order": 22,
+            "group_id": 21,
+            "global_block_id": 84,
+            "global_group_id": 84,
+            "block_polygon_points": [
+                [
+                    614.0,
+                    836.0
+                ],
+                [
+                    1078.0,
+                    836.0
+                ],
+                [
+                    1078.0,
+                    946.0
+                ],
+                [
+                    614.0,
+                    946.0
+                ]
+            ]
+        },
+        {
+            "block_label": "reference_content",
+            "block_content": "[20] Tim Dettmers, Mike Lewis, Sam Shleifer, and Luke Zettlemoyer. 8-bit Optimizers via Block-wise Quantization. In Proceedings of the Tenth International Conference on Learning Representations, 2022.",
+            "block_bbox": [
+                613,
+                951,
+                1080,
+                1038
+            ],
+            "block_id": 22,
+            "block_order": 23,
+            "group_id": 22,
+            "global_block_id": 85,
+            "global_group_id": 85,
+            "block_polygon_points": [
+                [
+                    613.0,
+                    951.0
+                ],
+                [
+                    1080.0,
+                    951.0
+                ],
+                [
+                    1080.0,
+                    1038.0
+                ],
+                [
+                    613.0,
+                    1038.0
+                ]
+            ]
+        }
+    ],
+    "layout_det_res": {
+        "input_path": null,
+        "page_index": null,
+        "boxes": [
+            {
+                "cls_id": 17,
+                "label": "paragraph_title",
+                "score": 0.8093859553337097,
+                "coordinate": [
+                    110,
+                    178,
+                    173,
+                    212
+                ],
+                "order": 1,
+                "polygon_points": [
+                    [
+                        110.0,
+                        178.0
+                    ],
+                    [
+                        173.0,
+                        178.0
+                    ],
+                    [
+                        173.0,
+                        212.0
+                    ],
+                    [
+                        110.0,
+                        212.0
+                    ]
+                ]
+            },
+            {
+                "cls_id": 22,
+                "label": "text",
+                "score": 0.9152579307556152,
+                "coordinate": [
+                    108,
+                    226,
+                    571,
+                    284
+                ],
+                "order": 2,
+                "polygon_points": [
+                    [
+                        108.0,
+                        226.0
+                    ],
+                    [
+                        571.0,
+                        226.0
+                    ],
+                    [
+                        571.0,
+                        284.0
+                    ],
+                    [
+                        108.0,
+                        284.0
+                    ]
+                ]
+            },
+            {
+                "cls_id": 17,
+                "label": "paragraph_title",
+                "score": 0.8733658194541931,
+                "coordinate": [
+                    110,
+                    328,
+                    229,
+                    361
+                ],
+                "order": 3,
+                "polygon_points": [
+                    [
+                        110.0,
+                        328.0
+                    ],
+                    [
+                        229.0,
+                        328.0
+                    ],
+                    [
+                        229.0,
+                        361.0
+                    ],
+                    [
+                        110.0,
+                        361.0
+                    ]
+                ]
+            },
+            {
+                "cls_id": 18,
+                "label": "reference",
+                "score": 0.9710266590118408,
+                "coordinate": [
+                    112,
+                    378,
+                    580,
+                    1512
+                ],
+                "order": 4,
+                "polygon_points": [
+                    [
+                        112.0,
+                        378.0
+                    ],
+                    [
+                        580.0,
+                        378.0
+                    ],
+                    [
+                        580.0,
+                        1512.0
+                    ],
+                    [
+                        112.0,
+                        1512.0
+                    ]
+                ]
+            },
+            {
+                "cls_id": 19,
+                "label": "reference_content",
+                "score": 0.9190155863761902,
+                "coordinate": [
+                    119,
+                    372,
+                    576,
+                    461
+                ],
+                "order": 5,
+                "polygon_points": [
+                    [
+                        119.0,
+                        372.0
+                    ],
+                    [
+                        576.0,
+                        372.0
+                    ],
+                    [
+                        576.0,
+                        461.0
+                    ],
+                    [
+                        119.0,
+                        461.0
+                    ]
+                ]
+            },
+            {
+                "cls_id": 19,
+                "label": "reference_content",
+                "score": 0.9489258527755737,
+                "coordinate": [
+                    121,
+                    466,
+                    577,
+                    598
+                ],
+                "order": 6,
+                "polygon_points": [
+                    [
+                        121.0,
+                        466.0
+                    ],
+                    [
+                        577.0,
+                        466.0
+                    ],
+                    [
+                        577.0,
+                        598.0
+                    ],
+                    [
+                        121.0,
+                        598.0
+                    ]
+                ]
+            },
+            {
+                "cls_id": 19,
+                "label": "reference_content",
+                "score": 0.952093780040741,
+                "coordinate": [
+                    121,
+                    601,
+                    576,
+                    688
+                ],
+                "order": 7,
+                "polygon_points": [
+                    [
+                        121.0,
+                        601.0
+                    ],
+                    [
+                        576.0,
+                        601.0
+                    ],
+                    [
+                        576.0,
+                        688.0
+                    ],
+                    [
+                        121.0,
+                        688.0
+                    ]
+                ]
+            },
+            {
+                "cls_id": 19,
+                "label": "reference_content",
+                "score": 0.9553022980690002,
+                "coordinate": [
+                    121,
+                    693,
+                    576,
+                    781
+                ],
+                "order": 8,
+                "polygon_points": [
+                    [
+                        121.0,
+                        693.0
+                    ],
+                    [
+                        576.0,
+                        693.0
+                    ],
+                    [
+                        576.0,
+                        781.0
+                    ],
+                    [
+                        121.0,
+                        781.0
+                    ]
+                ]
+            },
+            {
+                "cls_id": 19,
+                "label": "reference_content",
+                "score": 0.9694702625274658,
+                "coordinate": [
+                    121,
+                    786,
+                    576,
+                    919
+                ],
+                "order": 9,
+                "polygon_points": [
+                    [
+                        121.0,
+                        786.0
+                    ],
+                    [
+                        576.0,
+                        786.0
+                    ],
+                    [
+                        576.0,
+                        919.0
+                    ],
+                    [
+                        121.0,
+                        919.0
+                    ]
+                ]
+            },
+            {
+                "cls_id": 19,
+                "label": "reference_content",
+                "score": 0.9661418795585632,
+                "coordinate": [
+                    121,
+                    923,
+                    577,
+                    1034
+                ],
+                "order": 10,
+                "polygon_points": [
+                    [
+                        121.0,
+                        923.0
+                    ],
+                    [
+                        577.0,
+                        923.0
+                    ],
+                    [
+                        577.0,
+                        1034.0
+                    ],
+                    [
+                        121.0,
+                        1034.0
+                    ]
+                ]
+            },
+            {
+                "cls_id": 19,
+                "label": "reference_content",
+                "score": 0.9649710059165955,
+                "coordinate": [
+                    121,
+                    1038,
+                    577,
+                    1172
+                ],
+                "order": 11,
+                "polygon_points": [
+                    [
+                        121.0,
+                        1038.0
+                    ],
+                    [
+                        577.0,
+                        1038.0
+                    ],
+                    [
+                        577.0,
+                        1172.0
+                    ],
+                    [
+                        121.0,
+                        1172.0
+                    ]
+                ]
+            },
+            {
+                "cls_id": 19,
+                "label": "reference_content",
+                "score": 0.9613748788833618,
+                "coordinate": [
+                    121,
+                    1175,
+                    577,
+                    1286
+                ],
+                "order": 12,
+                "polygon_points": [
+                    [
+                        121.0,
+                        1175.0
+                    ],
+                    [
+                        577.0,
+                        1175.0
+                    ],
+                    [
+                        577.0,
+                        1286.0
+                    ],
+                    [
+                        121.0,
+                        1286.0
+                    ]
+                ]
+            },
+            {
+                "cls_id": 19,
+                "label": "reference_content",
+                "score": 0.9437152147293091,
+                "coordinate": [
+                    117,
+                    1290,
+                    577,
+                    1354
+                ],
+                "order": 13,
+                "polygon_points": [
+                    [
+                        117.0,
+                        1290.0
+                    ],
+                    [
+                        577.0,
+                        1290.0
+                    ],
+                    [
+                        577.0,
+                        1354.0
+                    ],
+                    [
+                        117.0,
+                        1354.0
+                    ]
+                ]
+            },
+            {
+                "cls_id": 19,
+                "label": "reference_content",
+                "score": 0.9352142214775085,
+                "coordinate": [
+                    112,
+                    1357,
+                    577,
+                    1400
+                ],
+                "order": 14,
+                "polygon_points": [
+                    [
+                        112.0,
+                        1357.0
+                    ],
+                    [
+                        577.0,
+                        1357.0
+                    ],
+                    [
+                        577.0,
+                        1400.0
+                    ],
+                    [
+                        112.0,
+                        1400.0
+                    ]
+                ]
+            },
+            {
+                "cls_id": 19,
+                "label": "reference_content",
+                "score": 0.9668819904327393,
+                "coordinate": [
+                    112,
+                    1403,
+                    578,
+                    1514
+                ],
+                "order": 15,
+                "polygon_points": [
+                    [
+                        112.0,
+                        1403.0
+                    ],
+                    [
+                        578.0,
+                        1403.0
+                    ],
+                    [
+                        578.0,
+                        1514.0
+                    ],
+                    [
+                        112.0,
+                        1514.0
+                    ]
+                ]
+            },
+            {
+                "cls_id": 18,
+                "label": "reference",
+                "score": 0.9371548295021057,
+                "coordinate": [
+                    611,
+                    171,
+                    1080,
+                    1037
+                ],
+                "order": 16,
+                "polygon_points": [
+                    [
+                        611.0,
+                        171.0
+                    ],
+                    [
+                        1080.0,
+                        171.0
+                    ],
+                    [
+                        1080.0,
+                        1037.0
+                    ],
+                    [
+                        611.0,
+                        1037.0
+                    ]
+                ]
+            },
+            {
+                "cls_id": 19,
+                "label": "reference_content",
+                "score": 0.9442089200019836,
+                "coordinate": [
+                    613,
+                    172,
+                    1078,
+                    214
+                ],
+                "order": 17,
+                "polygon_points": [
+                    [
+                        613.0,
+                        172.0
+                    ],
+                    [
+                        1078.0,
+                        172.0
+                    ],
+                    [
+                        1078.0,
+                        214.0
+                    ],
+                    [
+                        613.0,
+                        214.0
+                    ]
+                ]
+            },
+            {
+                "cls_id": 19,
+                "label": "reference_content",
+                "score": 0.9716471433639526,
+                "coordinate": [
+                    614,
+                    218,
+                    1078,
+                    351
+                ],
+                "order": 18,
+                "polygon_points": [
+                    [
+                        614.0,
+                        218.0
+                    ],
+                    [
+                        1078.0,
+                        218.0
+                    ],
+                    [
+                        1078.0,
+                        351.0
+                    ],
+                    [
+                        614.0,
+                        351.0
+                    ]
+                ]
+            },
+            {
+                "cls_id": 19,
+                "label": "reference_content",
+                "score": 0.9657770395278931,
+                "coordinate": [
+                    614,
+                    356,
+                    1080,
+                    535
+                ],
+                "order": 19,
+                "polygon_points": [
+                    [
+                        614.0,
+                        356.0
+                    ],
+                    [
+                        1080.0,
+                        356.0
+                    ],
+                    [
+                        1080.0,
+                        535.0
+                    ],
+                    [
+                        614.0,
+                        535.0
+                    ]
+                ]
+            },
+            {
+                "cls_id": 19,
+                "label": "reference_content",
+                "score": 0.9537355899810791,
+                "coordinate": [
+                    614,
+                    538,
+                    1079,
+                    625
+                ],
+                "order": 20,
+                "polygon_points": [
+                    [
+                        614.0,
+                        538.0
+                    ],
+                    [
+                        1079.0,
+                        538.0
+                    ],
+                    [
+                        1079.0,
+                        625.0
+                    ],
+                    [
+                        614.0,
+                        625.0
+                    ]
+                ]
+            },
+            {
+                "cls_id": 19,
+                "label": "reference_content",
+                "score": 0.9570234417915344,
+                "coordinate": [
+                    614,
+                    630,
+                    1079,
+                    717
+                ],
+                "order": 21,
+                "polygon_points": [
+                    [
+                        614.0,
+                        630.0
+                    ],
+                    [
+                        1079.0,
+                        630.0
+                    ],
+                    [
+                        1079.0,
+                        717.0
+                    ],
+                    [
+                        614.0,
+                        717.0
+                    ]
+                ]
+            },
+            {
+                "cls_id": 19,
+                "label": "reference_content",
+                "score": 0.955814003944397,
+                "coordinate": [
+                    613,
+                    722,
+                    1078,
+                    787
+                ],
+                "order": 22,
+                "polygon_points": [
+                    [
+                        613.0,
+                        722.0
+                    ],
+                    [
+                        1078.0,
+                        722.0
+                    ],
+                    [
+                        1078.0,
+                        787.0
+                    ],
+                    [
+                        613.0,
+                        787.0
+                    ]
+                ]
+            },
+            {
+                "cls_id": 19,
+                "label": "reference_content",
+                "score": 0.935430109500885,
+                "coordinate": [
+                    614,
+                    790,
+                    1077,
+                    832
+                ],
+                "order": 23,
+                "polygon_points": [
+                    [
+                        614.0,
+                        790.0
+                    ],
+                    [
+                        1077.0,
+                        790.0
+                    ],
+                    [
+                        1077.0,
+                        832.0
+                    ],
+                    [
+                        614.0,
+                        832.0
+                    ]
+                ]
+            },
+            {
+                "cls_id": 19,
+                "label": "reference_content",
+                "score": 0.9615418314933777,
+                "coordinate": [
+                    614,
+                    836,
+                    1078,
+                    946
+                ],
+                "order": 24,
+                "polygon_points": [
+                    [
+                        614.0,
+                        836.0
+                    ],
+                    [
+                        1078.0,
+                        836.0
+                    ],
+                    [
+                        1078.0,
+                        946.0
+                    ],
+                    [
+                        614.0,
+                        946.0
+                    ]
+                ]
+            },
+            {
+                "cls_id": 19,
+                "label": "reference_content",
+                "score": 0.9413011074066162,
+                "coordinate": [
+                    613,
+                    951,
+                    1080,
+                    1038
+                ],
+                "order": 25,
+                "polygon_points": [
+                    [
+                        613.0,
+                        951.0
+                    ],
+                    [
+                        1080.0,
+                        951.0
+                    ],
+                    [
+                        1080.0,
+                        1038.0
+                    ],
+                    [
+                        613.0,
+                        1038.0
+                    ]
+                ]
+            }
+        ]
+    }
+}
