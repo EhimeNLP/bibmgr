@@ -1,0 +1,27 @@
+を使用した．最適化には 8bit AdamW [20] を使用し，学習率を  $ 2 \times 10^{-4} $，バッチサイズを 1 として，検証データにおける損失が 3 回改善されなくなるまで訓練を続ける Early Stopping を適用した．ベースラインとして，先行研究 [3, 4] で使用された Qwen2.5-72B-Instruct $ ^{2} $ [12] と，提案モデルと同規模の Qwen2.5-32B-Instruct $ ^{6} $ [12] の LLM を採用し，所見文書のみを用いて同様の設定で訓練した．
+
+評価方法 先行研究 [1-4] に従い，入力の所見文書に対応する全ての症状ラベルを出力するマルチラベル分類タスクとして，矯正歯科治療の自動診断を実現する．LLMとVLMは，症状ラベルに対応するIDを出力するよう指示チューニングしているため，それらのIDに基づきF1スコアを自動評価した．
+
+### 4.2 実験結果
+
+表 1 に, マルチラベル分類の F1 スコアを示す. まず, Qwen2.5-32B-Instruct のベースライン LLM と, 提案手法を適用しない設定の Qwen2.5-VL-32B-Instruct の VLM を比較すると, いずれの X 線画像を用いる場合においても, VLM の方が高い性能を示した. これらの実験結果から, X 線画像を用いるマルチモーダル自動診断の有効性が確認できた.
+
+また, パノラマ X 線画像および頭部側面 X 線画像においては, FDI 表記の補足や画像の余白除去などの提案手法によって性能が向上した. 特に, パノラマ X 線画像においては, 提案手法の組み合わせによって大幅に性能が改善し, より大規模な LLM である Qwen2.5-72B-Instruct をも上回る性能を達成した. これらの実験結果から, マルチモーダル自動診断に対する提案手法の有効性が確認できた.
+
+### 4.3 考察
+
+パノラマ X 線画像においては，提案手法を組み合わせた場合にのみ性能が向上した．これは，余白除去により画像中の歯列部分が強調され，FDI 方式の歯式と画像情報の関連付けが可能になったためであると考えられる．
+
+頭部正面 X 線画像や頭部側面 X 線画像においては，FDI 表記の補足が性能向上に寄与しなかった．これは，これらの画像が主に顔面骨格の評価に用いられ，個々の歯の情報が直接的に関連しないためだと考えられる．
+
+<div style="text-align: center;">表 1: 実験結果</div>
+
+
+
+<table border=1 style='margin: auto; word-wrap: break-word;'><tr><td rowspan="2">入力 X 線画像</td><td colspan="2">提案手法</td><td rowspan="2">F1</td></tr><tr><td style='text-align: center; word-wrap: break-word;'>FDI</td><td style='text-align: center; word-wrap: break-word;'>余白除去</td></tr><tr><td colspan="3">なし (Qwen2.5-32B-Instruct)</td><td style='text-align: center; word-wrap: break-word;'>0.400</td></tr><tr><td colspan="3">なし (Qwen2.5-72B-Instruct)</td><td style='text-align: center; word-wrap: break-word;'>0.503</td></tr><tr><td rowspan="4">パノラマ X 線画像</td><td style='text-align: center; word-wrap: break-word;'>-</td><td style='text-align: center; word-wrap: break-word;'>-</td><td style='text-align: center; word-wrap: break-word;'>0.502</td></tr><tr><td style='text-align: center; word-wrap: break-word;'>✓</td><td style='text-align: center; word-wrap: break-word;'>-</td><td style='text-align: center; word-wrap: break-word;'>0.493</td></tr><tr><td style='text-align: center; word-wrap: break-word;'>-</td><td style='text-align: center; word-wrap: break-word;'>✓</td><td style='text-align: center; word-wrap: break-word;'>0.497</td></tr><tr><td style='text-align: center; word-wrap: break-word;'>✓</td><td style='text-align: center; word-wrap: break-word;'>✓</td><td style='text-align: center; word-wrap: break-word;'>0.542</td></tr><tr><td rowspan="4">頭部正面 X 線画像</td><td style='text-align: center; word-wrap: break-word;'>-</td><td style='text-align: center; word-wrap: break-word;'>-</td><td style='text-align: center; word-wrap: break-word;'>0.513</td></tr><tr><td style='text-align: center; word-wrap: break-word;'>✓</td><td style='text-align: center; word-wrap: break-word;'>-</td><td style='text-align: center; word-wrap: break-word;'>0.490</td></tr><tr><td style='text-align: center; word-wrap: break-word;'>-</td><td style='text-align: center; word-wrap: break-word;'>✓</td><td style='text-align: center; word-wrap: break-word;'>0.416</td></tr><tr><td style='text-align: center; word-wrap: break-word;'>✓</td><td style='text-align: center; word-wrap: break-word;'>✓</td><td style='text-align: center; word-wrap: break-word;'>0.496</td></tr><tr><td rowspan="4">頭部側面 X 線画像</td><td style='text-align: center; word-wrap: break-word;'>-</td><td style='text-align: center; word-wrap: break-word;'>-</td><td style='text-align: center; word-wrap: break-word;'>0.464</td></tr><tr><td style='text-align: center; word-wrap: break-word;'>✓</td><td style='text-align: center; word-wrap: break-word;'>-</td><td style='text-align: center; word-wrap: break-word;'>0.495</td></tr><tr><td style='text-align: center; word-wrap: break-word;'>-</td><td style='text-align: center; word-wrap: break-word;'>✓</td><td style='text-align: center; word-wrap: break-word;'>0.481</td></tr><tr><td style='text-align: center; word-wrap: break-word;'>✓</td><td style='text-align: center; word-wrap: break-word;'>✓</td><td style='text-align: center; word-wrap: break-word;'>0.478</td></tr><tr><td rowspan="4">全て</td><td style='text-align: center; word-wrap: break-word;'>-</td><td style='text-align: center; word-wrap: break-word;'>-</td><td style='text-align: center; word-wrap: break-word;'>0.516</td></tr><tr><td style='text-align: center; word-wrap: break-word;'>✓</td><td style='text-align: center; word-wrap: break-word;'>-</td><td style='text-align: center; word-wrap: break-word;'>0.481</td></tr><tr><td style='text-align: center; word-wrap: break-word;'>-</td><td style='text-align: center; word-wrap: break-word;'>✓</td><td style='text-align: center; word-wrap: break-word;'>0.521</td></tr><tr><td style='text-align: center; word-wrap: break-word;'>✓</td><td style='text-align: center; word-wrap: break-word;'>✓</td><td style='text-align: center; word-wrap: break-word;'>0.510</td></tr></table>
+
+## 5 おわりに
+
+本研究では，矯正歯科治療における自動診断の性能改善のために，VLM の適用を提案し，X 線画像から得られる画像情報の活用を可能にした．提案手法では，X 線画像を単純に入力するのではなく，前処理として余白除去を施したほか，X 線画像を参照する際に必要な情報や FDI 歯式の表記に関する情報を VLM に与える指示文内で補足した．所見文書と X 線画像を入力とするマルチラベル分類の実験の結果，所見文書のみを用いる LLM よりも，X 線画像も参照する VLM の方が高い診断性能を達成した．特に，パノラマ X 線画像に対する FDI 表記の補足と画像の余白除去が性能向上に寄与した．
+
+今後の課題として，顔画像や口腔内画像など，X線画像以外の画像の活用が挙げられる．また，X線画像の活用に関しても，異常箇所に対するVLMの注意誘導や診断根拠の明示などが，今後の課題に含まれる．さらに，診断に加えて所見のプロセスも自動化するなど，臨床現場への応用が期待される．
