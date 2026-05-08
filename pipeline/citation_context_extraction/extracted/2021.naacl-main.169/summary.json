@@ -1,0 +1,397 @@
+{
+  "title": "WRIME: A New Dataset for Emotional Intensity Estimation with Subjective and Objective Annotations",
+  "authors": [
+    "Tomoyuki Kajiwara",
+    "Chenhui Chu",
+    "Noriko Takemura",
+    "Yuta Nakashima",
+    "Hajime Nagahara"
+  ],
+  "year": null,
+  "doi": null,
+  "abstract": "We annotate 17,000 SNS posts with both the writer's subjective emotional intensity and the reader's objective one to construct a Japanese emotion analysis dataset. In this study, we explore the difference between the emotional intensity of the writer and that of the readers with this dataset. We found that the reader cannot fully detect the emotions of the writer, especially anger and trust. In addition, experimental results in estimating the emotional intensity show that it is more difficult to estimate the writer's subjective labels than the readers'. The large gap between the subjective and objective emotions implies the complexity of the mapping from a post to the subjective emotional intensities, which also leads to a lower performance with machine learning models.",
+  "reference_count": 28,
+  "references": [
+    {
+      "id": "b0",
+      "title": "Text-based Emotion Detection: Advances, Challenges, and Opportunities",
+      "authors": [
+        "Francisca Adoma Acheampong",
+        "Chen Wenyu",
+        "Henry Nunoo-Mensah"
+      ],
+      "year": "2020",
+      "doi": null,
+      "venue": "Engineering Reports, 2(7):1–24",
+      "raw_text": "Francisca Adoma Acheampong, Chen Wenyu, and Henry Nunoo-Mensah. 2020. Text-based Emotion Detection: Advances, Challenges, and Opportunities. Engineering Reports, 2(7):1–24."
+    },
+    {
+      "id": "b1",
+      "title": "Identifying Expressions of Emotion in Text",
+      "authors": [
+        "Saima Aman",
+        "Stan Szpakowicz"
+      ],
+      "year": "2007",
+      "doi": null,
+      "venue": "In International Conference on Text, Speech and Dialogue, pages 196–205",
+      "raw_text": "Saima Aman and Stan Szpakowicz. 2007. Identifying Expressions of Emotion in Text. In International Conference on Text, Speech and Dialogue, pages 196–205."
+    },
+    {
+      "id": "b2",
+      "title": "Enriching Word Vectors with Subword Information",
+      "authors": [
+        "Piotr Bojanowski",
+        "Edouard Grave",
+        "Armand Joulin",
+        "Tomas Mikolov"
+      ],
+      "year": "2017",
+      "doi": null,
+      "venue": "Transactions of the Association for Computational Linguistics, 5:135–146",
+      "raw_text": "Piotr Bojanowski, Edouard Grave, Armand Joulin, and Tomas Mikolov. 2017. Enriching Word Vectors with Subword Information. Transactions of the Association for Computational Linguistics, 5:135–146."
+    },
+    {
+      "id": "b3",
+      "title": "GoodNewsEveryone: A Corpus of News Headlines Annotated with Emotions, Semantic Roles, and Reader Perception",
+      "authors": [
+        "Laura-Ana-Maria Bostan",
+        "Evgeny Kim",
+        "Roman Klinger"
+      ],
+      "year": "2020",
+      "doi": null,
+      "venue": "In Proceedings of the 12th Language Resources and Evaluation Conference, pages 1554–1566",
+      "raw_text": "Laura-Ana-Maria Bostan, Evgeny Kim, and Roman Klinger. 2020. GoodNewsEveryone: A Corpus of News Headlines Annotated with Emotions, Semantic Roles, and Reader Perception. In Proceedings of the 12th Language Resources and Evaluation Conference, pages 1554–1566."
+    },
+    {
+      "id": "b4",
+      "title": "An Analysis of Annotated Corpora for Emotion Classification in Text",
+      "authors": [
+        "Laura-Ana-Maria Bostan",
+        "Roman Klinger"
+      ],
+      "year": "2018",
+      "doi": null,
+      "venue": "In Proceedings of the 27th International Conference on Computational Linguistics, pages 2104–2119",
+      "raw_text": "Laura-Ana-Maria Bostan and Roman Klinger. 2018. An Analysis of Annotated Corpora for Emotion Classification in Text. In Proceedings of the 27th International Conference on Computational Linguistics, pages 2104–2119."
+    },
+    {
+      "id": "b5",
+      "title": "EmoBank: Studying the Impact of Annotation Perspective and Representation Format on Dimensional Emotion Analysis",
+      "authors": [
+        "Sven Buechel",
+        "Udo Hahn"
+      ],
+      "year": "2017",
+      "doi": null,
+      "venue": "In Proceedings of the 15th Conference of the European Chapter of the Association for Computational Linguistics, pages 578–585",
+      "raw_text": "Sven Buechel and Udo Hahn. 2017. EmoBank: Studying the Impact of Annotation Perspective and Representation Format on Dimensional Emotion Analysis. In Proceedings of the 15th Conference of the European Chapter of the Association for Computational Linguistics, pages 578–585."
+    },
+    {
+      "id": "b6",
+      "title": "Weighted Kappa: Nominal Scale Agreement Provision for Scaled Disagreement or Partial Credit",
+      "authors": [
+        "Jacob Cohen"
+      ],
+      "year": "1968",
+      "doi": null,
+      "venue": "Psychological Bulletin, 70(4):213–220",
+      "raw_text": "Jacob Cohen. 1968. Weighted Kappa: Nominal Scale Agreement Provision for Scaled Disagreement or Partial Credit. Psychological Bulletin, 70(4):213–220."
+    },
+    {
+      "id": "b7",
+      "title": "BERT: Pre-training of Deep Bidirectional Transformers for Language Understanding",
+      "authors": [
+        "Jacob Devlin",
+        "Ming-Wei Chang",
+        "Kenton Lee",
+        "Kristina Toutanova"
+      ],
+      "year": "2019",
+      "doi": null,
+      "venue": null,
+      "raw_text": "Jacob Devlin, Ming-Wei Chang, Kenton Lee, and Kristina Toutanova. 2019. BERT: Pre-training of Deep Bidirectional Transformers for Language Understanding. In Proceedings of the 2019 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies, pages 4171–4186."
+    },
+    {
+      "id": "b8",
+      "title": "An Argument for Basic Emotions",
+      "authors": [
+        "Paul Ekman"
+      ],
+      "year": "1992",
+      "doi": null,
+      "venue": "Cognition and Emotion, 6(3–4):169–200",
+      "raw_text": "Paul Ekman. 1992. An Argument for Basic Emotions. Cognition and Emotion, 6(3–4):169–200."
+    },
+    {
+      "id": "b9",
+      "title": "The Development of Markers for the Big-Five Factor Structure",
+      "authors": [
+        "Lewis R. Goldberg"
+      ],
+      "year": "1992",
+      "doi": null,
+      "venue": "Psychological Assessment, 4(1):26–42",
+      "raw_text": "Lewis R. Goldberg. 1992. The Development of Markers for the Big-Five Factor Structure. Psychological Assessment, 4(1):26–42."
+    },
+    {
+      "id": "b10",
+      "title": "Automatic Construction of Polarity-Tagged Corpus from HTML Documents",
+      "authors": [
+        "Nobuhiro Kaji",
+        "Masaru Kitsuregawa"
+      ],
+      "year": "2006",
+      "doi": null,
+      "venue": null,
+      "raw_text": "Nobuhiro Kaji and Masaru Kitsuregawa. 2006. Automatic Construction of Polarity-Tagged Corpus from HTML Documents. In Proceedings of the 21st International Conference on Computational Linguistics and 44th Annual Meeting of the Association for Computational Linguistics, pages 452–459."
+    },
+    {
+      "id": "b11",
+      "title": "Adam: A Method for Stochastic Optimization",
+      "authors": [
+        "Diederik P. Kingma",
+        "Jimmy Lei Ba"
+      ],
+      "year": "2015",
+      "doi": null,
+      "venue": "In Proceedings of the 3rd International Conference on Learning Representations",
+      "raw_text": "Diederik P. Kingma and Jimmy Lei Ba. 2015. Adam: A Method for Stochastic Optimization. In Proceedings of the 3rd International Conference on Learning Representations."
+    },
+    {
+      "id": "b12",
+      "title": "Applying Conditional Random Fields to Japanese Morphological Analysis",
+      "authors": [
+        "Taku Kudo",
+        "Kaoru Yamamoto",
+        "Yuji Matsumoto"
+      ],
+      "year": "2004",
+      "doi": null,
+      "venue": "In Proceedings of the 2004 Conference on Empirical Methods in Natural Language Processing, pages 230–237",
+      "raw_text": "Taku Kudo, Kaoru Yamamoto, and Yuji Matsumoto. 2004. Applying Conditional Random Fields to Japanese Morphological Analysis. In Proceedings of the 2004 Conference on Empirical Methods in Natural Language Processing, pages 230–237."
+    },
+    {
+      "id": "b13",
+      "title": "Emotion Intensities in Tweets",
+      "authors": [
+        "Saif Mohammad",
+        "Felipe Bravo-Marquez"
+      ],
+      "year": "2017a",
+      "doi": null,
+      "venue": "In Proceedings of the 6th Joint Conference on Lexical and Computational Semantics, pages 65–77",
+      "raw_text": "Saif Mohammad and Felipe Bravo-Marquez. 2017a. Emotion Intensities in Tweets. In Proceedings of the 6th Joint Conference on Lexical and Computational Semantics, pages 65–77."
+    },
+    {
+      "id": "b14",
+      "title": "WASSA-2017 Shared Task on Emotion Intensity",
+      "authors": [
+        "Saif Mohammad",
+        "Felipe Bravo-Marquez"
+      ],
+      "year": "2017b",
+      "doi": null,
+      "venue": "In Proceedings of the 8th Workshop on Computational Approaches to Subjectivity, Sentiment and Social Media Analysis, pages 34–49",
+      "raw_text": "Saif Mohammad and Felipe Bravo-Marquez. 2017b. WASSA-2017 Shared Task on Emotion Intensity. In Proceedings of the 8th Workshop on Computational Approaches to Subjectivity, Sentiment and Social Media Analysis, pages 34–49."
+    },
+    {
+      "id": "b15",
+      "title": "SemEval-2018 Task 1: Affect in Tweets",
+      "authors": [
+        "Saif Mohammad",
+        "Felipe Bravo-Marquez",
+        "Mohammad Salameh",
+        "Svetlana Kiritchenko"
+      ],
+      "year": "2018",
+      "doi": null,
+      "venue": "In Proceedings of The 12th International Workshop on Semantic Evaluation, pages 1–17",
+      "raw_text": "Saif Mohammad, Felipe Bravo-Marquez, Mohammad Salameh, and Svetlana Kiritchenko. 2018. SemEval-2018 Task 1: Affect in Tweets. In Proceedings of The 12th International Workshop on Semantic Evaluation, pages 1–17."
+    },
+    {
+      "id": "b16",
+      "title": "Understanding Emotions: A Dataset of Tweets to Study Interactions between Affect Categories",
+      "authors": [
+        "Saif Mohammad",
+        "Svetlana Kiritchenko"
+      ],
+      "year": "2018",
+      "doi": null,
+      "venue": "In Proceedings of the Eleventh International Conference on Language Resources and Evaluation, pages 198–209",
+      "raw_text": "Saif Mohammad and Svetlana Kiritchenko. 2018. Understanding Emotions: A Dataset of Tweets to Study Interactions between Affect Categories. In Proceedings of the Eleventh International Conference on Language Resources and Evaluation, pages 198–209."
+    },
+    {
+      "id": "b17",
+      "title": "Scikit-learn: Machine Learning in Python",
+      "authors": [
+        "Fabian Pedregosa",
+        "Gaël Varoquaux",
+        "Alexandre Gramfort",
+        "Vincent Michel",
+        "Bertrand Thirion",
+        "Olivier Grisel",
+        "Mathieu Blondel",
+        "Peter Prettenhofer",
+        "Ron Weiss",
+        "Vincent Dubourg",
+        "Jake Vanderplas",
+        "Alexandre Passos",
+        "David Cournapeau",
+        "Matthieu Brucher",
+        "Matthieu Perrot",
+        "Édouard Duchesnay"
+      ],
+      "year": "2011",
+      "doi": null,
+      "venue": "Journal of Machine Learning Research, 12(85):2825–2830",
+      "raw_text": "Fabian Pedregosa, Gaël Varoquaux, Alexandre Gramfort, Vincent Michel, Bertrand Thirion, Olivier Grisel, Mathieu Blondel, Peter Prettenhofer, Ron Weiss, Vincent Dubourg, Jake Vanderplas, Alexandre Passos, David Cournapeau, Matthieu Brucher, Matthieu Perrot, and Édouard Duchesnay. 2011. Scikit-learn: Machine Learning in Python. Journal of Machine Learning Research, 12(85):2825–2830."
+    },
+    {
+      "id": "b18",
+      "title": "A General Psychoevolutionary Theory of Emotion",
+      "authors": [
+        "Robert Plutchik"
+      ],
+      "year": "1980",
+      "doi": null,
+      "venue": "Theories of Emotion, 1:3–31",
+      "raw_text": "Robert Plutchik. 1980. A General Psychoevolutionary Theory of Emotion. Theories of Emotion, 1:3–31."
+    },
+    {
+      "id": "b19",
+      "title": "A Circumplex Model of Affect",
+      "authors": [
+        "James A. Russell"
+      ],
+      "year": "1980",
+      "doi": null,
+      "venue": "Journal of Personality and Social Psychology, 39(6):1161–1178",
+      "raw_text": "James A. Russell. 1980. A Circumplex Model of Affect. Journal of Personality and Social Psychology, 39(6):1161–1178."
+    },
+    {
+      "id": "b20",
+      "title": "Standardization of Big Five Scales Using the Adjective Check List",
+      "authors": [
+        "Takako Saito",
+        "Tomoyasu Nakamura",
+        "Toshihiko Endo",
+        "Madoka Yokoyama"
+      ],
+      "year": "2001",
+      "doi": null,
+      "venue": "Kyushu University Psychological Research, 2:135–144",
+      "raw_text": "Takako Saito, Tomoyasu Nakamura, Toshihiko Endo, and Madoka Yokoyama. 2001. Standardization of Big Five Scales Using the Adjective Check List. Kyushu University Psychological Research, 2:135–144."
+    },
+    {
+      "id": "b21",
+      "title": "Evidence for Universality and Cultural Variation of Differential Emotion Response Patterning",
+      "authors": [
+        "Klaus R. Scherer",
+        "Harald G. Wallbott"
+      ],
+      "year": "1994",
+      "doi": null,
+      "venue": "Journal of Personality and Social Psychology, 66(2):310–328",
+      "raw_text": "Klaus R. Scherer and Harald G. Wallbott. 1994. Evidence for Universality and Cultural Variation of Differential Emotion Response Patterning. Journal of Personality and Social Psychology, 66(2):310–328."
+    },
+    {
+      "id": "b22",
+      "title": "Recursive Deep Models for Semantic Compositionality Over a Sentiment 2103 Treebank",
+      "authors": [
+        "Richard Socher",
+        "Alex Perelygin",
+        "Jean Y. Wu",
+        "Jason Chuang",
+        "Christopher D. Manning",
+        "Andrew Y. Ng",
+        "Christopher Potts"
+      ],
+      "year": "2013",
+      "doi": null,
+      "venue": "In Proceedings of the 2013 Conference on Empirical Methods in Natural Language Processing, pages 1631–1642",
+      "raw_text": "Richard Socher, Alex Perelygin, Jean Y. Wu, Jason Chuang, Christopher D. Manning, Andrew Y. Ng, and Christopher Potts. 2013. Recursive Deep Models for Semantic Compositionality Over a Sentiment 2103 Treebank. In Proceedings of the 2013 Conference on Empirical Methods in Natural Language Processing, pages 1631–1642."
+    },
+    {
+      "id": "b23",
+      "title": "Emotions and Information Diffusion in Social Media — Sentiment of Microblogs and Sharing Behavior",
+      "authors": [
+        "Stefan Stieglitz",
+        "Linh Dang-Xuan"
+      ],
+      "year": "2013",
+      "doi": null,
+      "venue": "Journal of Management Information Systems, 29(4):217–248",
+      "raw_text": "Stefan Stieglitz and Linh Dang-Xuan. 2013. Emotions and Information Diffusion in Social Media — Sentiment of Microblogs and Sharing Behavior. Journal of Management Information Systems, 29(4):217–248."
+    },
+    {
+      "id": "b24",
+      "title": "SemEval-2007 Task 14: Affective Text",
+      "authors": [
+        "Carlo Strapparava",
+        "Rada Mihalcea"
+      ],
+      "year": "2007",
+      "doi": null,
+      "venue": "In Proceedings of the Fourth International Workshop on Semantic Evaluations, pages 70–74",
+      "raw_text": "Carlo Strapparava and Rada Mihalcea. 2007. SemEval-2007 Task 14: Affective Text. In Proceedings of the Fourth International Workshop on Semantic Evaluations, pages 70–74."
+    },
+    {
+      "id": "b25",
+      "title": "Filtering Method for Twitter Streaming Data Using Human-in-the-Loop Machine Learning",
+      "authors": [
+        "Yu Suzuki"
+      ],
+      "year": "2019",
+      "doi": null,
+      "venue": "Journal of Information Processing, 27:404–410",
+      "raw_text": "Yu Suzuki. 2019. Filtering Method for Twitter Streaming Data Using Human-in-the-Loop Machine Learning. Journal of Information Processing, 27:404–410."
+    },
+    {
+      "id": "b26",
+      "title": "Emotion Classification Using Massive Examples Extracted from the Web",
+      "authors": [
+        "Ryoko Tokuhisa",
+        "Kentaro Inui",
+        "Yuji Matsumoto"
+      ],
+      "year": "2008",
+      "doi": null,
+      "venue": "In Proceedings of the 22nd International Conference on Computational Linguistics, pages 881–888",
+      "raw_text": "Ryoko Tokuhisa, Kentaro Inui, and Yuji Matsumoto. 2008. Emotion Classification Using Massive Examples Extracted from the Web. In Proceedings of the 22nd International Conference on Computational Linguistics, pages 881–888."
+    },
+    {
+      "id": "b27",
+      "title": "Transformers: State-of-the-Art Natural Language Processing",
+      "authors": [
+        "Thomas Wolf",
+        "Lysandre Debut",
+        "Victor Sanh",
+        "Julien Chaumond",
+        "Clement Delangue",
+        "Anthony Moi",
+        "Pierric Cistac",
+        "Tim Rault",
+        "Remi Louf",
+        "Morgan Funtowicz",
+        "Joe Davison",
+        "Sam Shleifer",
+        "Patrick von Platen",
+        "Clara Ma",
+        "Yacine Jernite",
+        "Julien Plu",
+        "Canwen Xu",
+        "Teven Le Scao",
+        "Sylvain Gugger",
+        "Mariama Drame",
+        "Quentin Lhoest",
+        "Alexander Rush"
+      ],
+      "year": "2020",
+      "doi": null,
+      "venue": "In Proceedings of the 2020 Conference on Empirical Methods in Natural Language Processing: System Demonstrations, pages 38–45",
+      "raw_text": "Thomas Wolf, Lysandre Debut, Victor Sanh, Julien Chaumond, Clement Delangue, Anthony Moi, Pierric Cistac, Tim Rault, Remi Louf, Morgan Funtowicz, Joe Davison, Sam Shleifer, Patrick von Platen, Clara Ma, Yacine Jernite, Julien Plu, Canwen Xu, Teven Le Scao, Sylvain Gugger, Mariama Drame, Quentin Lhoest, and Alexander Rush. 2020. Transformers: State-of-the-Art Natural Language Processing. In Proceedings of the 2020 Conference on Empirical Methods in Natural Language Processing: System Demonstrations, pages 38–45. 2104"
+    }
+  ]
+}
