@@ -241,8 +241,12 @@ class PaddleOcrVlParsingTests(unittest.TestCase):
                 run_paddleocr_vl(Path("paper.pdf"), device="cpu")
 
         message = str(context.exception)
-        self.assertIn("CPU PaddlePaddle environment", message)
-        self.assertIn("CUDA_VISIBLE_DEVICES", message)
+        self.assertIn("GPU build and no CUDA-capable device is visible", message)
+        self.assertIn("CPU Paddle environment", message)
+        self.assertIn("uv pip uninstall paddlepaddle-gpu paddlepaddle", message)
+        self.assertIn("uv pip install paddlepaddle==3.2.1", message)
+        self.assertIn("GPU node", message)
+        self.assertIn("VLM service", message)
 
     def test_cpu_mode_rejects_gpu_paddle_without_visible_cuda_device(self) -> None:
         fake_paddle = mock.Mock()
