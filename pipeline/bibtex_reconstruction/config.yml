@@ -37,6 +37,8 @@ api:
     base_url: "http://export.arxiv.org/api/query"
     timeout: 10
     wait_sec: 1
+  dblp_venue_api_url: "https://dblp.org/search/venue/api"
+  dblp_timeout: 10
   
 
 
