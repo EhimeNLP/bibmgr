@@ -23,6 +23,26 @@ GPU plus development/test dependencies:
 uv sync --group gpu --group dev
 ```
 
+If syncing GPU dependencies times out while fetching PaddlePaddle wheels, increase uv's HTTP timeout and retry settings:
+
+```bash
+UV_HTTP_CONNECT_TIMEOUT=30 \
+UV_HTTP_TIMEOUT=300 \
+UV_HTTP_RETRIES=10 \
+uv sync --no-default-groups --group gpu
+```
+
+For GPU plus development/test dependencies:
+
+```bash
+UV_HTTP_CONNECT_TIMEOUT=30 \
+UV_HTTP_TIMEOUT=300 \
+UV_HTTP_RETRIES=10 \
+uv sync --group gpu --group dev
+```
+
+PaddlePaddle wheels are large and are fetched from PaddlePaddle-hosted package indexes, so the default uv timeout may be too short on slow or congested networks.
+
 ## Extract
 
 Run PaddleOCR-VL directly:
