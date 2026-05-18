@@ -127,7 +127,7 @@ class VenueResolver:
         """
         params = {"q": query, "format": "json", "h": 1}
         try:
-            response = requests.get(settings.dblp_venue_api_url, params=params, timeout=5)
+            response = requests.get(settings.dblp_venue_api_url, params=params, timeout=settings.dblp_timeout)
             if response.status_code != 200:
                 return None
 
