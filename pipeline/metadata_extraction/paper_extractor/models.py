@@ -38,6 +38,8 @@ class Reference:
     year: str | None = None
     doi: str | None = None
     venue: str | None = None
+    pages: str | None = None
+    publication_info: str | None = None
     source: str | None = None
     confidence: float = 0.0
     raw: dict[str, Any] = field(default_factory=dict)
@@ -51,6 +53,8 @@ class Reference:
             "year": self.year,
             "doi": self.doi,
             "venue": self.venue,
+            "pages": self.pages,
+            "publication_info": self.publication_info,
             "source": self.source,
             "confidence": self.confidence,
             "raw": self.raw,

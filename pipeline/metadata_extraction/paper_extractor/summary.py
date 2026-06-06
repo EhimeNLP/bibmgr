@@ -3,6 +3,7 @@ from __future__ import annotations
 import csv
 import io
 import json
+import re
 from typing import Any
 
 
@@ -29,6 +30,8 @@ def extract_essential_info(payload: dict[str, Any]) -> dict[str, Any]:
                 "year": item.get("year"),
                 "doi": item.get("doi"),
                 "venue": item.get("venue"),
+                "pages": item.get("pages"),
+                "publication_info": item.get("publication_info"),
                 "raw_text": item.get("raw_text"),
             }
             for item in repaired_references
@@ -122,8 +125,14 @@ def _repaired_reference(item: dict[str, Any], index: int) -> dict[str, Any]:
         repaired["authors"] = parsed.authors
     if parsed.title and not repaired.get("title"):
         repaired["title"] = parsed.title
-    if parsed.venue and not repaired.get("venue"):
+    if parsed.venue and _reference_venue_needs_repair(repaired.get("venue"), parsed.venue, parsed.year):
         repaired["venue"] = parsed.venue
+    if parsed.pages and not repaired.get("pages"):
+        repaired["pages"] = parsed.pages
+    if parsed.publication_info and _reference_publication_info_needs_repair(
+        repaired.get("publication_info"), parsed.publication_info
+    ):
+        repaired["publication_info"] = parsed.publication_info
     if parsed.year and not repaired.get("year"):
         repaired["year"] = parsed.year
     if parsed.doi and not repaired.get("doi"):
@@ -141,6 +150,37 @@ def _has_more_reference_authors(parsed_authors: list[str], current: Any) -> bool
     if not isinstance(current, list):
         return True
     return len(parsed_authors) > len(current)
+
+
+def _reference_venue_needs_repair(current: Any, parsed_venue: str, parsed_year: str | None = None) -> bool:
+    if not isinstance(current, str) or not current.strip():
+        return True
+    current_text = " ".join(current.split())
+    parsed_text = " ".join(parsed_venue.split())
+    if current_text == parsed_text:
+        return False
+    lowered_current = current_text.lower().rstrip(" ,.;:")
+    if parsed_text.startswith(current_text) and len(parsed_text) > len(current_text) + 8:
+        return True
+    if lowered_current.endswith((" in", " of", " the", " proceedings")):
+        return True
+    if re.search(r"\b(?:pp?\.?|pages?)\s*\d", current_text, flags=re.IGNORECASE):
+        return True
+    if parsed_year and re.search(rf"(?:^|[,;\s]){re.escape(parsed_year)}[a-z]?\s*$", current_text):
+        return True
+    if current_text.startswith(parsed_text) and len(current_text) > len(parsed_text) + 8:
+        return True
+    return False
+
+
+def _reference_publication_info_needs_repair(current: Any, parsed_publication_info: str) -> bool:
+    if not isinstance(current, str) or not current.strip():
+        return True
+    current_text = " ".join(current.split())
+    parsed_text = " ".join(parsed_publication_info.split())
+    if current_text == parsed_text:
+        return False
+    return parsed_text.startswith(current_text) and len(parsed_text) > len(current_text) + 8
 
 
 def _looks_like_non_author_reference_piece(value: Any) -> bool:
@@ -198,7 +238,7 @@ def _to_csv(essential: dict[str, Any]) -> str:
     buffer = io.StringIO()
     writer = csv.DictWriter(
         buffer,
-        fieldnames=["id", "title", "authors", "year", "doi", "venue", "raw_text"],
+        fieldnames=["id", "title", "authors", "year", "doi", "venue", "pages", "publication_info", "raw_text"],
     )
     writer.writeheader()
     for reference in essential["references"]:
