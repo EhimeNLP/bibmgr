@@ -494,10 +494,13 @@ def _paddleocr_vl_runtime_hint(exc: Exception, *, device: str | None, engine: st
         selected_device = device or "auto/default GPU"
         return (
             "PaddleOCR-VL failed because the installed PaddlePaddle runtime tried to use CUDA, "
-            f"but no usable CUDA device was detected. Selected device={selected_device}. "
-            "If you want CPU inference, install/use a CPU PaddlePaddle environment instead of a GPU Paddle build, "
-            "or run with CUDA_VISIBLE_DEVICES='' and '--paddleocr-vl-device cpu'. "
-            "For faster/stabler GPU inference, use a machine with a visible compatible NVIDIA GPU or a VLM service. "
+            f"but the installed package is a GPU build and no CUDA-capable device is visible. "
+            f"Selected device={selected_device}. "
+            "If you want CPU inference, create/use a CPU Paddle environment instead: "
+            "`uv pip uninstall paddlepaddle-gpu paddlepaddle` then "
+            "`uv pip install paddlepaddle==3.2.1 -i https://www.paddlepaddle.org.cn/packages/stable/cpu/`. "
+            "Otherwise run on a GPU node with a visible compatible NVIDIA GPU, or use a VLM service. "
+            "You can also try CUDA_VISIBLE_DEVICES='' and '--paddleocr-vl-device cpu'. "
             f"Original error: {message}"
         )
     return message

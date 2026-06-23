@@ -116,12 +116,14 @@ def split_reference_entries(reference_block: str) -> list[str]:
 
 def parse_reference_entry(raw_text: str, index: int, source: str, confidence: float) -> Reference:
     text = normalize_space(raw_text) or raw_text.strip()
-    year_match = YEAR_RE.search(text)
+    year_match = _select_reference_year_match(text)
     year = year_match.group(0) if year_match else None
     doi = clean_doi(text)
     title = _guess_reference_title(text, year_match.start() if year_match else None)
     authors = _guess_reference_authors(text, year_match.start() if year_match else None)
-    venue = _guess_reference_venue(text, title)
+    publication_info = _guess_reference_publication_info(text, title, year_match)
+    venue = _guess_reference_venue(text, title, publication_info, year)
+    pages = _guess_reference_pages(publication_info or text)
     return Reference(
         id=f"b{index}",
         raw_text=text,
@@ -130,6 +132,8 @@ def parse_reference_entry(raw_text: str, index: int, source: str, confidence: fl
         year=year,
         doi=doi,
         venue=venue,
+        pages=pages,
+        publication_info=publication_info,
         source=source,
         confidence=confidence,
     )
@@ -251,20 +255,137 @@ def _year_token_end(text: str, year_start: int) -> int:
     return year_start + 4
 
 
-def _guess_reference_venue(text: str, title: str | None) -> str | None:
-    year_match = YEAR_RE.search(text)
-    _, _, venue = _split_reference_front_matter(text, year_match.start() if year_match else None)
-    if venue:
-        return venue
-    if title:
-        marker = text.find(title)
-        if marker >= 0:
-            tail = text[marker + len(title) :]
-            parts = [normalize_space(part) for part in tail.split(".")]
-            for part in parts:
-                if part and 4 <= len(part) <= 140 and not DOI_RE.search(part) and not _looks_like_year_tail(part):
-                    return part
+def _guess_reference_publication_info(
+    text: str,
+    title: str | None,
+    year_match: re.Match[str] | None,
+) -> str | None:
+    """Return the citation tail after the title.
+
+    This field intentionally preserves page ranges and a trailing publication
+    year, e.g. ``In Proceedings ..., pp. 17337–17342, 2024``.  It is useful
+    when callers want a near-source citation fragment, while ``venue`` remains
+    a normalized publication venue name.
+    """
+    _, _, venue_tail = _split_reference_front_matter(text, year_match.start() if year_match else None)
+    if venue_tail:
+        return _include_trailing_publication_year(text, venue_tail, year_match)
+    if not title:
+        return None
+    marker = text.find(title)
+    if marker < 0:
+        return None
+    tail = text[marker + len(title) :]
+    parts = [normalize_space(part) for part in tail.split(".")]
+    for part in parts:
+        if part and 4 <= len(part) <= 220 and not DOI_RE.search(part) and not _looks_like_year_tail(part):
+            return part
     return None
+
+
+def _guess_reference_venue(
+    text: str,
+    title: str | None,
+    publication_info: str | None = None,
+    year: str | None = None,
+) -> str | None:
+    if publication_info:
+        return _normalize_reference_venue(publication_info, year)
+    year_match = _select_reference_year_match(text)
+    publication_info = _guess_reference_publication_info(text, title, year_match)
+    if publication_info:
+        return _normalize_reference_venue(publication_info, year_match.group(0) if year_match else year)
+    return None
+
+
+def _guess_reference_pages(publication_info: str | None) -> str | None:
+    if not publication_info:
+        return None
+    text = normalize_space(publication_info) or publication_info
+    match = re.search(
+        r"\b(?:pp?\.?|pages?)\s*(?P<pages>[A-Za-z]?\d+\s*[–-]\s*[A-Za-z]?\d+|[A-Za-z]?\d+)\b",
+        text,
+        flags=re.IGNORECASE,
+    )
+    if match:
+        return normalize_space(match.group("pages"))
+    # Journal-style references often encode page ranges as ``volume:pages``.
+    match = re.search(r"[:：]\s*(?P<pages>[A-Za-z]?\d+\s*[–-]\s*[A-Za-z]?\d+)\s*$", text)
+    if match:
+        return normalize_space(match.group("pages"))
+    return None
+
+
+def _normalize_reference_venue(publication_info: str, year: str | None) -> str | None:
+    venue = normalize_space(publication_info) or publication_info.strip()
+    if year:
+        venue = re.sub(rf"(?:[,;]?\s*){re.escape(year)}[a-z]?\s*$", "", venue).strip(" ,;.")
+    venue = re.sub(
+        r"[,;]?\s*\b(?:pp?\.?|pages?)\s*[A-Za-z]?\d+\s*[–-]\s*[A-Za-z]?\d+\s*$",
+        "",
+        venue,
+        flags=re.IGNORECASE,
+    ).strip(" ,;.")
+    venue = re.sub(
+        r"[,;]?\s*\b(?:pp?\.?|pages?)\s*[A-Za-z]?\d+\s*$",
+        "",
+        venue,
+        flags=re.IGNORECASE,
+    ).strip(" ,;.")
+    venue = re.sub(r"[:：]\s*[A-Za-z]?\d+\s*[–-]\s*[A-Za-z]?\d+\s*$", "", venue).strip(" ,;.")
+    return venue or None
+
+
+def _select_reference_year_match(text: str) -> re.Match[str] | None:
+    """Return the year token that should delimit reference front matter.
+
+    References commonly appear in at least two shapes:
+
+    - ``authors. 2020. title. venue`` (ACL-like author-year style)
+    - ``authors. title. venue, 2020`` (trailing publication-year style)
+
+    The previous implementation always used the first 4-digit year.  That
+    breaks trailing-year references whose venue itself contains an event year,
+    e.g. ``In Proceedings of the 2024 Joint International Conference ...,
+    2024``: the venue was truncated to ``In Proceedings of the``.
+
+    Keep the first year only when it is clearly the author-year marker;
+    otherwise use the rightmost year as the bibliographic year delimiter.
+    """
+    matches = list(YEAR_RE.finditer(text))
+    if not matches:
+        return None
+    if _is_author_year_reference(text, matches[0]):
+        return matches[0]
+    return matches[-1]
+
+
+def _is_author_year_reference(text: str, year_match: re.Match[str]) -> bool:
+    prefix = text[: year_match.start()]
+    suffix = text[year_match.end() :]
+    if not re.search(r"\.\s*$", prefix):
+        return False
+    if not re.match(r"\.?\s+\S", suffix):
+        return False
+    author_segment = prefix.rsplit(".", 1)[0].strip(" ,;")
+    if not author_segment:
+        return False
+    lead = f"{author_segment}. {year_match.group(0)}."
+    return _looks_like_unnumbered_reference_start(lead)
+
+
+def _include_trailing_publication_year(
+    text: str,
+    venue: str,
+    year_match: re.Match[str] | None,
+) -> str:
+    if year_match is None or _is_author_year_reference(text, year_match):
+        return venue
+    year = year_match.group(0)
+    if re.search(rf"(?:^|[,\s]){re.escape(year)}\s*$", venue):
+        return venue
+    separator = "" if venue.endswith((",", ";")) else ","
+    return normalize_space(f"{venue}{separator} {year}") or venue
 
 
 def _split_reference_front_matter(text: str, year_start: int | None) -> tuple[str | None, str | None, str | None]:
