@@ -34,7 +34,9 @@ class CrossrefClient(BaseAPIClient):
         if not doi: 
             return None, None
 
-        title = best_match.get("title", [""])[0]
+        title_list = best_match.get("title", [])
+        title = title_list[0] if title_list else ""
+        
         authors = []
         for author in best_match.get("author", []):
             name = f"{author.get('given', '')} {author.get('family', '')}".strip()
