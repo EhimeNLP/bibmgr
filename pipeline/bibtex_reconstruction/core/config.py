@@ -22,6 +22,7 @@ class Settings(BaseSettings):
     max_retries: int = 3
     retry_backoff_sec: int = 2
     doi_base_url: str = "https://doi.org/"
+    dblp_timeout: int = 5
     dblp_venue_api_url: str = "https://dblp.org/search/venue/api"
     ## --- crossref ---
     crossref_base_url: str = "https://api.crossref.org/works"
@@ -70,6 +71,9 @@ class Settings(BaseSettings):
                 api_section = raw_data.get("api", {})
                 conf_data["max_retries"] = api_section.get("max_retries", 3)
                 conf_data["retry_backoff_sec"] = api_section.get("retry_backoff_sec", 2)
+                conf_data["doi_base_url"] = api_section.get("doi_base_url")
+                conf_data["dblp_timeout"] = api_section.get("dblp_timeout", 5)
+                conf_data["dblp_venue_api_url"] = api_section.get("dblp_venue_api_url")
                 if isinstance(api_section, dict):
                     localdb = api_section.get("localdb", {})
                     conf_data["localdb_enabled"] = localdb.get("enabled", False)
@@ -81,7 +85,7 @@ class Settings(BaseSettings):
                         conf_data[f"{service}_wait_sec"] = detail.get("wait_sec", 0)
                 
                 conf_data["venue_abbrev_map"] = raw_data.get("venue_abbreviations", {})
-        
+
         return cls(**{k: v for k, v in conf_data.items() if v is not None})
 
 settings = Settings.load_settings()
