@@ -5,8 +5,16 @@ from fastapi import FastAPI, HTTPException
 from models import DocumentRoot, InputData, OutputData
 from services.orchestrator import SearchOrchestrator
 from core.config import settings
+from contextlib import asynccontextmanager
 
-app = FastAPI(title="BibTeX-Reconstruction-API")
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    global _executor
+    _executor = ThreadPoolExecutor(max_workers=settings.max_parallel_requests)
+    yield
+    _executor.shutdown(wait=True)
+
+app = FastAPI(title="BibTeX-Reconstruction-API", lifespan=lifespan)
 orchestrator = SearchOrchestrator()
 
 # Shared thread pool for offloading synchronous orchestrator work.
@@ -26,7 +34,7 @@ async def reconstruct_bibtex(request_data: DocumentRoot):
     references are awaited concurrently via asyncio.gather().
     """
     try:
-        loop = asyncio.get_event_loop()
+        loop = asyncio.get_running_loop()
 
         tasks = [
             loop.run_in_executor(
