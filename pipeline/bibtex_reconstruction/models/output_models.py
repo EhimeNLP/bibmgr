@@ -1,7 +1,7 @@
 # models/output_models.py
 from typing import List, Optional, Any
 from pydantic import BaseModel, Field
-from models.input_models import ReferenceData
+from .input_models import ReferenceData
 from core.constants import ProcessingStatus
 
 class VerifiedCitationInfo(BaseModel):
