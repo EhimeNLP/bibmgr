@@ -56,8 +56,14 @@ class CiNiiClient(BaseAPIClient):
         )
 
         custom_bibtex = None
-        crid_url = best_match.get("link", {}).get("@id", "")
-        
+        link = best_match.get("link", {})
+        if isinstance(link, list):
+            crid_url = link[0].get("@id", "") if link else ""
+        elif isinstance(link, dict):
+            crid_url = link.get("@id", "")
+        else:
+            crid_url = ""
+
         if crid_url:
             bib_resp = self._make_request(url=f"{crid_url}.bib")
             if bib_resp:
