@@ -40,7 +40,7 @@ async def lifespan(app: FastAPI):
     global _executor
     if not settings.api_key:
         print(
-            "[WARNING] API_KEY is not set. "
+            "WARNING:   API_KEY is not set. "
             "The /reconstruct endpoint is open to all requests."
         )
     _executor = ThreadPoolExecutor(max_workers=settings.max_parallel_requests)

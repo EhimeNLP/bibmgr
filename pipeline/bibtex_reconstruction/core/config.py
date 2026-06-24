@@ -44,7 +44,7 @@ class Settings(BaseSettings):
     jstage_timeout: int = 10
     jstage_wait_sec: float = 0
     ## --- arxiv ---
-    arxiv_base_url: str = "http://export.arxiv.org/api/query"
+    arxiv_base_url: str = "https://export.arxiv.org/api/query"
     arxiv_timeout: int = 10
     arxiv_wait_sec: float = 0
     ## --- localdb ---

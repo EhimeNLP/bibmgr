@@ -3,7 +3,7 @@ import time
 import requests
 from abc import ABC, abstractmethod
 from typing import Optional, Tuple
-
+from urllib.parse import urlparse
 from models import InputData, VerifiedCitationInfo
 from core.config import settings
 
@@ -12,6 +12,17 @@ class BaseAPIClient(ABC):
     Abstract Base Class for all academic API clients.
     Provides a unified search pipeline and common utilities.
     """
+
+    _ALLOWED_SCHEMES = {"https"}
+    _ALLOWED_HOSTS = {
+        "doi.org",
+        "api.crossref.org",
+        "cir.nii.ac.jp",
+        "api.semanticscholar.org",
+        "api.jstage.jst.go.jp",
+        "export.arxiv.org",
+        "dblp.org",
+    }
     
     @property
     @abstractmethod
@@ -141,6 +152,25 @@ class BaseAPIClient(ABC):
 
         return True
 
+    def _is_safe_url(self, url: str) -> bool:
+        """
+        SSRF Mitigation: Validates the URL scheme and host against a strict whitelist.
+        """
+        try:
+            parsed = urlparse(url)
+            if parsed.scheme not in self._ALLOWED_SCHEMES:
+                print(f"[{self.api_name}] SSRF Blocked: Disallowed scheme '{parsed.scheme}'")
+                return False
+            
+            if parsed.hostname not in self._ALLOWED_HOSTS:
+                print(f"[{self.api_name}] SSRF Blocked: Disallowed host '{parsed.hostname}'")
+                return False
+                
+            return True
+        except Exception as e:
+            print(f"[{self.api_name}] URL parsing error during SSRF validation: {e}")
+            return False
+
     def _make_request(self, url: Optional[str] = None, params: dict = None, headers: dict = None, 
                       timeout: Optional[int] = None, max_retries: Optional[int] = None) -> Optional[requests.Response]:
         """
@@ -159,11 +189,16 @@ class BaseAPIClient(ABC):
         req_url = url or self.base_url
         req_timeout = timeout or self.timeout
         retries = max_retries if max_retries is not None else settings.max_retries
-        
+
         if not req_url:
             print(f"[{self.api_name}] Error: Base URL is not defined.")
             return None
-    
+
+        if req_url.startswith("http://"):
+            req_url = req_url.replace("http://", "https://", 1)
+
+        if not self._is_safe_url(req_url):
+            return None
 
         for attempt in range(retries):
             try:
