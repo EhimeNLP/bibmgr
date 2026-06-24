@@ -50,7 +50,7 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="BibTeX-Reconstruction-API", lifespan=lifespan)
 
-@app.post("/reconstruct", response_model=OutputData, depends=[Depends(verify_api_key)])
+@app.post("/reconstruct", response_model=OutputData, dependencies=[Depends(verify_api_key)])
 async def reconstruct_bibtex(request_data: DocumentRoot):
     """
     Reconstruct BibTeX entries for all references in the document.
