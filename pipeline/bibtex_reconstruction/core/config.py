@@ -11,7 +11,7 @@ CONFIG_PATH = BASE_DIR / "config.yml"
 
 class Settings(BaseSettings):
     # --- Search Settings ---
-    similarity_threshold: float = 0.95
+    similarity_threshold: float = 0.9
     max_parallel_requests: int = 5
     # --- LLM Settings ---
     model_name: str = "gemini-flash-lite-latest"
@@ -22,8 +22,8 @@ class Settings(BaseSettings):
     max_retries: int = 3
     retry_backoff_sec: int = 2
     doi_base_url: str = "https://doi.org/"
-    dblp_timeout: int = 5
     dblp_venue_api_url: str = "https://dblp.org/search/venue/api"
+    dblp_timeout: int = 10
     ## --- crossref ---
     crossref_base_url: str = "https://api.crossref.org/works"
     crossref_timeout: int = 10
@@ -52,7 +52,8 @@ class Settings(BaseSettings):
     # --- venue abbreviations ---
     venue_abbrev_map: dict[str, str] = Field(default_factory=dict)
     # --- API Keys / Environment Variables ---
-
+    api_key: str = Field("", validation_alias="API_KEY")
+    
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",
@@ -72,7 +73,7 @@ class Settings(BaseSettings):
                 conf_data["max_retries"] = api_section.get("max_retries", 3)
                 conf_data["retry_backoff_sec"] = api_section.get("retry_backoff_sec", 2)
                 conf_data["doi_base_url"] = api_section.get("doi_base_url")
-                conf_data["dblp_timeout"] = api_section.get("dblp_timeout", 5)
+                conf_data["dblp_timeout"] = api_section.get("dblp_timeout", 10)
                 conf_data["dblp_venue_api_url"] = api_section.get("dblp_venue_api_url")
                 if isinstance(api_section, dict):
                     localdb = api_section.get("localdb", {})
