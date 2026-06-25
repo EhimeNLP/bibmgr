@@ -27,7 +27,7 @@ def apply_lab_rules(raw_bibtex: str, metadata: VerifiedCitationInfo, raw_text: s
     extracted_author = extract_bibtex_field(raw_bibtex, "author")
     authors = extracted_author or (" and ".join(metadata.authors) if metadata.authors else "unknown")
 
-    title = extract_bibtex_field(raw_bibtex, "title") or metadata.title
+    title = extract_bibtex_field(raw_bibtex, "title") or metadata.title or "notitle"
     year = extract_bibtex_field(raw_bibtex, "year") or (str(metadata.year) if metadata.year else "unknown")
     url = extract_bibtex_field(raw_bibtex, "url") or metadata.url or ""
     volume = extract_bibtex_field(raw_bibtex, "volume")
