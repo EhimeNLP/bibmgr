@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref } from "vue";
+import { onMounted, ref } from "vue";
 import type { Reference } from "./types/reference";
 import { searchReferences } from "./api/references";
 import SearchBar from "./components/SearchBar.vue";
@@ -15,14 +15,18 @@ const isLoading = ref(false);
 const errorMessage = ref<string | null>(null);
 const hasSearched = ref(false);
 
-async function handleSearch() {
+onMounted(() => {
+  void loadReferences("");
+});
+
+async function loadReferences(searchQuery: string) {
   isLoading.value = true;
   errorMessage.value = null;
-  hasSearched.value = true;
   selectedReference.value = null;
 
   try {
-    references.value = await searchReferences(query.value);
+    references.value = await searchReferences(searchQuery);
+    selectedReference.value = references.value[0] ?? null;
   } catch (error) {
     console.error(error);
     errorMessage.value = "Failed to load references.";
@@ -30,6 +34,11 @@ async function handleSearch() {
   } finally {
     isLoading.value = false;
   }
+}
+
+async function handleSearch() {
+  hasSearched.value = true;
+  await loadReferences(query.value);
 }
 
 function selectReference(reference: Reference) {
@@ -69,8 +78,8 @@ function selectReference(reference: Reference) {
 
           <EmptyState
             v-else-if="references.length === 0 && !hasSearched"
-            title="No references found"
-            message="The database is currently empty. References will appear here after the backend and database are connected."
+            title="No test references loaded"
+            message="The local test dataset is empty. Add sample entries or connect the backend database to show references."
           />
 
           <EmptyState

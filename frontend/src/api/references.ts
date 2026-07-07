@@ -1,15 +1,33 @@
 import type { Reference } from "../types/reference";
+import { testReferences } from "../data/testReferences";
 
 export async function searchReferences(query: string): Promise<Reference[]> {
-  console.log("Search query:", query);
+  const normalizedQuery = normalizeText(query);
 
-  // TODO: Replace this mock implementation with a backend API call.
-  // Example:
-  // const response = await fetch(`/api/references?query=${encodeURIComponent(query)}`);
-  // if (!response.ok) {
-  //   throw new Error("Failed to search references");
-  // }
-  // return response.json();
+  if (!normalizedQuery) {
+    return testReferences;
+  }
 
-  return [];
+  return testReferences.filter((reference) =>
+    normalizeText(getSearchableText(reference)).includes(normalizedQuery),
+  );
+}
+
+function getSearchableText(reference: Reference): string {
+  return [
+    reference.title,
+    ...reference.authors,
+    reference.year,
+    reference.venue,
+    reference.doi,
+    reference.url,
+    reference.bibtexKey,
+    reference.bibtex,
+  ]
+    .filter(Boolean)
+    .join(" ");
+}
+
+function normalizeText(value: unknown): string {
+  return String(value ?? "").trim().toLowerCase();
 }
