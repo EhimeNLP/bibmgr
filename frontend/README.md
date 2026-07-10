@@ -12,7 +12,7 @@ Learn more about the recommended Project Setup and IDE Support in the [Vue Docs 
 
 `bibmgr` は，研究室の過去論文から参考文献を抽出し，BibTeXの登録・検索・再利用を支援するWebアプリである。フロントエンドでは，文献検索，文献一覧表示，文献詳細表示，BibTeX表示，引用文脈表示などのUIを提供する。
 
-現時点では，バックエンド，データベース，検索処理，データ形式が未確定であるため，フロントエンド側では仮のデータ型と仮のAPI関数を用意している。実際の検索処理やデータベース接続は行わず，バックエンド実装後にAPI接続部分を差し替える前提で作成している。
+現時点では，バックエンド，データベース，検索処理，データ形式が未確定であるため，フロントエンド側では仮のデータ型と仮のAPI関数を用意している。実際の検索処理やデータベース接続は行わず，arXiv / ACL Anthology由来のテスト用BibTeX 10件を直書きデータとして表示する。バックエンド実装後にAPI接続部分を差し替える前提で作成している。
 
 ## 使用技術
 
@@ -37,9 +37,10 @@ Learn more about the recommended Project Setup and IDE Support in the [Vue Docs 
 * Loading状態の表示
 * Error状態の表示
 * 文献データの仮型定義
-* バックエンドAPI接続用の仮関数
+* arXiv / ACL Anthology由来のテスト用BibTeX 10件
+* テスト用BibTeXを返すバックエンドAPI接続用の仮関数
 
-現時点では，検索を実行してもバックエンドには接続されず，空配列が返る。そのため，初期状態ではデータベースが空であることを示す表示が出る。
+現時点では，検索を実行してもバックエンドには接続されず，フロントエンド内のテスト用データを検索対象とする。空検索では全10件が返り，初期表示でも同じデータが表示される。
 
 ## ディレクトリ構成
 
@@ -59,6 +60,8 @@ frontend/
    ├─ style.css
    ├─ types/
    │  └─ reference.ts
+   ├─ data/
+   │  └─ testReferences.ts
    ├─ api/
    │  └─ references.ts
    └─ components/
@@ -90,6 +93,8 @@ Vueアプリケーションのエントリーポイントである。
 * Loading状態
 * Error状態
 * 検索実行済みかどうか
+
+初期表示時には，テスト用BibTeXデータを読み込み，先頭の文献を詳細表示する。
 
 ### `src/style.css`
 
@@ -132,16 +137,23 @@ export type Reference = {
 
 文献検索APIとの接続部分をまとめるファイルである。
 
-現時点ではバックエンド未接続のため，検索クエリを受け取ったうえで空配列を返す仮実装になっている。
+現時点ではバックエンド未接続のため，検索クエリを受け取ったうえで `src/data/testReferences.ts` のテスト用データを返す仮実装になっている。
 
 ```ts
 export async function searchReferences(query: string): Promise<Reference[]> {
-  console.log("Search query:", query);
-  return [];
+  const normalizedQuery = query.trim().toLowerCase();
+  if (!normalizedQuery) return testReferences;
+  return testReferences.filter((reference) =>
+    matchesReference(reference, normalizedQuery),
+  );
 }
 ```
 
 バックエンドAPIが完成した後は，この関数を実際のAPI通信処理に差し替える。
+
+### `src/data/testReferences.ts`
+
+フロントエンド確認用のテスト文献データである。arXiv / ACL Anthology由来のBibTeX 10件を `Reference` 型に変換して保持している。
 
 ### `src/components/SearchBar.vue`
 
@@ -185,7 +197,7 @@ BibTeXが存在する場合は，Copyボタンでクリップボードにコピ�
 
 データが存在しない場合の表示用コンポーネントである。
 
-初期状態では，データベースが空であることを表示する。
+初期状態でテストデータを読み込めなかった場合は，テストデータが空であることを表示する。
 検索後に結果が存在しない場合は，一致する文献が見つからなかったことを表示する。
 
 ### `src/components/LoadingState.vue`
