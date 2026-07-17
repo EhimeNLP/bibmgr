@@ -1,26 +1,28 @@
 # Frontend Registration UI Definitions
 
-## Branch
-
-- Working branch: `feat/frontend-registration-ui`
-- Base branch: `feat/vue-frontend-base`
-- Pull request target: `feat/vue-frontend-base`
-
 ## Scope
 
-このブランチでは、既存の検索UIと文献一覧・詳細表示の構造を大きく変更せず、登録用UIを追加する。
+文献登録UIは、次の2つのBibTeX入力方法を提供する。
 
-対象機能は次の3つとする。
+- BibTeX entryをエディタへ直接入力する。
+- `.bib` ファイルをブラウザ内で読み込み、内容を確認・編集して登録する。
 
-- PDFをフロントエンドからバックエンドへ渡す。
-- PDF処理で得られたBibTeX候補を確認し、`needs_review` 相当の候補を画面上で修正できる。
-- BibTeX文字列をDBへ直接登録できる。
+PDFアップロードとPDFからの候補抽出は対象外とする。登録後にバックエンドから文献データが返った場合は、画面上の文献一覧へ追加し、その文献を選択状態にする。
 
 ## Frontend Placement
 
-登録UIは検索欄の下、文献一覧と詳細表示の上に配置する。
+文献一覧の「Add reference」ボタンからモーダルを開く。モーダル内の `Manual entry` と `BibTeX file` はタブとして切り替える。
 
-既存の検索欄、文献一覧、文献詳細のコンポーネント構成は維持する。登録後にバックエンドから文献データが返る場合は、画面上の文献一覧へ追加し、その文献を選択状態にする。
+`.bib` ファイルはバックエンドへファイルとしてアップロードしない。ブラウザの `File.text()` で読み込み、既存のBibTeX文字列登録APIへ渡す。
+
+ファイル入力は次の制約を持つ。
+
+- 拡張子は `.bib`（大文字・小文字を区別しない）
+- 最大サイズは2 MB
+- 1ファイルに1つ以上の文献entry
+- UTF-8 BOMは読み込み時に除去
+
+複数entryを含むファイルは全文を保持したまま一度に登録処理へ渡す。entryの分割や部分失敗時の扱いはバックエンド実装時に定義する。
 
 ## Environment Variables
 
@@ -34,78 +36,31 @@
 
 ## API Contract
 
-バックエンドのPDF登録・DB登録APIはまだリポジトリ内で確定していないため、フロントエンドでは以下の契約を前提にする。
-
-### PDF Processing
-
-`POST /registrations/pdf`
-
-開発時のフロントエンドからは `/api/registrations/pdf` を呼ぶ。
-
-Request:
-
-- `multipart/form-data`
-- field: `pdf`
-- value: PDF file
-
-Response:
-
-```json
-{
-  "upload_id": "upload-123",
-  "source_file_name": "paper.pdf",
-  "references": [
-    {
-      "id": "ref-1",
-      "title": "Paper title",
-      "authors": ["Author A", "Author B"],
-      "year": 2024,
-      "venue": "Venue",
-      "doi": "10.0000/example",
-      "bibtex": "@article{...}",
-      "status": "needs_review",
-      "confidence_score": 0.82,
-      "source_api": "Crossref",
-      "raw_reference_text": "..."
-    }
-  ]
-}
-```
-
-`status` は次のいずれかとする。
-
-- `success`
-- `needs_review`
-- `not_found`
-- `api_error`
-
-フロントエンドは `references` の各要素を編集可能なBibTeX候補として表示する。既存のBibTeX復元API `POST /reconstruct` の `processed_references` 形式が返る場合も、候補を画面用の形式へ変換する。
-
 ### DB Registration
 
 `POST /references`
 
 開発時のフロントエンドからは `/api/references` を呼ぶ。
 
+手動入力とファイル入力は、どちらも読み込んだBibTeX文字列を送信する。ファイル入力では複数entryを含む全文を `bibtex` に格納する。
+
 Request:
 
 ```json
 {
   "bibtex": "@article{...}",
-  "source": "pdf",
-  "uploadId": "upload-123",
-  "reviewItemId": "ref-1",
-  "metadata": {
-    "title": "Paper title",
-    "authors": ["Author A", "Author B"],
-    "year": 2024,
-    "venue": "Venue",
-    "doi": "10.0000/example"
-  }
+  "source": "manual"
 }
 ```
 
-直接BibTeX登録の場合は `source` を `manual` とし、`uploadId` と `reviewItemId` は送らない。
+ファイル入力では `source` を `file` とする。
+
+```json
+{
+  "bibtex": "@article{...}\n\n@book{...}",
+  "source": "file"
+}
+```
 
 Response:
 
@@ -127,14 +82,9 @@ Response:
 
 ## Required Backend Definitions
 
-追加で決める必要がある定義は以下。
+バックエンドの文献登録APIはまだリポジトリ内に実装されていないため、次の定義は今後必要となる。
 
-- PDF登録APIの正式なエンドポイント名。
-- DB登録APIの正式なエンドポイント名。
-- PDF処理を同期レスポンスにするか、ジョブIDを返す非同期処理にするか。
-- PDFの最大サイズ、対応MIME type、エラー時のレスポンス形式。
-- `needs_review` の判定基準と、`success` 候補も編集可能にするかどうか。
-- DB登録時の重複判定ルール。BibTeX key、DOI、titleのどれを優先するか。
-- 登録後レスポンスに含める正式な文献スキーマ。
-- 認証方式。現状の `X-API-Key` を登録APIにも適用するか。
-- 複数BibTeX候補を一括登録するAPIが必要か。
+- DB登録APIの正式なエンドポイント名と認証方式
+- 重複判定でBibTeX key、DOI、titleのどれを優先するか
+- 登録後レスポンスに含める正式な文献スキーマ
+- 複数BibTeX entryの一括登録と部分失敗時のレスポンス形式
