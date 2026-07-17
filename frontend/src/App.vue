@@ -7,6 +7,7 @@ import ReferenceList from "./components/ReferenceList.vue";
 import ReferenceDetail from "./components/ReferenceDetail.vue";
 import EmptyState from "./components/EmptyState.vue";
 import LoadingState from "./components/LoadingState.vue";
+import RegistrationPanel from "./components/RegistrationPanel.vue";
 
 const query = ref("");
 const references = ref<Reference[]>([]);
@@ -44,6 +45,18 @@ async function handleSearch() {
 function selectReference(reference: Reference) {
   selectedReference.value = reference;
 }
+
+function handleReferenceRegistered(reference: Reference) {
+  const existingIndex = references.value.findIndex((item) => item.id === reference.id);
+  if (existingIndex >= 0) {
+    references.value[existingIndex] = reference;
+  } else {
+    references.value = [reference, ...references.value];
+  }
+
+  selectedReference.value = reference;
+  hasSearched.value = true;
+}
 </script>
 
 <template>
@@ -63,6 +76,8 @@ function selectReference(reference: Reference) {
           @search="handleSearch"
         />
       </section>
+
+      <RegistrationPanel @registered="handleReferenceRegistered" />
 
       <section class="content-layout">
         <aside class="left-pane">
