@@ -8,18 +8,18 @@ defineProps<{
 }>();
 
 const emit = defineEmits<{
-  select: [reference: Reference];
+  select: [reference: Reference, event: MouseEvent];
 }>();
 </script>
 
 <template>
-  <section class="reference-list">
-    <ReferenceCard
-      v-for="reference in references"
-      :key="reference.id"
-      :reference="reference"
-      :selected="reference.id === selectedReferenceId"
-      @click="emit('select', reference)"
-    />
-  </section>
+  <ul class="reference-list">
+    <li v-for="reference in references" :key="reference.id">
+      <ReferenceCard
+        :reference="reference"
+        :selected="reference.id === selectedReferenceId"
+        @click="emit('select', reference, $event)"
+      />
+    </li>
+  </ul>
 </template>

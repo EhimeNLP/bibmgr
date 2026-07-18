@@ -1,274 +1,454 @@
 <script setup lang="ts">
-import { computed, ref } from "vue";
-import {
-  registerBibtexToDatabase,
-  uploadPdfForRegistration,
-} from "../api/registration";
-import type {
-  Reference,
-  RegistrationReviewItem,
-  RegistrationStatus,
-} from "../types/reference";
+import { computed, nextTick, onBeforeUnmount, ref } from "vue";
+import { registerBibtexToDatabase } from "../api/registration";
+import type { Reference } from "../types/reference";
+import { countBibliographicEntries } from "../utils/bibtexHighlight";
+import BibtexEditor from "./BibtexEditor.vue";
 
-type RegistrationMode = "pdf" | "bibtex";
+type RegistrationMode = "manual" | "file";
+
+const MAX_BIB_FILE_SIZE = 2 * 1024 * 1024;
 
 const emit = defineEmits<{
   registered: [reference: Reference];
 }>();
 
-const mode = ref<RegistrationMode>("pdf");
-const selectedPdf = ref<File | null>(null);
-const uploadId = ref<string | undefined>();
-const reviewItems = ref<RegistrationReviewItem[]>([]);
-const isPdfProcessing = ref(false);
-const pdfError = ref<string | null>(null);
-const pdfMessage = ref<string | null>(null);
-const registeringItemIds = ref<Set<string>>(new Set());
+const isOpen = ref(false);
+const triggerButton = ref<HTMLButtonElement | null>(null);
+const dialogPanel = ref<HTMLElement | null>(null);
+const fileInput = ref<HTMLInputElement | null>(null);
+const mode = ref<RegistrationMode>("manual");
 
-const directBibtex = ref("");
-const isDirectRegistering = ref(false);
-const directError = ref<string | null>(null);
-const directMessage = ref<string | null>(null);
+const manualBibtex = ref("");
+const isManualRegistering = ref(false);
+const manualError = ref<string | null>(null);
+const manualMessage = ref<string | null>(null);
 
-const selectedPdfName = computed(() => selectedPdf.value?.name ?? "No PDF selected");
-const canProcessPdf = computed(() => Boolean(selectedPdf.value) && !isPdfProcessing.value);
-const canRegisterDirectBibtex = computed(
-  () => directBibtex.value.trim().length > 0 && !isDirectRegistering.value,
+const selectedBibFile = ref<File | null>(null);
+const fileBibtex = ref("");
+const isFileReading = ref(false);
+const isFileRegistering = ref(false);
+const fileError = ref<string | null>(null);
+const fileMessage = ref<string | null>(null);
+
+const canRegisterManual = computed(
+  () => manualBibtex.value.trim().length > 0 && !isManualRegistering.value,
 );
+const fileEntryCount = computed(() => countBibliographicEntries(fileBibtex.value));
+const canRegisterFile = computed(
+  () =>
+    Boolean(selectedBibFile.value) &&
+    fileEntryCount.value > 0 &&
+    !isFileReading.value &&
+    !isFileRegistering.value,
+);
+const selectedBibFileName = computed(
+  () => selectedBibFile.value?.name ?? "No .bib file selected",
+);
+const fileEntryCountLabel = computed(() =>
+  fileEntryCount.value === 1
+    ? "1 entry detected."
+    : `${fileEntryCount.value} entries detected.`,
+);
+const fileRegistrationLabel = computed(() => {
+  if (isFileRegistering.value) return "Registering…";
+  if (fileEntryCount.value === 0) return "Register file";
+  return fileEntryCount.value === 1
+    ? "Register 1 reference"
+    : `Register ${fileEntryCount.value} references`;
+});
 
-function selectMode(nextMode: RegistrationMode) {
-  mode.value = nextMode;
+onBeforeUnmount(() => {
+  document.body.classList.remove("registration-open");
+});
+
+async function openRegistration() {
+  isOpen.value = true;
+  document.body.classList.add("registration-open");
+  await nextTick();
+  dialogPanel.value?.focus({ preventScroll: true });
 }
 
-function onPdfChange(event: Event) {
-  const input = event.target as HTMLInputElement;
-  selectedPdf.value = input.files?.[0] ?? null;
-  pdfError.value = null;
-  pdfMessage.value = null;
+async function closeRegistration() {
+  isOpen.value = false;
+  document.body.classList.remove("registration-open");
+  await nextTick();
+  triggerButton.value?.focus({ preventScroll: true });
 }
 
-async function processPdf() {
-  if (!selectedPdf.value) return;
-
-  isPdfProcessing.value = true;
-  pdfError.value = null;
-  pdfMessage.value = null;
-  reviewItems.value = [];
-
-  try {
-    const result = await uploadPdfForRegistration(selectedPdf.value);
-    uploadId.value = result.uploadId;
-    reviewItems.value = result.references;
-    pdfMessage.value =
-      result.references.length > 0
-        ? `${result.references.length} references ready for review.`
-        : "No references returned from PDF processing.";
-  } catch (error) {
-    pdfError.value =
-      error instanceof Error ? error.message : "Failed to process PDF.";
-  } finally {
-    isPdfProcessing.value = false;
-  }
-}
-
-async function registerReviewItem(item: RegistrationReviewItem) {
-  if (!item.bibtex.trim()) {
-    item.registrationState = "failed";
-    item.registrationMessage = "BibTeX is empty.";
+function onDialogKeydown(event: KeyboardEvent) {
+  if (event.key === "Escape") {
+    event.preventDefault();
+    void closeRegistration();
     return;
   }
 
-  setItemRegistering(item.id, true);
-  item.registrationMessage = undefined;
+  if (event.key !== "Tab") return;
 
-  try {
-    const result = await registerBibtexToDatabase({
-      bibtex: item.bibtex,
-      source: "pdf",
-      uploadId: uploadId.value,
-      reviewItemId: item.id,
-      metadata: {
-        title: item.title,
-        authors: item.authors,
-        year: item.year,
-        venue: item.venue,
-        doi: item.doi,
-      },
-    });
-    item.registrationState = "registered";
-    item.registrationMessage = "Registered.";
-    emit("registered", result.reference);
-  } catch (error) {
-    item.registrationState = "failed";
-    item.registrationMessage =
-      error instanceof Error ? error.message : "Failed to register BibTeX.";
-  } finally {
-    setItemRegistering(item.id, false);
+  const focusable = Array.from(
+    dialogPanel.value?.querySelectorAll<HTMLElement>(
+      'button:not([disabled]), input:not([disabled]), textarea:not([disabled]), a[href], [tabindex]:not([tabindex="-1"])',
+    ) ?? [],
+  ).filter((element) => element.getClientRects().length > 0);
+
+  const first = focusable[0];
+  const last = focusable.at(-1);
+  if (!first || !last) return;
+
+  if (
+    event.shiftKey &&
+    (document.activeElement === first || document.activeElement === dialogPanel.value)
+  ) {
+    event.preventDefault();
+    last.focus();
+  } else if (!event.shiftKey && document.activeElement === last) {
+    event.preventDefault();
+    first.focus();
   }
 }
 
-async function registerDirectBibtex() {
-  if (!directBibtex.value.trim()) return;
+function selectMode(nextMode: RegistrationMode, moveFocus = false) {
+  mode.value = nextMode;
 
-  isDirectRegistering.value = true;
-  directError.value = null;
-  directMessage.value = null;
+  if (moveFocus) {
+    void nextTick(() => {
+      document.getElementById(`registration-tab-${nextMode}`)?.focus();
+    });
+  }
+}
+
+async function registerManualBibtex() {
+  if (!manualBibtex.value.trim()) return;
+
+  const bibtex = manualBibtex.value;
+  isManualRegistering.value = true;
+  manualError.value = null;
+  manualMessage.value = null;
 
   try {
     const result = await registerBibtexToDatabase({
-      bibtex: directBibtex.value,
+      bibtex,
       source: "manual",
     });
-    directBibtex.value = "";
-    directMessage.value = "Registered.";
+    manualBibtex.value = "";
+    manualMessage.value = "Registered.";
     emit("registered", result.reference);
   } catch (error) {
-    directError.value =
+    manualError.value =
       error instanceof Error ? error.message : "Failed to register BibTeX.";
   } finally {
-    isDirectRegistering.value = false;
+    isManualRegistering.value = false;
   }
 }
 
-function setItemRegistering(id: string, isRegistering: boolean) {
-  const nextIds = new Set(registeringItemIds.value);
-  if (isRegistering) {
-    nextIds.add(id);
-  } else {
-    nextIds.delete(id);
+async function onBibFileChange(event: Event) {
+  const input = event.target as HTMLInputElement;
+  const file = input.files?.[0];
+
+  selectedBibFile.value = null;
+  fileBibtex.value = "";
+  fileError.value = null;
+  fileMessage.value = null;
+
+  if (!file) return;
+
+  if (!file.name.toLowerCase().endsWith(".bib")) {
+    failFileSelection("Choose a file with the .bib extension.", input);
+    return;
   }
-  registeringItemIds.value = nextIds;
+
+  if (file.size > MAX_BIB_FILE_SIZE) {
+    failFileSelection("The .bib file must be 2 MB or smaller.", input);
+    return;
+  }
+
+  selectedBibFile.value = file;
+  isFileReading.value = true;
+  fileMessage.value = `Reading ${file.name}…`;
+
+  try {
+    const bibtex = (await file.text()).replace(/^\uFEFF/, "");
+    if (!bibtex.trim()) {
+      failFileSelection("The selected .bib file is empty.", input);
+      return;
+    }
+
+    const entryCount = countBibliographicEntries(bibtex);
+    if (entryCount === 0) {
+      failFileSelection("No BibTeX entry was found in this file.", input);
+      return;
+    }
+    fileBibtex.value = bibtex;
+    fileMessage.value = `${file.name} is ready.`;
+  } catch (error) {
+    failFileSelection(
+      error instanceof Error
+        ? `Could not read ${file.name}: ${error.message}`
+        : `Could not read ${file.name}.`,
+      input,
+    );
+  } finally {
+    isFileReading.value = false;
+  }
 }
 
-function isItemRegistering(id: string) {
-  return registeringItemIds.value.has(id);
+async function registerFileBibtex() {
+  if (!selectedBibFile.value || !fileBibtex.value.trim()) return;
+
+  const fileName = selectedBibFile.value.name;
+  const bibtex = fileBibtex.value;
+  isFileRegistering.value = true;
+  fileError.value = null;
+  fileMessage.value = null;
+
+  try {
+    const result = await registerBibtexToDatabase({
+      bibtex,
+      source: "file",
+    });
+    selectedBibFile.value = null;
+    fileBibtex.value = "";
+    resetFileInput();
+    fileMessage.value = `${fileName} was registered.`;
+    emit("registered", result.reference);
+  } catch (error) {
+    fileError.value =
+      error instanceof Error ? error.message : "Failed to register BibTeX.";
+  } finally {
+    isFileRegistering.value = false;
+  }
 }
 
-function reviewMeta(item: RegistrationReviewItem) {
-  const parts = [
-    item.authors.length > 0 ? item.authors.join(", ") : null,
-    item.year ? String(item.year) : null,
-    item.venue ?? null,
-    item.doi ? `DOI: ${item.doi}` : null,
-  ].filter((part): part is string => Boolean(part));
-
-  return parts.length > 0 ? parts.join(" · ") : "Metadata unavailable";
+function failFileSelection(message: string, input: HTMLInputElement) {
+  selectedBibFile.value = null;
+  fileBibtex.value = "";
+  fileMessage.value = null;
+  fileError.value = message;
+  input.value = "";
 }
 
-function statusLabel(status: RegistrationStatus) {
-  const labels: Record<RegistrationStatus, string> = {
-    success: "Success",
-    needs_review: "Needs review",
-    not_found: "Not found",
-    api_error: "API error",
-  };
-  return labels[status];
+function resetFileInput() {
+  if (fileInput.value) fileInput.value.value = "";
 }
 </script>
 
 <template>
-  <section class="registration-panel">
-    <div class="registration-header">
-      <h2>Register</h2>
-      <div class="mode-tabs" role="tablist" aria-label="Registration mode">
-        <button
-          type="button"
-          :class="{ active: mode === 'pdf' }"
-          @click="selectMode('pdf')"
-        >
-          PDF
-        </button>
-        <button
-          type="button"
-          :class="{ active: mode === 'bibtex' }"
-          @click="selectMode('bibtex')"
-        >
-          BibTeX
-        </button>
-      </div>
-    </div>
+  <div class="registration-panel">
+    <button
+      ref="triggerButton"
+      type="button"
+      class="registration-trigger"
+      aria-label="Add reference"
+      aria-haspopup="dialog"
+      :aria-expanded="isOpen"
+      @click="openRegistration"
+    >
+      <svg aria-hidden="true" viewBox="0 0 18 18" fill="none">
+        <path d="M9 3.5v11M3.5 9h11" />
+      </svg>
+      <span>Add reference</span>
+    </button>
 
-    <div v-if="mode === 'pdf'" class="registration-body">
-      <div class="registration-controls">
-        <label class="file-picker">
-          <input type="file" accept="application/pdf,.pdf" @change="onPdfChange" />
-          <span>{{ selectedPdfName }}</span>
-        </label>
-        <button type="button" :disabled="!canProcessPdf" @click="processPdf">
-          {{ isPdfProcessing ? "Processing..." : "Process PDF" }}
-        </button>
-      </div>
-
-      <p v-if="pdfError" class="registration-error">{{ pdfError }}</p>
-      <p v-else-if="pdfMessage" class="registration-message">{{ pdfMessage }}</p>
-
-      <div v-if="reviewItems.length > 0" class="review-list">
-        <article
-          v-for="item in reviewItems"
-          :key="item.id"
-          class="review-item"
+    <Teleport to="body">
+      <div
+        v-if="isOpen"
+        class="registration-backdrop"
+        @click.self="closeRegistration"
+      >
+        <section
+          ref="dialogPanel"
+          class="registration-sheet"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="registration-heading"
+          tabindex="-1"
+          @keydown="onDialogKeydown"
         >
-          <div class="review-item-header">
+          <header class="registration-sheet__header">
             <div>
-              <h3>{{ item.title || "Untitled reference" }}</h3>
-              <p>{{ reviewMeta(item) }}</p>
+              <h2 id="registration-heading">Add references</h2>
+              <p>Paste a BibTeX entry or choose a .bib file.</p>
             </div>
-            <span class="status-pill" :class="item.status">
-              {{ statusLabel(item.status) }}
-            </span>
-          </div>
-
-          <textarea
-            v-model="item.bibtex"
-            rows="8"
-            spellcheck="false"
-            aria-label="Review BibTeX"
-          />
-
-          <div class="registration-actions">
-            <p
-              v-if="item.registrationMessage"
-              :class="{
-                'registration-error': item.registrationState === 'failed',
-                'registration-message': item.registrationState === 'registered',
-              }"
-            >
-              {{ item.registrationMessage }}
-            </p>
             <button
               type="button"
-              :disabled="isItemRegistering(item.id)"
-              @click="registerReviewItem(item)"
+              class="registration-close"
+              aria-label="Close add references"
+              @click="closeRegistration"
             >
-              {{ isItemRegistering(item.id) ? "Registering..." : "Register" }}
+              <svg aria-hidden="true" viewBox="0 0 18 18" fill="none">
+                <path d="m5 5 8 8M13 5l-8 8" />
+              </svg>
             </button>
+          </header>
+
+          <div class="registration-header">
+            <div class="mode-tabs" role="tablist" aria-label="Registration mode">
+              <button
+                id="registration-tab-manual"
+                type="button"
+                role="tab"
+                :class="{ active: mode === 'manual' }"
+                :aria-selected="mode === 'manual'"
+                aria-controls="registration-panel-manual"
+                :tabindex="mode === 'manual' ? 0 : -1"
+                @click="selectMode('manual')"
+                @keydown.right.prevent="selectMode('file', true)"
+                @keydown.left.prevent="selectMode('file', true)"
+                @keydown.home.prevent="selectMode('manual', true)"
+                @keydown.end.prevent="selectMode('file', true)"
+              >
+                Manual entry
+              </button>
+              <button
+                id="registration-tab-file"
+                type="button"
+                role="tab"
+                :class="{ active: mode === 'file' }"
+                :aria-selected="mode === 'file'"
+                aria-controls="registration-panel-file"
+                :tabindex="mode === 'file' ? 0 : -1"
+                @click="selectMode('file')"
+                @keydown.left.prevent="selectMode('manual', true)"
+                @keydown.right.prevent="selectMode('manual', true)"
+                @keydown.home.prevent="selectMode('manual', true)"
+                @keydown.end.prevent="selectMode('file', true)"
+              >
+                BibTeX file
+              </button>
+            </div>
           </div>
-        </article>
-      </div>
-    </div>
 
-    <div v-else class="registration-body">
-      <textarea
-        v-model="directBibtex"
-        rows="8"
-        spellcheck="false"
-        placeholder="@article{...}"
-        aria-label="BibTeX"
-      />
+          <div
+            v-show="mode === 'manual'"
+            id="registration-panel-manual"
+            class="registration-body"
+            role="tabpanel"
+            aria-labelledby="registration-tab-manual"
+          >
+            <label class="field-label" for="manual-bibtex">
+              BibTeX entry
+              <span>Paste one complete entry below.</span>
+            </label>
+            <BibtexEditor
+              id="manual-bibtex"
+              v-model="manualBibtex"
+              accessible-label="BibTeX entry"
+              placeholder="@article{...}"
+              :disabled="isManualRegistering"
+            />
 
-      <div class="registration-actions">
-        <p v-if="directError" class="registration-error">{{ directError }}</p>
-        <p v-else-if="directMessage" class="registration-message">
-          {{ directMessage }}
-        </p>
-        <button
-          type="button"
-          :disabled="!canRegisterDirectBibtex"
-          @click="registerDirectBibtex"
-        >
-          {{ isDirectRegistering ? "Registering..." : "Register BibTeX" }}
-        </button>
+            <div class="registration-actions">
+              <p
+                v-if="manualError"
+                class="registration-error status-message"
+                role="alert"
+              >
+                {{ manualError }}
+              </p>
+              <p
+                v-else-if="manualMessage"
+                class="registration-message status-message"
+                role="status"
+              >
+                {{ manualMessage }}
+              </p>
+              <button
+                type="button"
+                class="button-primary"
+                :disabled="!canRegisterManual"
+                :aria-busy="isManualRegistering"
+                @click="registerManualBibtex"
+              >
+                <span
+                  v-if="isManualRegistering"
+                  class="button-spinner"
+                  aria-hidden="true"
+                />
+                {{ isManualRegistering ? "Registering…" : "Register BibTeX" }}
+              </button>
+            </div>
+          </div>
+
+          <div
+            v-show="mode === 'file'"
+            id="registration-panel-file"
+            class="registration-body"
+            role="tabpanel"
+            aria-labelledby="registration-tab-file"
+          >
+            <label class="file-picker">
+              <input
+                id="bibtex-file"
+                ref="fileInput"
+                type="file"
+                accept=".bib,text/x-bibtex,application/x-bibtex,text/plain"
+                :disabled="isFileReading || isFileRegistering"
+                @change="onBibFileChange"
+              />
+              <span class="file-picker__icon" aria-hidden="true">
+                <svg viewBox="0 0 20 20" fill="none">
+                  <path d="M11.5 2.5H5A1.5 1.5 0 0 0 3.5 4v12A1.5 1.5 0 0 0 5 17.5h10a1.5 1.5 0 0 0 1.5-1.5V7.5l-5-5Z" />
+                  <path d="M11.5 2.5v5h5M7 12.5h6M7 9.5h2.5" />
+                </svg>
+              </span>
+              <span class="file-picker__copy">
+                <strong>{{ selectedBibFile ? "BibTeX file selected" : "Choose a .bib file" }}</strong>
+                <span>{{ selectedBibFileName }}</span>
+              </span>
+              <span class="file-picker__action">Browse</span>
+            </label>
+            <p id="bibtex-file-help" class="registration-help">
+              One or more entries, up to 2 MB. You can review them before registering.
+            </p>
+
+            <p
+              v-if="fileError"
+              class="registration-error status-message"
+              role="alert"
+            >
+              {{ fileError }}
+            </p>
+            <p
+              v-else-if="fileMessage"
+              class="registration-message status-message"
+              role="status"
+            >
+              {{ fileMessage }}
+              <span v-if="fileBibtex">{{ fileEntryCountLabel }}</span>
+            </p>
+
+            <template v-if="fileBibtex">
+              <label class="field-label" for="file-bibtex-preview">
+                File contents
+                <span>Review or edit before registering.</span>
+              </label>
+              <BibtexEditor
+                id="file-bibtex-preview"
+                v-model="fileBibtex"
+                accessible-label="BibTeX file contents"
+                :disabled="isFileRegistering"
+              />
+            </template>
+
+            <div class="registration-actions registration-actions--file">
+              <button
+                type="button"
+                class="button-primary"
+                :disabled="!canRegisterFile"
+                :aria-busy="isFileRegistering"
+                @click="registerFileBibtex"
+              >
+                <span
+                  v-if="isFileRegistering"
+                  class="button-spinner"
+                  aria-hidden="true"
+                />
+                {{ fileRegistrationLabel }}
+              </button>
+            </div>
+          </div>
+        </section>
       </div>
-    </div>
-  </section>
+    </Teleport>
+  </div>
 </template>
