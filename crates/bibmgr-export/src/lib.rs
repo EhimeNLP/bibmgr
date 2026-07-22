@@ -2,10 +2,11 @@
 
 use bibmgr_model::{ProfileId, RuleCode};
 use bibmgr_semantics::{
-    BibliographicRecord, Bibliography, Person, Repository, SemanticField, ValueStatus, WorkType,
+    is_raw_identifier_field, BibliographicRecord, Bibliography, Person, Repository, SemanticField,
+    ValueStatus, WorkType,
 };
 use serde::{Deserialize, Serialize};
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::{BTreeMap, BTreeSet, HashMap};
 
 pub const BUILTIN_EXPORT_PROFILE_IDS: &[&str] = &[
     "modern",
@@ -1111,37 +1112,6 @@ fn format_field_value(field_name: &str, value: &str, delimiter: ValueDelimiter) 
     }
 }
 
-fn is_raw_identifier_field(field_name: &str) -> bool {
-    matches!(
-        field_name.to_ascii_lowercase().as_str(),
-        "url"
-            | "doi"
-            | "file"
-            | "eprint"
-            | "arxiv"
-            | "archiveprefix"
-            | "eprinttype"
-            | "primaryclass"
-            | "eprintclass"
-            | "isbn"
-            | "isbn-10"
-            | "isbn-13"
-            | "issn"
-            | "eissn"
-            | "coden"
-            | "lccn"
-            | "pmid"
-            | "pmcid"
-            | "pubmed"
-            | "eid"
-            | "pid"
-            | "islrn"
-            | "articleno"
-            | "crossref"
-            | "archived"
-    )
-}
-
 fn bibtex_month_macro(month: u8) -> &'static str {
     match month {
         1 => "jan",
@@ -1180,13 +1150,10 @@ fn is_bibtex_month_macro(value: &str) -> bool {
 
 /// Deterministically escape TeX-sensitive bytes without rewriting Unicode.
 ///
-/// URL-like braced command arguments (`\url`, `\nolinkurl`, and `\path`) and
-/// the delimiter arguments of `\verb`, `\verb*`, `\Verb`, and `\lstinline`
-/// retain their literal `%`, `&`, `#`, `_`, and `$` bytes. The latter two
-/// commands support their optional argument syntax, and all three command
-/// families support the same starred forms and delimiters as validation.
-/// Quote-delimited BibTeX values still escape unescaped quotes in every
-/// context.
+/// Complete URL-like braced command arguments and complete verbatim command
+/// arguments remain literal. Complete TeX math regions preserve `_`, `^`, and
+/// `&`, while `%`, `#`, and stray `$` remain escaped. Quote-delimited BibTeX
+/// values escape unescaped quotes in every context.
 pub fn escape_bibtex(value: &str, delimiter: ValueDelimiter) -> String {
     escape_bibtex_with_options(value, delimiter, true)
 }
@@ -1198,219 +1165,46 @@ fn escape_bibtex_with_options(
 ) -> String {
     let mut output = String::with_capacity(value.len());
     let bytes = value.as_bytes();
+    let context = if escape_tex_sensitive {
+        TexContext::scan(value)
+    } else {
+        TexContext::empty(bytes.len())
+    };
     let mut cursor = 0;
-    let mut state = BibtexEscapeState::default();
+    let mut escaped = false;
+    let mut previous_literal = false;
 
     while cursor < bytes.len() {
+        let literal = context.literal[cursor];
+        if literal != previous_literal {
+            escaped = false;
+        }
+        if let Some(delimiter_len) = context.math_delimiter_len[cursor] {
+            output.push_str(&value[cursor..cursor + delimiter_len]);
+            escaped = false;
+            previous_literal = false;
+            cursor += delimiter_len;
+            continue;
+        }
+
         let character = value[cursor..]
             .chars()
             .next()
             .expect("cursor remains on a UTF-8 boundary");
         let character_len = character.len_utf8();
 
-        if consume_literal_command_character(
-            &mut output,
-            character,
-            delimiter,
-            escape_tex_sensitive,
-            &mut state,
-        ) {
-            cursor += character_len;
-            continue;
-        }
-
-        if character == '\\' && !state.escaped && cursor + 1 < bytes.len() {
-            let command_start = cursor + 1;
-            if is_tex_command_byte(bytes[command_start]) {
-                let mut command_end = command_start + 1;
-                while command_end < bytes.len() && is_tex_command_byte(bytes[command_end]) {
-                    command_end += 1;
-                }
-                let command = &bytes[command_start..command_end];
-                output.push_str(&value[cursor..command_end]);
-                state.pending_raw_brace_command = is_raw_brace_command(command);
-                state.pending_verbatim = pending_verbatim_command(command);
-                state.escaped = false;
-                cursor = command_end;
-                continue;
-            }
-        }
-
-        let was_escaped = state.escaped;
-        update_brace_context(
-            character,
-            was_escaped,
-            state.pending_raw_brace_command,
-            &mut state.brace_depth,
-            &mut state.raw_brace_argument_depth,
-        );
         push_bibtex_character(
             &mut output,
             character,
             delimiter,
-            escape_tex_sensitive && state.raw_brace_argument_depth.is_none(),
-            &mut state.escaped,
+            escape_tex_sensitive && !literal,
+            context.in_math[cursor],
+            &mut escaped,
         );
-        if !character.is_ascii_whitespace() || character == '{' {
-            state.pending_raw_brace_command = false;
-        }
+        previous_literal = literal;
         cursor += character_len;
     }
     output
-}
-
-#[derive(Debug, Default)]
-struct BibtexEscapeState {
-    escaped: bool,
-    brace_depth: usize,
-    raw_brace_argument_depth: Option<usize>,
-    pending_raw_brace_command: bool,
-    pending_verbatim: Option<PendingVerbatim>,
-    verbatim_delimiter: Option<char>,
-}
-
-#[derive(Debug, Clone, Copy)]
-enum PendingVerbatim {
-    Delimiter {
-        star_allowed: bool,
-        options_allowed: bool,
-        skip_horizontal_whitespace: bool,
-    },
-    Options {
-        depth: usize,
-    },
-}
-
-fn consume_literal_command_character(
-    output: &mut String,
-    character: char,
-    delimiter: ValueDelimiter,
-    escape_tex_sensitive: bool,
-    state: &mut BibtexEscapeState,
-) -> bool {
-    if let Some(raw_delimiter) = state.verbatim_delimiter {
-        let closes_argument = character == raw_delimiter;
-        push_bibtex_character(output, character, delimiter, false, &mut state.escaped);
-        if closes_argument || matches!(character, '\r' | '\n') {
-            state.verbatim_delimiter = None;
-        }
-        return true;
-    }
-
-    let Some(pending) = state.pending_verbatim else {
-        return false;
-    };
-    match pending {
-        PendingVerbatim::Delimiter {
-            star_allowed: true,
-            options_allowed,
-            skip_horizontal_whitespace,
-        } if character == '*' => {
-            push_bibtex_character(
-                output,
-                character,
-                delimiter,
-                escape_tex_sensitive && state.raw_brace_argument_depth.is_none(),
-                &mut state.escaped,
-            );
-            state.pending_verbatim = Some(PendingVerbatim::Delimiter {
-                star_allowed: false,
-                options_allowed,
-                skip_horizontal_whitespace,
-            });
-        }
-        PendingVerbatim::Delimiter {
-            options_allowed: true,
-            ..
-        } if character == '[' => {
-            push_bibtex_character(
-                output,
-                character,
-                delimiter,
-                escape_tex_sensitive && state.raw_brace_argument_depth.is_none(),
-                &mut state.escaped,
-            );
-            state.pending_verbatim = Some(PendingVerbatim::Options { depth: 1 });
-        }
-        PendingVerbatim::Delimiter {
-            options_allowed,
-            skip_horizontal_whitespace: true,
-            ..
-        } if matches!(character, ' ' | '\t') => {
-            push_bibtex_character(
-                output,
-                character,
-                delimiter,
-                escape_tex_sensitive && state.raw_brace_argument_depth.is_none(),
-                &mut state.escaped,
-            );
-            state.pending_verbatim = Some(PendingVerbatim::Delimiter {
-                star_allowed: false,
-                options_allowed,
-                skip_horizontal_whitespace: true,
-            });
-        }
-        PendingVerbatim::Delimiter { .. } if is_verbatim_delimiter(character) => {
-            push_bibtex_character(output, character, delimiter, false, &mut state.escaped);
-            state.pending_verbatim = None;
-            state.verbatim_delimiter = Some(character);
-        }
-        PendingVerbatim::Options { depth } => {
-            consume_lstinline_option_character(
-                output,
-                character,
-                delimiter,
-                escape_tex_sensitive,
-                depth,
-                state,
-            );
-        }
-        PendingVerbatim::Delimiter { .. } => {
-            state.pending_verbatim = None;
-            return false;
-        }
-    }
-    state.pending_raw_brace_command = false;
-    true
-}
-
-fn consume_lstinline_option_character(
-    output: &mut String,
-    character: char,
-    delimiter: ValueDelimiter,
-    escape_tex_sensitive: bool,
-    depth: usize,
-    state: &mut BibtexEscapeState,
-) {
-    let was_escaped = state.escaped;
-    let next_depth = match character {
-        '[' if !was_escaped => depth.saturating_add(1),
-        ']' if !was_escaped => depth.saturating_sub(1),
-        _ => depth,
-    };
-    update_brace_context(
-        character,
-        was_escaped,
-        false,
-        &mut state.brace_depth,
-        &mut state.raw_brace_argument_depth,
-    );
-    push_bibtex_character(
-        output,
-        character,
-        delimiter,
-        escape_tex_sensitive && state.raw_brace_argument_depth.is_none(),
-        &mut state.escaped,
-    );
-    state.pending_verbatim = if next_depth == 0 {
-        Some(PendingVerbatim::Delimiter {
-            star_allowed: false,
-            options_allowed: false,
-            skip_horizontal_whitespace: true,
-        })
-    } else {
-        Some(PendingVerbatim::Options { depth: next_depth })
-    };
 }
 
 fn is_tex_command_byte(byte: u8) -> bool {
@@ -1421,51 +1215,917 @@ fn is_raw_brace_command(command: &[u8]) -> bool {
     matches!(command, b"url" | b"nolinkurl" | b"path")
 }
 
-fn pending_verbatim_command(command: &[u8]) -> Option<PendingVerbatim> {
-    match command {
-        b"verb" => Some(PendingVerbatim::Delimiter {
-            star_allowed: true,
-            options_allowed: false,
-            skip_horizontal_whitespace: false,
-        }),
-        b"Verb" | b"lstinline" => Some(PendingVerbatim::Delimiter {
-            star_allowed: true,
-            options_allowed: true,
-            skip_horizontal_whitespace: true,
-        }),
-        _ => None,
-    }
-}
-
 fn is_verbatim_delimiter(character: char) -> bool {
     !character.is_ascii_alphabetic() && !character.is_ascii_whitespace()
 }
 
-fn update_brace_context(
-    character: char,
-    escaped: bool,
-    begins_raw_argument: bool,
-    brace_depth: &mut usize,
-    raw_argument_depth: &mut Option<usize>,
-) {
-    if escaped {
-        return;
+#[derive(Debug)]
+struct TexContext {
+    literal: Vec<bool>,
+    in_math: Vec<bool>,
+    math_delimiter_len: Vec<Option<usize>>,
+}
+
+impl TexContext {
+    fn empty(len: usize) -> Self {
+        Self {
+            literal: vec![false; len],
+            in_math: vec![false; len],
+            math_delimiter_len: vec![None; len],
+        }
     }
-    match character {
-        '{' => {
-            *brace_depth = brace_depth.saturating_add(1);
-            if begins_raw_argument && raw_argument_depth.is_none() {
-                *raw_argument_depth = Some(*brace_depth);
+
+    fn scan(value: &str) -> Self {
+        let bytes = value.as_bytes();
+        let (escaped, control_backslash) = tex_escape_positions(bytes);
+        let brace_close = matching_pair_positions(bytes, &escaped, b'{', b'}');
+        let bracket_close = matching_pair_positions(bytes, &escaped, b'[', b']');
+        let context_ranges = collect_tex_context_ranges(
+            value,
+            bytes,
+            &control_backslash,
+            &brace_close,
+            &bracket_close,
+        );
+        let suppressed_math = owned_ranges_to_mask(bytes.len(), &context_ranges.forced);
+        let literal = owned_ranges_to_mask(bytes.len(), &context_ranges.literal);
+        let optional_scopes = OptionalScopes::new(bytes.len(), &context_ranges.optional);
+        let (math_ranges, math_delimiter_len) = MathScanner::new(
+            bytes,
+            &literal,
+            &suppressed_math,
+            &escaped,
+            &control_backslash,
+            &optional_scopes,
+        )
+        .scan();
+
+        let mut in_math = scoped_ranges_to_mask(
+            bytes.len(),
+            &math_ranges,
+            &optional_scopes.scope_by_byte,
+            optional_scopes.scope_count,
+        );
+        for (in_math, suppressed) in in_math.iter_mut().zip(&suppressed_math) {
+            if *suppressed {
+                *in_math = false;
             }
         }
-        '}' => {
-            if *raw_argument_depth == Some(*brace_depth) {
-                *raw_argument_depth = None;
-            }
-            *brace_depth = brace_depth.saturating_sub(1);
+
+        Self {
+            literal,
+            in_math,
+            math_delimiter_len,
         }
-        _ => {}
     }
+}
+
+fn tex_escape_positions(bytes: &[u8]) -> (Vec<bool>, Vec<bool>) {
+    let mut escaped = vec![false; bytes.len()];
+    let mut control_backslash = vec![false; bytes.len()];
+    let mut cursor = 0;
+    while cursor < bytes.len() {
+        if bytes[cursor] != b'\\' {
+            cursor += 1;
+            continue;
+        }
+        let start = cursor;
+        while cursor < bytes.len() && bytes[cursor] == b'\\' {
+            cursor += 1;
+        }
+        if (cursor - start) % 2 == 1 {
+            control_backslash[cursor - 1] = true;
+            if cursor < bytes.len() {
+                escaped[cursor] = true;
+            }
+        }
+    }
+    (escaped, control_backslash)
+}
+
+fn matching_pair_positions(
+    bytes: &[u8],
+    escaped: &[bool],
+    open: u8,
+    close: u8,
+) -> Vec<Option<usize>> {
+    let mut closes = vec![None; bytes.len()];
+    let mut stack = Vec::new();
+    for cursor in 0..bytes.len() {
+        if escaped[cursor] {
+            continue;
+        }
+        if bytes[cursor] == open {
+            stack.push(cursor);
+        } else if bytes[cursor] == close {
+            if let Some(open_position) = stack.pop() {
+                closes[open_position] = Some(cursor);
+            }
+        }
+    }
+    closes
+}
+
+#[derive(Debug, Default)]
+struct TexContextRanges {
+    literal: Vec<OwnedContextRange>,
+    forced: Vec<OwnedContextRange>,
+    optional: Vec<OwnedContextRange>,
+}
+
+#[derive(Debug, Clone, Copy)]
+struct OwnedContextRange {
+    start: usize,
+    end: usize,
+}
+
+#[derive(Debug, Default)]
+struct ContextScanState {
+    pending: Option<ContextCommandKind>,
+    continuation_other: bool,
+    group_commands: Vec<bool>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum ContextCommandKind {
+    Other,
+    Url,
+    Math,
+}
+
+#[derive(Debug, Clone, Copy)]
+enum OpaqueContextRange {
+    Literal(OwnedContextRange),
+    Forced(OwnedContextRange),
+}
+
+#[derive(Debug)]
+struct OptionalContextFrame {
+    close: usize,
+    saved_state: ContextScanState,
+    trailing: Option<OpaqueContextRange>,
+}
+
+fn collect_tex_context_ranges(
+    value: &str,
+    bytes: &[u8],
+    control_backslash: &[bool],
+    brace_close: &[Option<usize>],
+    bracket_close: &[Option<usize>],
+) -> TexContextRanges {
+    let next_same_character = next_same_character_positions(value);
+    let next_line_break = next_line_break_positions(bytes);
+    let mut ranges = TexContextRanges::default();
+    let mut state = ContextScanState::default();
+    let mut optional_frames = Vec::<OptionalContextFrame>::new();
+    let mut cursor = 0;
+
+    while cursor < bytes.len() {
+        if optional_frames
+            .last()
+            .is_some_and(|frame| frame.close == cursor)
+        {
+            let frame = optional_frames
+                .pop()
+                .expect("the matching optional frame was just observed");
+            state = frame.saved_state;
+            cursor += 1;
+            if let Some(trailing) = frame.trailing {
+                state.pending = None;
+                state.continuation_other = false;
+                cursor = record_opaque_context(&mut ranges, trailing);
+            }
+            continue;
+        }
+
+        if !control_backslash[cursor]
+            || bytes
+                .get(cursor + 1)
+                .is_none_or(|byte| !is_tex_command_byte(*byte))
+        {
+            cursor = scan_context_text_byte(
+                bytes,
+                bracket_close,
+                cursor,
+                &mut ranges,
+                &mut state,
+                &mut optional_frames,
+            );
+            continue;
+        }
+
+        state.pending = None;
+        state.continuation_other = false;
+        let command_start = cursor + 1;
+        let command_end = verbatim_command_end(bytes, command_start)
+            .unwrap_or_else(|| tex_command_end(bytes, command_start));
+        let command = &bytes[command_start..command_end];
+        let scope_end = optional_frames
+            .last()
+            .map_or(bytes.len(), |frame| frame.close);
+
+        if is_raw_brace_command(command) {
+            let open = skip_ascii_whitespace(bytes, command_end);
+            if bytes.get(open) == Some(&b'{') {
+                let context = brace_close[open].filter(|close| *close < scope_end).map_or(
+                    OpaqueContextRange::Forced(OwnedContextRange {
+                        start: open,
+                        end: scope_end,
+                    }),
+                    |close| {
+                        OpaqueContextRange::Literal(OwnedContextRange {
+                            start: open,
+                            end: close + 1,
+                        })
+                    },
+                );
+                cursor = record_opaque_context(&mut ranges, context);
+                continue;
+            }
+        } else if matches!(command, b"verb" | b"Verb" | b"lstinline") {
+            let context = verbatim_context_range(
+                value,
+                command,
+                command_end,
+                bracket_close,
+                &next_same_character,
+                &next_line_break,
+                scope_end,
+            );
+            if let Some((open, close)) =
+                verbatim_optional_argument(bytes, command, command_end, bracket_close, scope_end)
+            {
+                ranges.optional.push(OwnedContextRange {
+                    start: open,
+                    end: close,
+                });
+                optional_frames.push(OptionalContextFrame {
+                    close,
+                    saved_state: std::mem::take(&mut state),
+                    trailing: context,
+                });
+                cursor = open + 1;
+                continue;
+            }
+            if let Some(context) = context {
+                cursor = record_opaque_context(&mut ranges, context);
+                continue;
+            }
+        }
+
+        state.pending = Some(context_command_kind(command));
+        cursor = command_end;
+    }
+    ranges
+}
+
+fn scan_context_text_byte(
+    bytes: &[u8],
+    bracket_close: &[Option<usize>],
+    cursor: usize,
+    ranges: &mut TexContextRanges,
+    state: &mut ContextScanState,
+    optional_frames: &mut Vec<OptionalContextFrame>,
+) -> usize {
+    let scope_end = optional_frames
+        .last()
+        .map_or(bytes.len(), |frame| frame.close);
+    match bytes[cursor] {
+        byte if byte.is_ascii_whitespace() => cursor + 1,
+        b'*' if state.pending.is_some() => {
+            if state.pending != Some(ContextCommandKind::Other) {
+                state.pending = None;
+            }
+            cursor + 1
+        }
+        b'[' if state.pending == Some(ContextCommandKind::Other) => {
+            let Some(close) = bracket_close[cursor] else {
+                ranges.forced.push(OwnedContextRange {
+                    start: cursor,
+                    end: bytes.len(),
+                });
+                return bytes.len();
+            };
+            ranges.optional.push(OwnedContextRange {
+                start: cursor,
+                end: close,
+            });
+            optional_frames.push(OptionalContextFrame {
+                close,
+                saved_state: std::mem::take(state),
+                trailing: None,
+            });
+            cursor + 1
+        }
+        b'[' if state.pending.is_some() => {
+            state.pending = None;
+            state.continuation_other = false;
+            cursor + 1
+        }
+        b'{' => {
+            let command = state.pending.take().or(state
+                .continuation_other
+                .then_some(ContextCommandKind::Other));
+            state.continuation_other = false;
+            state
+                .group_commands
+                .push(command == Some(ContextCommandKind::Other));
+            cursor + 1
+        }
+        b'}' => {
+            state.pending = None;
+            state.continuation_other = state.group_commands.pop().unwrap_or(false);
+            cursor + 1
+        }
+        delimiter
+            if (state.pending.is_some() || state.continuation_other)
+                && is_ambiguous_tex_delimiter(delimiter) =>
+        {
+            let (next, content_end) = ambiguous_argument_end(bytes, cursor, delimiter, scope_end);
+            ranges.forced.push(OwnedContextRange {
+                start: cursor + 1,
+                end: content_end,
+            });
+            state.pending = None;
+            state.continuation_other = false;
+            next
+        }
+        _ => {
+            state.pending = None;
+            state.continuation_other = false;
+            cursor + 1
+        }
+    }
+}
+
+fn record_opaque_context(ranges: &mut TexContextRanges, context: OpaqueContextRange) -> usize {
+    let range = match context {
+        OpaqueContextRange::Literal(range) => {
+            ranges.literal.push(range);
+            range
+        }
+        OpaqueContextRange::Forced(range) => {
+            ranges.forced.push(range);
+            range
+        }
+    };
+    range.end
+}
+
+#[allow(clippy::too_many_arguments)]
+fn verbatim_context_range(
+    value: &str,
+    command: &[u8],
+    command_end: usize,
+    bracket_close: &[Option<usize>],
+    next_same_character: &[Option<usize>],
+    next_line_break: &[usize],
+    scope_end: usize,
+) -> Option<OpaqueContextRange> {
+    match verbatim_argument(value, command, command_end, bracket_close, scope_end) {
+        VerbatimArgument::Delimited { open } => {
+            if let Some(close) = next_same_character[open] {
+                if close < next_line_break[open] && close < scope_end {
+                    let delimiter_len = value[open..]
+                        .chars()
+                        .next()
+                        .expect("verbatim delimiter starts at a character boundary")
+                        .len_utf8();
+                    return Some(OpaqueContextRange::Literal(OwnedContextRange {
+                        start: open,
+                        end: close + delimiter_len,
+                    }));
+                }
+            }
+            Some(OpaqueContextRange::Forced(OwnedContextRange {
+                start: open,
+                end: next_line_break[open].min(scope_end),
+            }))
+        }
+        VerbatimArgument::Incomplete { start, end } => {
+            Some(OpaqueContextRange::Forced(OwnedContextRange { start, end }))
+        }
+        VerbatimArgument::NotCommand => None,
+    }
+}
+
+fn verbatim_optional_argument(
+    bytes: &[u8],
+    command: &[u8],
+    command_end: usize,
+    bracket_close: &[Option<usize>],
+    scope_end: usize,
+) -> Option<(usize, usize)> {
+    if !matches!(command, b"Verb" | b"lstinline") {
+        return None;
+    }
+    let mut cursor = command_end;
+    if bytes.get(cursor) == Some(&b'*') {
+        cursor += 1;
+    }
+    cursor = skip_horizontal_whitespace(bytes, cursor);
+    (cursor < scope_end && bytes.get(cursor) == Some(&b'['))
+        .then(|| {
+            bracket_close[cursor]
+                .filter(|close| *close < scope_end)
+                .map(|close| (cursor, close))
+        })
+        .flatten()
+}
+
+fn tex_command_end(bytes: &[u8], command_start: usize) -> usize {
+    let mut command_end = command_start;
+    while command_end < bytes.len() && is_tex_command_byte(bytes[command_end]) {
+        command_end += 1;
+    }
+    command_end
+}
+
+fn verbatim_command_end(bytes: &[u8], command_start: usize) -> Option<usize> {
+    [b"lstinline".as_slice(), b"verb", b"Verb"]
+        .into_iter()
+        .find_map(|command| {
+            let end = command_start.checked_add(command.len())?;
+            (bytes.get(command_start..end) == Some(command)
+                && bytes
+                    .get(end)
+                    .is_none_or(|byte| !byte.is_ascii_alphabetic()))
+            .then_some(end)
+        })
+}
+
+fn skip_ascii_whitespace(bytes: &[u8], mut cursor: usize) -> usize {
+    while bytes.get(cursor).is_some_and(u8::is_ascii_whitespace) {
+        cursor += 1;
+    }
+    cursor
+}
+
+fn skip_horizontal_whitespace(bytes: &[u8], mut cursor: usize) -> usize {
+    while matches!(bytes.get(cursor), Some(b' ' | b'\t')) {
+        cursor += 1;
+    }
+    cursor
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum VerbatimArgument {
+    NotCommand,
+    Delimited { open: usize },
+    Incomplete { start: usize, end: usize },
+}
+
+fn verbatim_argument(
+    value: &str,
+    command: &[u8],
+    command_end: usize,
+    bracket_close: &[Option<usize>],
+    scope_end: usize,
+) -> VerbatimArgument {
+    let bytes = value.as_bytes();
+    let scope_end = scope_end.min(bytes.len());
+    let supports_options = matches!(command, b"Verb" | b"lstinline");
+    if !matches!(command, b"verb" | b"Verb" | b"lstinline") {
+        return VerbatimArgument::NotCommand;
+    }
+
+    let mut cursor = command_end;
+    if cursor < scope_end && bytes.get(cursor) == Some(&b'*') {
+        cursor += 1;
+    }
+    if supports_options {
+        cursor = skip_horizontal_whitespace(bytes, cursor);
+        if cursor < scope_end && bytes.get(cursor) == Some(&b'[') {
+            let Some(close) = bracket_close[cursor].filter(|close| *close < scope_end) else {
+                return VerbatimArgument::Incomplete {
+                    start: cursor,
+                    end: scope_end,
+                };
+            };
+            cursor = close.saturating_add(1);
+            cursor = skip_horizontal_whitespace(bytes, cursor);
+        }
+    }
+    let Some(delimiter) = value
+        .get(cursor..scope_end)
+        .and_then(|rest| rest.chars().next())
+    else {
+        return VerbatimArgument::Incomplete {
+            start: cursor,
+            end: cursor,
+        };
+    };
+    if is_verbatim_delimiter(delimiter) {
+        VerbatimArgument::Delimited { open: cursor }
+    } else {
+        VerbatimArgument::Incomplete {
+            start: cursor,
+            end: next_line_break_from(bytes, cursor).min(scope_end),
+        }
+    }
+}
+
+fn next_line_break_from(bytes: &[u8], cursor: usize) -> usize {
+    bytes[cursor..]
+        .iter()
+        .position(|byte| matches!(byte, b'\r' | b'\n'))
+        .map_or(bytes.len(), |relative| cursor + relative)
+}
+
+fn next_same_character_positions(value: &str) -> Vec<Option<usize>> {
+    let mut next = vec![None; value.len()];
+    let mut last = HashMap::new();
+    for (cursor, character) in value.char_indices().rev() {
+        next[cursor] = last.insert(character, cursor);
+    }
+    next
+}
+
+fn next_line_break_positions(bytes: &[u8]) -> Vec<usize> {
+    let mut positions = vec![bytes.len(); bytes.len()];
+    let mut next = bytes.len();
+    for cursor in (0..bytes.len()).rev() {
+        if matches!(bytes[cursor], b'\r' | b'\n') {
+            next = cursor;
+        }
+        positions[cursor] = next;
+    }
+    positions
+}
+
+#[derive(Debug)]
+struct OptionalScopes {
+    open: Vec<Option<usize>>,
+    close: Vec<Option<usize>>,
+    scope_by_byte: Vec<usize>,
+    scope_count: usize,
+}
+
+impl OptionalScopes {
+    fn new(len: usize, ranges: &[OwnedContextRange]) -> Self {
+        let mut open = vec![None; len];
+        let mut close = vec![None; len];
+        for (index, range) in ranges.iter().enumerate() {
+            let scope = index + 1;
+            open[range.start] = Some(scope);
+            close[range.end] = Some(scope);
+        }
+
+        let mut scope_by_byte = vec![0; len];
+        let mut stack = vec![0];
+        for cursor in 0..len {
+            if let Some(scope) = close[cursor] {
+                debug_assert_eq!(stack.last(), Some(&scope));
+                stack.pop();
+            }
+            scope_by_byte[cursor] = *stack.last().unwrap_or(&0);
+            if let Some(scope) = open[cursor] {
+                stack.push(scope);
+            }
+        }
+        Self {
+            open,
+            close,
+            scope_by_byte,
+            scope_count: ranges.len() + 1,
+        }
+    }
+}
+
+fn context_command_kind(command: &[u8]) -> ContextCommandKind {
+    match command {
+        b"url" | b"nolinkurl" | b"path" => ContextCommandKind::Url,
+        b"ensuremath" => ContextCommandKind::Math,
+        _ => ContextCommandKind::Other,
+    }
+}
+
+fn is_ambiguous_tex_delimiter(byte: u8) -> bool {
+    matches!(byte, b'|' | b'!' | b'+' | b'/' | b':' | b';')
+}
+
+fn ambiguous_argument_end(
+    bytes: &[u8],
+    open: usize,
+    delimiter: u8,
+    scope_end: usize,
+) -> (usize, usize) {
+    let scope_end = scope_end.min(bytes.len());
+    let mut cursor = open + 1;
+    while cursor < scope_end && !matches!(bytes[cursor], b'\r' | b'\n') {
+        if bytes[cursor] == delimiter {
+            return (cursor + 1, cursor);
+        }
+        cursor += if bytes[cursor] == b'\\' && cursor + 1 < scope_end {
+            2
+        } else {
+            1
+        };
+    }
+    (cursor, cursor)
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum MathDelimiter {
+    Dollar,
+    DisplayDollar,
+    Parenthesis,
+    Bracket,
+    EnsureMath,
+}
+
+#[derive(Debug, Clone, Copy)]
+struct MathFrame {
+    delimiter: MathDelimiter,
+    start: usize,
+    brace_depth: usize,
+}
+
+#[derive(Debug, Clone, Copy)]
+struct ScopedMathRange {
+    start: usize,
+    end: usize,
+    scope: usize,
+}
+
+#[derive(Debug)]
+struct SavedMathScope {
+    scope: usize,
+    frames: Vec<MathFrame>,
+    brace_depth: usize,
+}
+
+struct MathScanner<'a> {
+    bytes: &'a [u8],
+    literal: &'a [bool],
+    suppressed: &'a [bool],
+    escaped: &'a [bool],
+    control_backslash: &'a [bool],
+    optional_scopes: &'a OptionalScopes,
+    current_scope: usize,
+    saved_scopes: Vec<SavedMathScope>,
+    brace_depth: usize,
+    frames: Vec<MathFrame>,
+    ranges: Vec<ScopedMathRange>,
+    delimiter_len: Vec<Option<usize>>,
+}
+
+impl<'a> MathScanner<'a> {
+    fn new(
+        bytes: &'a [u8],
+        literal: &'a [bool],
+        suppressed: &'a [bool],
+        escaped: &'a [bool],
+        control_backslash: &'a [bool],
+        optional_scopes: &'a OptionalScopes,
+    ) -> Self {
+        Self {
+            bytes,
+            literal,
+            suppressed,
+            escaped,
+            control_backslash,
+            optional_scopes,
+            current_scope: 0,
+            saved_scopes: Vec::new(),
+            brace_depth: 0,
+            frames: Vec::new(),
+            ranges: Vec::new(),
+            delimiter_len: vec![None; bytes.len()],
+        }
+    }
+
+    fn scan(mut self) -> (Vec<ScopedMathRange>, Vec<Option<usize>>) {
+        let mut cursor = 0;
+        while cursor < self.bytes.len() {
+            if let Some(scope) = self.optional_scopes.close[cursor] {
+                self.leave_optional_scope(scope);
+                cursor += 1;
+            } else if let Some(scope) = self.optional_scopes.open[cursor] {
+                self.enter_optional_scope(scope);
+                cursor += 1;
+            } else if self.literal[cursor] || self.suppressed[cursor] {
+                cursor += 1;
+            } else if self.bytes[cursor] == b'}' && !self.escaped[cursor] {
+                if !self.close_ensuremath(cursor) {
+                    self.close_brace_group();
+                }
+                cursor += 1;
+            } else if let Some(next) = self.consume_control(cursor) {
+                cursor = next;
+            } else if self.bytes[cursor] == b'$' && !self.escaped[cursor] {
+                cursor = self.consume_dollar(cursor);
+            } else if self.bytes[cursor] == b'{' && !self.escaped[cursor] {
+                self.brace_depth = self.brace_depth.saturating_add(1);
+                cursor += 1;
+            } else {
+                cursor += 1;
+            }
+        }
+        (self.ranges, self.delimiter_len)
+    }
+
+    fn enter_optional_scope(&mut self, scope: usize) {
+        self.saved_scopes.push(SavedMathScope {
+            scope: self.current_scope,
+            frames: std::mem::take(&mut self.frames),
+            brace_depth: self.brace_depth,
+        });
+        self.current_scope = scope;
+        self.brace_depth = 0;
+    }
+
+    fn leave_optional_scope(&mut self, scope: usize) {
+        debug_assert_eq!(self.current_scope, scope);
+        self.frames.clear();
+        let saved = self
+            .saved_scopes
+            .pop()
+            .expect("complete optional arguments have balanced scope events");
+        self.current_scope = saved.scope;
+        self.frames = saved.frames;
+        self.brace_depth = saved.brace_depth;
+    }
+
+    fn close_ensuremath(&mut self, cursor: usize) -> bool {
+        let Some(position) = self.frames.iter().rposition(|frame| {
+            frame.delimiter == MathDelimiter::EnsureMath && frame.brace_depth == self.brace_depth
+        }) else {
+            return false;
+        };
+        self.frames.truncate(position + 1);
+        let frame = self.frames.pop().expect("matched the last math frame");
+        self.push_range(frame.start, cursor);
+        self.brace_depth = self.brace_depth.saturating_sub(1);
+        true
+    }
+
+    fn close_brace_group(&mut self) {
+        if self.brace_depth == 0 {
+            return;
+        }
+        if let Some(position) = self
+            .frames
+            .iter()
+            .position(|frame| frame.brace_depth >= self.brace_depth)
+        {
+            self.frames.truncate(position);
+        }
+        self.brace_depth -= 1;
+    }
+
+    fn push_range(&mut self, start: usize, end: usize) {
+        self.ranges.push(ScopedMathRange {
+            start,
+            end,
+            scope: self.current_scope,
+        });
+    }
+
+    fn consume_control(&mut self, cursor: usize) -> Option<usize> {
+        if !self.control_backslash[cursor] {
+            return None;
+        }
+        if let Some(next) = self.bytes.get(cursor + 1).copied() {
+            let control_delimiter = match next {
+                b'(' => Some((MathDelimiter::Parenthesis, true)),
+                b')' => Some((MathDelimiter::Parenthesis, false)),
+                b'[' => Some((MathDelimiter::Bracket, true)),
+                b']' => Some((MathDelimiter::Bracket, false)),
+                _ => None,
+            };
+            if let Some((delimiter, opens)) = control_delimiter {
+                self.consume_control_delimiter(cursor, delimiter, opens);
+                return Some(cursor + 2);
+            }
+        }
+
+        let command_start = cursor + 1;
+        if self
+            .bytes
+            .get(command_start)
+            .is_none_or(|byte| !is_tex_command_byte(*byte))
+        {
+            return None;
+        }
+        let command_end = tex_command_end(self.bytes, command_start);
+        if &self.bytes[command_start..command_end] == b"ensuremath" {
+            let open = skip_ascii_whitespace(self.bytes, command_end);
+            if self.bytes.get(open) == Some(&b'{') && !self.literal[open] {
+                self.brace_depth = self.brace_depth.saturating_add(1);
+                self.frames.push(MathFrame {
+                    delimiter: MathDelimiter::EnsureMath,
+                    start: open + 1,
+                    brace_depth: self.brace_depth,
+                });
+                return Some(open + 1);
+            }
+        }
+        Some(command_end)
+    }
+
+    fn consume_control_delimiter(&mut self, cursor: usize, delimiter: MathDelimiter, opens: bool) {
+        if opens && self.frames.is_empty() {
+            self.frames.push(MathFrame {
+                delimiter,
+                start: cursor,
+                brace_depth: self.brace_depth,
+            });
+        } else if !opens
+            && self.frames.last().is_some_and(|frame| {
+                frame.delimiter == delimiter && frame.brace_depth == self.brace_depth
+            })
+        {
+            let frame = self.frames.pop().expect("matched the last math frame");
+            self.push_range(frame.start, cursor + 2);
+            self.delimiter_len[frame.start] = Some(2);
+            self.delimiter_len[cursor] = Some(2);
+        }
+    }
+
+    fn consume_dollar(&mut self, cursor: usize) -> usize {
+        let display = self.bytes.get(cursor + 1) == Some(&b'$')
+            && !self.escaped[cursor + 1]
+            && !self.literal[cursor + 1]
+            && !self.suppressed[cursor + 1];
+        match self
+            .frames
+            .last()
+            .map(|frame| (frame.delimiter, frame.brace_depth))
+        {
+            Some((MathDelimiter::Dollar, depth)) if depth == self.brace_depth => {
+                let frame = self.frames.pop().expect("matched the last math frame");
+                self.push_range(frame.start, cursor + 1);
+                self.delimiter_len[frame.start] = Some(1);
+                self.delimiter_len[cursor] = Some(1);
+                cursor + 1
+            }
+            Some((MathDelimiter::DisplayDollar, depth)) if display && depth == self.brace_depth => {
+                let frame = self.frames.pop().expect("matched the last math frame");
+                self.push_range(frame.start, cursor + 2);
+                self.delimiter_len[frame.start] = Some(2);
+                self.delimiter_len[cursor] = Some(2);
+                cursor + 2
+            }
+            Some((MathDelimiter::DisplayDollar, depth)) if depth == self.brace_depth => cursor + 1,
+            Some(_) => cursor + usize::from(display) + 1,
+            None => {
+                self.frames.push(MathFrame {
+                    delimiter: if display {
+                        MathDelimiter::DisplayDollar
+                    } else {
+                        MathDelimiter::Dollar
+                    },
+                    start: cursor,
+                    brace_depth: self.brace_depth,
+                });
+                cursor + usize::from(display) + 1
+            }
+        }
+    }
+}
+
+fn scoped_ranges_to_mask(
+    len: usize,
+    ranges: &[ScopedMathRange],
+    scope_by_byte: &[usize],
+    scope_count: usize,
+) -> Vec<bool> {
+    let mut events = vec![Vec::<(usize, i8)>::new(); len + 1];
+    for range in ranges {
+        if range.start < range.end && range.end <= len {
+            events[range.start].push((range.scope, 1));
+            events[range.end].push((range.scope, -1));
+        }
+    }
+    let mut active = vec![0_i32; scope_count];
+    let mut mask = vec![false; len];
+    for cursor in 0..len {
+        for &(scope, change) in &events[cursor] {
+            active[scope] += i32::from(change);
+        }
+        mask[cursor] = active[scope_by_byte[cursor]] > 0;
+    }
+    mask
+}
+
+fn owned_ranges_to_mask(len: usize, ranges: &[OwnedContextRange]) -> Vec<bool> {
+    let mut changes = vec![0_i64; len + 1];
+    for range in ranges {
+        if range.start < range.end && range.end <= len {
+            changes[range.start] += 1;
+            changes[range.end] -= 1;
+        }
+    }
+    let mut depth = 0_i64;
+    changes
+        .into_iter()
+        .take(len)
+        .map(|change| {
+            depth += change;
+            depth > 0
+        })
+        .collect()
 }
 
 fn push_bibtex_character(
@@ -1473,6 +2133,7 @@ fn push_bibtex_character(
     character: char,
     delimiter: ValueDelimiter,
     escape_tex_sensitive: bool,
+    in_math: bool,
     escaped: &mut bool,
 ) {
     match character {
@@ -1487,9 +2148,22 @@ fn push_bibtex_character(
             output.push_str("\\\"");
             *escaped = false;
         }
-        '&' | '%' | '$' | '#' | '_' if escape_tex_sensitive && !*escaped => {
+        '%' | '#' if escape_tex_sensitive && !*escaped => {
             output.push('\\');
             output.push(character);
+            *escaped = false;
+        }
+        '&' | '_' if escape_tex_sensitive && !in_math && !*escaped => {
+            output.push('\\');
+            output.push(character);
+            *escaped = false;
+        }
+        '$' if escape_tex_sensitive && !*escaped => {
+            output.push_str("\\$");
+            *escaped = false;
+        }
+        '^' if escape_tex_sensitive && !in_math && !*escaped => {
+            output.push_str("\\textasciicircum{}");
             *escaped = false;
         }
         '\\' => {
@@ -1599,7 +2273,7 @@ fn default_field_order() -> Vec<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use bibmgr_semantics::analyze;
+    use bibmgr_semantics::{analyze, RAW_IDENTIFIER_FIELD_NAMES};
     use bibmgr_syntax::{parse, ParseOptions};
 
     fn bibliography(source: &str) -> Bibliography {
@@ -2099,10 +2773,390 @@ validation_profile = "modern"
     }
 
     #[test]
+    fn complete_math_preserves_operators_but_escapes_unsafe_bytes() {
+        let source = r"Text 50% # C_1 & D^E~F {NASA} \LaTeX{}, $x_1^2 & y # 3%$, \(a_2^3 & b # 4%\), \[c_3^4 & d # 5%\], \ensuremath {e_4^5 & f # 6%}";
+        let expected = r"Text 50\% \# C\_1 \& D\textasciicircum{}E~F {NASA} \LaTeX{}, $x_1^2 & y \# 3\%$, \(a_2^3 & b \# 4\%\), \[c_3^4 & d \# 5\%\], \ensuremath {e_4^5 & f \# 6\%}";
+
+        assert_eq!(escape_bibtex(source, ValueDelimiter::Braces), expected);
+    }
+
+    #[test]
+    fn dollar_math_boundaries_are_state_aware() {
+        for (source, expected) in [
+            (r"$x$$y$", r"$x$$y$"),
+            (r"$$x$$$y$", r"$$x$$$y$"),
+            (r"$x$$$", r"$x$\$\$"),
+            (r"$$x$", r"\$\$x\$"),
+            (r"$x\$y$", r"$x\$y$"),
+            (r"$$x$y$$", r"$$x\$y$$"),
+            (r"\(x$y\)", r"\(x\$y\)"),
+            (r"\ensuremath{x$y}", r"\ensuremath{x\$y}"),
+        ] {
+            assert_eq!(
+                escape_bibtex(source, ValueDelimiter::Braces),
+                expected,
+                "source `{source}`"
+            );
+        }
+    }
+
+    #[test]
+    fn unmatched_math_openers_leave_their_contents_in_text_context() {
+        for (source, expected) in [
+            (r"$x_1^2", r"\$x\_1\textasciicircum{}2"),
+            (r"\(x_1^2", r"\(x\_1\textasciicircum{}2"),
+            (r"\[x_1^2", r"\[x\_1\textasciicircum{}2"),
+            (r"\ensuremath{x_1^2", r"\ensuremath{x\_1\textasciicircum{}2"),
+        ] {
+            assert_eq!(
+                escape_bibtex(source, ValueDelimiter::Braces),
+                expected,
+                "source `{source}`"
+            );
+        }
+    }
+
+    #[test]
+    fn control_math_delimiters_use_one_state_aware_stack() {
+        for (source, expected) in [
+            (r"\(\[x\) y_1\]", r"\(\[x\) y\_1\]"),
+            (r"\(\[x_1\]", r"\(\[x\_1\]"),
+            (r"\(\(x\) y_1\)", r"\(\(x\) y\_1\)"),
+            (r"\[\[x\] y_1\]", r"\[\[x\] y\_1\]"),
+            (r"$\($x\)_1$", r"$\($x\)\_1\$"),
+            (r"\($x$ _1\)", r"\(\$x\$ _1\)"),
+        ] {
+            assert_eq!(
+                escape_bibtex(source, ValueDelimiter::Braces),
+                expected,
+                "source `{source}`"
+            );
+        }
+    }
+
+    #[test]
+    fn optional_arguments_have_independent_math_scopes() {
+        for (source, expected) in [
+            (r"\Verb[$x_1]|body| $y_2", r"\Verb[\$x\_1]|body| \$y\_2"),
+            (r"\foo[$x_1] text $y_2", r"\foo[\$x\_1] text \$y\_2"),
+            (
+                r"\foo[a][b][$x_1] text $y_2",
+                r"\foo[a][b][\$x\_1] text \$y\_2",
+            ),
+            (r"\foo[$a_1$][b][$x_1$]", r"\foo[$a_1$][b][$x_1$]"),
+            (r"\foo[$x_1$] text", r"\foo[$x_1$] text"),
+            (
+                r"$a \foo[x_1 & y^2] b$",
+                r"$a \foo[x\_1 \& y\textasciicircum{}2] b$",
+            ),
+            (r"$a \foo[$x_1 & y^2$] b$", r"$a \foo[$x_1 & y^2$] b$"),
+        ] {
+            assert_eq!(
+                escape_bibtex(source, ValueDelimiter::Braces),
+                expected,
+                "source `{source}`"
+            );
+        }
+    }
+
+    #[test]
+    fn math_delimiters_cannot_cross_brace_group_boundaries() {
+        for (source, expected) in [
+            (r"{$x_1} prose $", r"{\$x\_1} prose \$"),
+            (r"\foo{$x_1} prose $", r"\foo{\$x\_1} prose \$"),
+            (r"$ {x $ } y $", r"$ {x \$ } y $"),
+            (r"$ {x_1} y $", r"$ {x_1} y $"),
+            (r"{\(x_1} prose \)", r"{\(x\_1} prose \)"),
+            (r"\ensuremath{$x_1}", r"\ensuremath{\$x_1}"),
+            (r"\ensuremath{{z_2}}", r"\ensuremath{{z_2}}"),
+            (r"\ensuremath{\foo[{] x_1}}", r"\ensuremath{\foo[{] x_1}}"),
+        ] {
+            assert_eq!(
+                escape_bibtex(source, ValueDelimiter::Braces),
+                expected,
+                "source `{source}`"
+            );
+        }
+    }
+
+    #[test]
+    fn math_delimiters_obey_backslash_parity() {
+        for (source, expected) in [
+            (r"\\(x_1\\)", r"\\(x\_1\\)"),
+            (r"\\\(x_1\\\)", r"\\\(x_1\\\)"),
+            (r"\$x_1\$", r"\$x\_1\$"),
+            (r"\\$x_1\\$", r"\\$x_1\\$"),
+        ] {
+            assert_eq!(
+                escape_bibtex(source, ValueDelimiter::Braces),
+                expected,
+                "source `{source}`"
+            );
+        }
+    }
+
+    #[test]
+    fn math_boundaries_clear_incomplete_literal_commands() {
+        assert_eq!(
+            escape_bibtex(r"$\url$ {outside_1}", ValueDelimiter::Braces),
+            r"$\url$ {outside\_1}"
+        );
+        assert_eq!(
+            escape_bibtex(r"$\verb$|outside_1|", ValueDelimiter::Braces),
+            r"\$\verb\$|outside\_1|"
+        );
+    }
+
+    #[test]
+    fn literal_command_exceptions_require_their_complete_syntax() {
+        let source = r"\url {a_b^c$#%&~} \url*{a_b^c} \url[x]{a_b^c} \verb|# $ % & _ ^ ~ { } \|";
+        let expected = r"\url {a_b^c$#%&~} \url*{a\_b\textasciicircum{}c} \url[x]{a\_b\textasciicircum{}c} \verb|# $ % & _ ^ ~ { } \|";
+
+        assert_eq!(escape_bibtex(source, ValueDelimiter::Braces), expected);
+    }
+
+    #[test]
+    fn incomplete_literal_commands_fall_back_to_text_escaping() {
+        for source in [
+            r"\url{a_b^c$#%&~",
+            r"\nolinkurl{a_b^c$#%&~",
+            r"\path{a_b^c$#%&~",
+            r"\verb|a_b^c$#%&~",
+            r"\Verb [x] |a_b^c$#%&~",
+            r"\lstinline* [x] |a_b^c$#%&~",
+        ] {
+            assert_eq!(
+                escape_bibtex(source, ValueDelimiter::Braces),
+                source
+                    .replace('_', r"\_")
+                    .replace('^', r"\textasciicircum{}")
+                    .replace('$', r"\$")
+                    .replace('#', r"\#")
+                    .replace('%', r"\%")
+                    .replace('&', r"\&"),
+                "source `{source}`"
+            );
+        }
+
+        for source in [r"\url*{a_b^c$#%&}", r"\url[x]{a_b^c$#%&}"] {
+            assert_eq!(
+                escape_bibtex(source, ValueDelimiter::Braces),
+                source
+                    .replace('_', r"\_")
+                    .replace('^', r"\textasciicircum{}")
+                    .replace('$', r"\$")
+                    .replace('#', r"\#")
+                    .replace('%', r"\%")
+                    .replace('&', r"\&"),
+                "source `{source}`"
+            );
+        }
+    }
+
+    #[test]
+    fn incomplete_command_arguments_suppress_nested_math_recognition() {
+        for source in [
+            r"\url{x_1 $y_2$ # 50% & z^3",
+            r"\verb|x_1 $y_2$ # 50% & z^3",
+            r"\verb x_1 $y_2$ # 50% & z^3",
+            r"\Verb[option $x_1$ # 50% & z^3",
+            r"\ensuremath{x_1 $y_2$ # 50% & z^3",
+        ] {
+            assert_eq!(
+                escape_bibtex(source, ValueDelimiter::Braces),
+                source
+                    .replace('_', r"\_")
+                    .replace('^', r"\textasciicircum{}")
+                    .replace('$', r"\$")
+                    .replace('#', r"\#")
+                    .replace('%', r"\%")
+                    .replace('&', r"\&"),
+                "source `{source}`"
+            );
+        }
+    }
+
+    #[test]
+    fn incomplete_verbatim_overrides_an_enclosing_math_span() {
+        let source = "$a \\verb|x_1 & y^2\n b$";
+        assert_eq!(
+            escape_bibtex(source, ValueDelimiter::Braces),
+            r"$a \verb|x\_1 \& y\textasciicircum{}2  b$"
+        );
+    }
+
+    #[test]
+    fn complete_backslash_delimited_verbatim_resets_escape_parity() {
+        for (source, expected) in [
+            (r"\verb\abc\% outside", r"\verb\abc\\% outside"),
+            (r"\verb\abc\& outside", r"\verb\abc\\& outside"),
+            (r"\verb\abc\# outside", r"\verb\abc\\# outside"),
+            (r"\verb\abc\_ outside", r"\verb\abc\\_ outside"),
+            (
+                r"\verb\abc\^ outside",
+                r"\verb\abc\\textasciicircum{} outside",
+            ),
+            (r"\verb\abc\$ outside", r"\verb\abc\\$ outside"),
+        ] {
+            let once = escape_bibtex(source, ValueDelimiter::Braces);
+            assert_eq!(once, expected, "source `{source}`");
+            assert_eq!(
+                escape_bibtex(&once, ValueDelimiter::Braces),
+                once,
+                "source `{source}` must remain idempotent"
+            );
+        }
+    }
+
+    #[test]
+    fn ambiguous_command_arguments_are_forced_text() {
+        for (source, expected) in [
+            (r"\unknown|$x_1$|", r"\unknown|\$x\_1\$|"),
+            (
+                r"$a \unknown|x_1 & y^2| b$",
+                r"$a \unknown|x\_1 \& y\textasciicircum{}2| b$",
+            ),
+            (
+                r"\unknown*[option] {arg}|$y_1$|",
+                r"\unknown*[option] {arg}|\$y\_1\$|",
+            ),
+            (r"\unknown|\foo[$x_1| $y_2$", r"\unknown|\foo[\$x\_1| $y_2$"),
+            (r"\unknown|\url{x_1| $y_2$", r"\unknown|\url{x\_1| $y_2$"),
+            (r"\unknown|\url{a_b%20}|", r"\unknown|\url{a\_b\%20}|"),
+            (r"\unknown|\verb!a_b%20!|", r"\unknown|\verb!a\_b\%20!|"),
+            (r"\foo[\url{a_b%20}", r"\foo[\url{a\_b\%20}"),
+            (r"\Verb[code=\verb|a_b%|", r"\Verb[code=\verb|a\_b\%|"),
+            (r"\unknown|\url{a|b_c%20}", r"\unknown|\url{a|b\_c\%20}"),
+            (r"\unknown|\verb!a|b_c%20!", r"\unknown|\verb!a|b\_c\%20!"),
+            (r"\unknown|\verb|b_c%20|", r"\unknown|\verb|b\_c\%20|"),
+            (r"\unknown|\foo[$x| y] tail", r"\unknown|\foo[\$x| y] tail"),
+            (
+                r"\unknown|\bar[x| \foo|\url{a_b%20}|",
+                r"\unknown|\bar[x| \foo|\url{a\_b\%20}|",
+            ),
+            (
+                r"\unknown|\bar[x| \foo|\baz[y| \qux|\url{a_b%20}|",
+                r"\unknown|\bar[x| \foo|\baz[y| \qux|\url{a\_b\%20}|",
+            ),
+            (r"\url|$x_1$|", r"\url|\$x\_1\$|"),
+            (r"\ensuremath|$x_1$|", r"\ensuremath|\$x\_1\$|"),
+            (r"\url|\verb!a_b% !|", r"\url|\verb!a\_b\% !|"),
+        ] {
+            assert_eq!(
+                escape_bibtex(source, ValueDelimiter::Braces),
+                expected,
+                "source `{source}`"
+            );
+        }
+    }
+
+    #[test]
+    fn optional_scopes_cap_opaque_command_arguments() {
+        for (source, expected) in [
+            (r"\foo[\url{x] y_1}", r"\foo[\url{x] y\_1}"),
+            (r"\foo[\verb|x] y_1|", r"\foo[\verb|x] y\_1|"),
+            (r"\foo[\url{x_1] $y_2$", r"\foo[\url{x\_1] $y_2$"),
+            (r"\foo[\bar|x] y_1|", r"\foo[\bar|x] y\_1|"),
+            (r"\foo[\verb]x_1]", r"\foo[\verb]x\_1]"),
+            (
+                r"\foo[\Verb[format=x]|a] b_1|",
+                r"\foo[\Verb[format=x]|a] b\_1|",
+            ),
+            (
+                r"\foo[\Verb[format=x]|a_b%|] y_1",
+                r"\foo[\Verb[format=x]|a_b%|] y\_1",
+            ),
+        ] {
+            assert_eq!(
+                escape_bibtex(source, ValueDelimiter::Braces),
+                expected,
+                "source `{source}`"
+            );
+        }
+    }
+
+    #[test]
+    fn verbatim_options_use_normal_math_and_only_the_body_is_literal() {
+        for command in [r"\Verb", r"\lstinline"] {
+            let source = format!(r"{command}[format=$x_1^2 & y # 3%$]|body_1^2 & y # 4% $|");
+            let expected = format!(r"{command}[format=$x_1^2 & y \# 3\%$]|body_1^2 & y # 4% $|");
+            assert_eq!(
+                escape_bibtex(&source, ValueDelimiter::Braces),
+                expected,
+                "command `{command}`"
+            );
+        }
+    }
+
+    #[test]
+    fn tex_special_escape_uses_backslash_parity() {
+        assert_eq!(
+            escape_bibtex(r"\% \& \# \_ \$ \^", ValueDelimiter::Braces),
+            r"\% \& \# \_ \$ \^"
+        );
+        assert_eq!(
+            escape_bibtex(r"\\% \\& \\# \\_ \\$ \\^", ValueDelimiter::Braces),
+            r"\\\% \\\& \\\# \\\_ \\\$ \\\textasciicircum{}"
+        );
+
+        let once = escape_bibtex(
+            r"Text 50% & C_1 # $5 ^ 2; $x_1^2 & y # 3%$",
+            ValueDelimiter::Braces,
+        );
+        assert_eq!(
+            escape_bibtex(&once, ValueDelimiter::Braces),
+            once,
+            "escaping must be idempotent"
+        );
+    }
+
+    #[test]
+    fn incomplete_math_scanning_is_structurally_linear() {
+        const ORIGINAL_TAIL: &str = "x_1^2";
+        const ESCAPED_TAIL: &str = r"x\_1\textasciicircum{}2";
+        let source = format!(
+            "{}{}x_1^2",
+            r"\(".repeat(20_000),
+            r"\ensuremath{".repeat(20_000)
+        );
+        let output = escape_bibtex(&source, ValueDelimiter::Braces);
+
+        assert_eq!(
+            output.len(),
+            source.len() - ORIGINAL_TAIL.len() + ESCAPED_TAIL.len()
+        );
+        assert!(output.ends_with(ESCAPED_TAIL));
+    }
+
+    #[test]
+    fn deeply_nested_optional_math_scopes_are_structurally_linear() {
+        const DEPTH: usize = 20_000;
+        let source = format!("{}$x_1{}", r"\foo[".repeat(DEPTH), "]".repeat(DEPTH));
+        let output = escape_bibtex(&source, ValueDelimiter::Braces);
+
+        assert!(output.contains(r"\$x\_1"));
+        assert_eq!(output.len(), source.len() + 2);
+    }
+
+    #[test]
+    fn math_export_is_idempotent_after_reparse() {
+        let records = bibliography(
+            r"@misc{k, title={Energy $E=mc^2$ with \(x_1\), 50% complete}, year={2026},}
+",
+        );
+        let profile = ExportProfile::modern();
+
+        let first = export(&records, &profile).unwrap().source;
+        assert!(first.contains(r"title = {Energy $E=mc^2$ with \(x_1\), 50\% complete}"));
+        let second = export(&bibliography(&first), &profile).unwrap().source;
+        assert_eq!(second, first);
+    }
+
+    #[test]
     fn prose_url_and_verbatim_commands_preserve_only_their_literal_arguments() {
         let records = bibliography(
             r"@misc{k,
-  title={Outside 50% & C_1 # $5 \url{https://example.test/{part_1}/a%20_b?x=1&cost=$5#frag_1} after 60% \textbf{Bold 70% & C_2 # $6}},
+  title={Outside 50% & C_1 # \$5 \url{https://example.test/{part_1}/a%20_b?x=1&cost=$5#frag_1} after 60% \textbf{Bold 70% & C_2 # \$6}},
   note={Note 20% \nolinkurl{https://example.test/b%20_c?x=2&cost=$6#frag_2} \verb|100% & C_3 # $7| \verb*+90% & C_4 # $8+ \Verb!80% & C_5 # $9!},
   howpublished={Path 30% \path{paper%20&draft_2#$} \lstinline[language=TeX]|70% & C_6 # $0|},
 }
@@ -2113,7 +3167,7 @@ validation_profile = "modern"
         let first = export(&records, &profile).unwrap().source;
         assert!(first.contains(
             r"title = {Outside 50\% \& C\_1 \# \$5 \url{https://example.test/{part_1}/a%20_b?x=1&cost=$5#frag_1} after 60\% \textbf{Bold 70\% \& C\_2 \# \$6}}"
-        ));
+        ), "{first}");
         assert!(first.contains(
             r"note = {Note 20\% \nolinkurl{https://example.test/b%20_c?x=2&cost=$6#frag_2} \verb|100% & C_3 # $7| \verb*+90% & C_4 # $8+ \Verb!80% & C_5 # $9!}"
         ));
@@ -2127,11 +3181,11 @@ validation_profile = "modern"
 
     #[test]
     fn verbatim_command_syntax_matches_validation_scanner() {
-        let source = r"\Verb [formatcom=\small] /40% & C_1 # $5/ \lstinline* [language=TeX] 9numeric% & C_2 # $six9 \verb8digit% & C_3 # $seven8 \unknown|10% & C_4 # $2|";
+        let source = r"\Verb [formatcom=\small] /40% & C_1 # $5/ \lstinline* [language=TeX] 9numeric% & C_2 # $six9 \verb8digit% & C_3 # $seven8 \verb@at% & C_4_1 # $eight@ \unknown|10% & C_5 # $2|";
 
         assert_eq!(
             escape_bibtex(source, ValueDelimiter::Braces),
-            r"\Verb [formatcom=\small] /40% & C_1 # $5/ \lstinline* [language=TeX] 9numeric% & C_2 # $six9 \verb8digit% & C_3 # $seven8 \unknown|10\% \& C\_4 \# \$2|"
+            r"\Verb [formatcom=\small] /40% & C_1 # $5/ \lstinline* [language=TeX] 9numeric% & C_2 # $six9 \verb8digit% & C_3 # $seven8 \verb@at% & C_4_1 # $eight@ \unknown|10\% \& C\_5 \# \$2|"
         );
     }
 
@@ -2147,7 +3201,7 @@ validation_profile = "modern"
         let first = export(&records, &profile).unwrap().source;
         assert!(first.contains(
             r#"title = "Say \"outside\" 50\% \url{https://example.test/a%20_b?label=\"inside\"&cost=$5#frag_1} \verb|\"literal\" 20% & C_1 # $5| after 30\%""#
-        ));
+        ), "{first}");
 
         let second = export(&bibliography(&first), &profile).unwrap().source;
         assert_eq!(second, first);
@@ -2179,25 +3233,17 @@ validation_profile = "modern"
     #[test]
     fn identifier_fields_preserve_tex_sensitive_characters() {
         let value = "part%20&query#fragment_$5";
-        for field in [
-            "url",
-            "doi",
-            "file",
-            "eprint",
-            "archivePrefix",
-            "primaryClass",
-            "isbn",
-            "issn",
-            "pmid",
-            "pmcid",
-            "pubmed",
-        ] {
+        for field in RAW_IDENTIFIER_FIELD_NAMES {
             assert_eq!(
                 format_field_value(field, value, ValueDelimiter::Braces),
                 format!("{{{value}}}"),
                 "field `{field}`"
             );
         }
+        assert_eq!(
+            format_field_value("archivePrefix", value, ValueDelimiter::Braces),
+            format!("{{{value}}}")
+        );
         assert_eq!(
             format_field_value("title", value, ValueDelimiter::Braces),
             "{part\\%20\\&query\\#fragment\\_\\$5}"

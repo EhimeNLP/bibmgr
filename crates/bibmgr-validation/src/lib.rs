@@ -5,7 +5,7 @@ use bibmgr_model::{
     Severity, SourceLocation, SourceRevision, TextEdit, TextRange,
 };
 pub use bibmgr_semantics::VenueKind;
-use bibmgr_semantics::{Bibliography, WorkType};
+use bibmgr_semantics::{is_raw_identifier_field, Bibliography, WorkType};
 use bibmgr_syntax::{EntryNode, FieldNode, SyntaxDocument, ValueAtomKind, ValueExpression};
 use regex::Regex;
 use serde::{Deserialize, Serialize};
@@ -19,7 +19,8 @@ pub const RULE_TRAILING_COMMA: &str = "BIB-SYNTAX-004";
 pub const RULE_VALUE_DELIMITER: &str = "BIB-SYNTAX-005";
 pub const RULE_EQUALS_WHITESPACE: &str = "BIB-SYNTAX-006";
 pub const RULE_INLINE_PERCENT_COMMENT: &str = "BIB-SYNTAX-007";
-pub const RULE_UNESCAPED_PERCENT: &str = "BIB-SYNTAX-008";
+pub const RULE_UNESCAPED_TEX_SPECIAL: &str = "BIB-SYNTAX-008";
+pub const RULE_UNESCAPED_PERCENT: &str = RULE_UNESCAPED_TEX_SPECIAL;
 pub const RULE_DOI: &str = "BIB-SEMANTIC-001";
 pub const RULE_ARXIV: &str = "BIB-SEMANTIC-002";
 pub const RULE_REQUIRED_DATA: &str = "BIB-SEMANTIC-003";
@@ -58,7 +59,7 @@ pub const REGISTERED_RULE_CODES: &[&str] = &[
     RULE_VALUE_DELIMITER,
     RULE_EQUALS_WHITESPACE,
     RULE_INLINE_PERCENT_COMMENT,
-    RULE_UNESCAPED_PERCENT,
+    RULE_UNESCAPED_TEX_SPECIAL,
     "BIB-SEMANTIC-101",
     "BIB-SEMANTIC-102",
     "BIB-SEMANTIC-106",
@@ -743,7 +744,7 @@ pub fn validate(
             engine.validate_semantics(entry, record);
         }
     }
-    engine.validate_referenced_string_percents();
+    engine.validate_referenced_string_tex_specials();
     engine.validate_bibliography_duplicates(semantics);
     engine.finish()
 }
@@ -1088,51 +1089,64 @@ impl<'a> Engine<'a> {
             );
         }
 
-        for field in &entry.fields {
-            for issue in unescaped_percent_issues(self.syntax, field) {
-                let Some(primary_range) = issue.ranges.first().copied() else {
-                    continue;
-                };
-                let mut notes = vec![String::from(
-                    "BibTeX retains `%` in database values, but TeX treats it as a line comment when a bibliography style writes it to `.bbl`",
-                )];
-                if issue.omitted > 0 {
-                    notes.push(percent_omission_note(issue.ranges.len(), issue.omitted));
+        if self.policy.setting(RULE_UNESCAPED_TEX_SPECIAL).enabled {
+            for field in &entry.fields {
+                for issue in unescaped_tex_special_issues(self.syntax, field) {
+                    let Some(primary_range) = issue.occurrences.first_range() else {
+                        continue;
+                    };
+                    let mut notes = vec![tex_special_note()];
+                    if issue.occurrences.omitted > 0 {
+                        notes.push(tex_special_omission_note(
+                            issue.occurrences.len(),
+                            issue.occurrences.omitted,
+                        ));
+                    }
+                    let labels = tex_special_labels(&issue.occurrences.items);
+                    self.emit(
+                        RULE_UNESCAPED_TEX_SPECIAL,
+                        format!(
+                            "field `{}` contains unescaped TeX-special character(s) {labels}",
+                            field.name.text
+                        ),
+                        primary_range,
+                        vec![],
+                        notes,
+                        (issue.occurrences.omitted == 0).then(|| FixDraft {
+                            title: format!(
+                                "Escape TeX-special character(s) in `{}`",
+                                field.name.text
+                            ),
+                            applicability: issue.applicability,
+                            edits: tex_special_escape_edits(&issue.occurrences.items),
+                        }),
+                    );
                 }
-                self.emit(
-                    RULE_UNESCAPED_PERCENT,
-                    format!("field `{}` contains an unescaped `%`", field.name.text),
-                    primary_range,
-                    vec![],
-                    notes,
-                    (issue.omitted == 0).then(|| FixDraft {
-                        title: format!("Escape `%` in `{}`", field.name.text),
-                        applicability: issue.applicability,
-                        edits: percent_escape_edits(&issue.ranges),
-                    }),
-                );
             }
         }
     }
 
-    fn validate_referenced_string_percents(&mut self) {
-        let analysis = referenced_string_percent_analysis(self.syntax);
-        self.emit_referenced_string_percent_analysis(analysis);
+    fn validate_referenced_string_tex_specials(&mut self) {
+        if !self.policy.setting(RULE_UNESCAPED_TEX_SPECIAL).enabled {
+            return;
+        }
+        let analysis = referenced_string_tex_special_analysis(self.syntax);
+        self.emit_referenced_string_tex_special_analysis(analysis);
     }
 
     #[cfg(test)]
-    fn validate_referenced_string_percents_with_limit(&mut self, visit_limit: usize) {
-        let analysis = referenced_string_percent_analysis_with_limit(self.syntax, visit_limit);
-        self.emit_referenced_string_percent_analysis(analysis);
+    fn validate_referenced_string_tex_specials_with_limit(&mut self, visit_limit: usize) {
+        let analysis = referenced_string_tex_special_analysis_with_limit(self.syntax, visit_limit);
+        self.emit_referenced_string_tex_special_analysis(analysis);
     }
 
-    fn emit_referenced_string_percent_analysis(
+    fn emit_referenced_string_tex_special_analysis(
         &mut self,
-        analysis: ReferencedStringPercentAnalysis,
+        analysis: ReferencedStringTexSpecialAnalysis,
     ) {
         let fixes_allowed = analysis.incomplete_range.is_none();
         for issue in analysis.issues {
-            let Some(primary_range) = issue.ranges.first().copied() else {
+            let Some(primary_range) = issue.occurrences.first_range() else {
                 continue;
             };
             let fields = issue
@@ -1141,16 +1155,18 @@ impl<'a> Engine<'a> {
                 .map(|field| format!("`{field}`"))
                 .collect::<Vec<_>>()
                 .join(", ");
-            let mut notes = vec![String::from(
-                "BibTeX retains `%` in database values, but TeX treats it as a line comment when a bibliography style writes it to `.bbl`",
-            )];
-            if issue.omitted > 0 {
-                notes.push(percent_omission_note(issue.ranges.len(), issue.omitted));
+            let mut notes = vec![tex_special_note()];
+            if issue.occurrences.omitted > 0 {
+                notes.push(tex_special_omission_note(
+                    issue.occurrences.len(),
+                    issue.occurrences.omitted,
+                ));
             }
+            let labels = tex_special_labels(&issue.occurrences.items);
             self.emit(
-                RULE_UNESCAPED_PERCENT,
+                RULE_UNESCAPED_TEX_SPECIAL,
                 format!(
-                    "@string `{}` used by field(s) {fields} contains an unescaped `%`",
+                    "@string `{}` used by field(s) {fields} contains unescaped TeX-special character(s) {labels}",
                     issue.macro_name
                 ),
                 primary_range,
@@ -1160,18 +1176,21 @@ impl<'a> Engine<'a> {
                     .applicability
                     .filter(|_| fixes_allowed)
                     .and_then(|applicability| {
-                        (issue.omitted == 0).then(|| FixDraft {
-                            title: format!("Escape `%` in @string `{}`", issue.macro_name),
+                        (issue.occurrences.omitted == 0).then(|| FixDraft {
+                            title: format!(
+                                "Escape TeX-special character(s) in @string `{}`",
+                                issue.macro_name
+                            ),
                             applicability,
-                            edits: percent_escape_edits(&issue.ranges),
+                            edits: tex_special_escape_edits(&issue.occurrences.items),
                         })
                     }),
             );
         }
         if let Some(range) = analysis.incomplete_range {
             self.emit(
-                RULE_UNESCAPED_PERCENT,
-                String::from("unescaped-percent analysis is incomplete"),
+                RULE_UNESCAPED_TEX_SPECIAL,
+                String::from("TeX-special-character analysis is incomplete"),
                 range,
                 vec![],
                 vec![format!(
@@ -1871,49 +1890,146 @@ fn inline_percent_comment_ranges(syntax: &SyntaxDocument, entry: &EntryNode) -> 
     ranges
 }
 
-const MAX_PERCENT_RANGES_PER_ISSUE: usize = 256;
-const MAX_PERCENT_MACRO_EXPANSION_DEPTH: usize = 256;
-const MAX_PERCENT_MACRO_VISITS: usize = 65_536;
+const MAX_TEX_SPECIAL_OCCURRENCES_PER_ISSUE: usize = 256;
+const MAX_TEX_SPECIAL_MACRO_EXPANSION_DEPTH: usize = 256;
+const MAX_TEX_SPECIAL_MACRO_VISITS: usize = 65_536;
+const MAX_TEX_SPECIAL_NESTED_SCAN_DEPTH: usize = 64;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+enum TexSpecialKind {
+    Percent,
+    Ampersand,
+    Hash,
+    Underscore,
+    Caret,
+    Dollar,
+}
+
+impl TexSpecialKind {
+    fn from_byte(byte: u8) -> Option<Self> {
+        match byte {
+            b'%' => Some(Self::Percent),
+            b'&' => Some(Self::Ampersand),
+            b'#' => Some(Self::Hash),
+            b'_' => Some(Self::Underscore),
+            b'^' => Some(Self::Caret),
+            b'$' => Some(Self::Dollar),
+            _ => None,
+        }
+    }
+
+    fn symbol(self) -> char {
+        match self {
+            Self::Percent => '%',
+            Self::Ampersand => '&',
+            Self::Hash => '#',
+            Self::Underscore => '_',
+            Self::Caret => '^',
+            Self::Dollar => '$',
+        }
+    }
+
+    fn replacement(self) -> &'static str {
+        match self {
+            Self::Percent => "\\%",
+            Self::Ampersand => "\\&",
+            Self::Hash => "\\#",
+            Self::Underscore => "\\_",
+            Self::Caret => "\\textasciicircum{}",
+            Self::Dollar => "\\$",
+        }
+    }
+
+    fn requires_confirmation_in_plain_text(self) -> bool {
+        matches!(self, Self::Caret | Self::Dollar)
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+struct TexSpecialOccurrence {
+    range: TextRange,
+    kind: TexSpecialKind,
+}
+
+#[derive(Debug, Clone, Default)]
+struct CappedTexSpecialOccurrences {
+    items: Vec<TexSpecialOccurrence>,
+    omitted: usize,
+}
+
+impl CappedTexSpecialOccurrences {
+    fn push(&mut self, occurrence: TexSpecialOccurrence) {
+        if self.items.len() < MAX_TEX_SPECIAL_OCCURRENCES_PER_ISSUE {
+            self.items.push(occurrence);
+        } else {
+            self.omitted = self.omitted.saturating_add(1);
+        }
+    }
+
+    fn merge(&mut self, other: &Self) {
+        if other.is_empty() {
+            return;
+        }
+        self.omitted = self.omitted.saturating_add(other.omitted);
+        self.items.extend(other.items.iter().copied());
+        self.items.sort_unstable();
+        self.items.dedup();
+        if self.items.len() > MAX_TEX_SPECIAL_OCCURRENCES_PER_ISSUE {
+            self.omitted = self
+                .omitted
+                .saturating_add(self.items.len() - MAX_TEX_SPECIAL_OCCURRENCES_PER_ISSUE);
+            self.items.truncate(MAX_TEX_SPECIAL_OCCURRENCES_PER_ISSUE);
+        }
+    }
+
+    fn is_empty(&self) -> bool {
+        self.items.is_empty() && self.omitted == 0
+    }
+
+    fn len(&self) -> usize {
+        self.items.len()
+    }
+
+    fn first_range(&self) -> Option<TextRange> {
+        self.items.first().map(|occurrence| occurrence.range)
+    }
+}
 
 #[derive(Debug)]
-struct UnescapedPercentIssue {
-    ranges: Vec<TextRange>,
-    omitted: usize,
+struct UnescapedTexSpecialIssue {
+    occurrences: CappedTexSpecialOccurrences,
     applicability: FixApplicability,
 }
 
-fn unescaped_percent_issues(
+fn unescaped_tex_special_issues(
     syntax: &SyntaxDocument,
     field: &FieldNode,
-) -> Vec<UnescapedPercentIssue> {
-    let policy = percent_consumer_policy(&field.name.text);
-    if policy == PercentConsumerPolicy::Ignore {
+) -> Vec<UnescapedTexSpecialIssue> {
+    let policy = tex_special_consumer_policy(&field.name.text);
+    if policy == TexSpecialConsumerPolicy::Ignore {
         return Vec::new();
     }
-    let composite = percent_expression_is_composite(&field.value);
-    let occurrences = literal_percent_occurrences(syntax, &field.value);
-    let mut safe = CappedPercentRanges::default();
-    let mut review = CappedPercentRanges::default();
+    let composite = tex_special_expression_is_composite(&field.value);
+    let occurrences = literal_tex_special_occurrences(syntax, &field.value);
+    let mut safe = CappedTexSpecialOccurrences::default();
+    let mut review = occurrences.review;
 
-    if policy == PercentConsumerPolicy::Review || composite {
-        review.merge(&occurrences.plain);
+    if policy == TexSpecialConsumerPolicy::Review || composite {
+        review.merge(&occurrences.plain_safe);
     } else {
-        safe.merge(&occurrences.plain);
+        safe.merge(&occurrences.plain_safe);
     }
-    review.merge(&occurrences.command_argument);
 
     let mut issues = Vec::new();
     if !safe.is_empty() {
-        issues.push(UnescapedPercentIssue {
-            ranges: safe.ranges,
-            omitted: safe.omitted,
+        issues.push(UnescapedTexSpecialIssue {
+            occurrences: safe,
             applicability: FixApplicability::Safe,
         });
     }
     if !review.is_empty() {
-        issues.push(UnescapedPercentIssue {
-            ranges: review.ranges,
-            omitted: review.omitted,
+        issues.push(UnescapedTexSpecialIssue {
+            occurrences: review,
             applicability: FixApplicability::RequiresConfirmation,
         });
     }
@@ -1921,96 +2037,76 @@ fn unescaped_percent_issues(
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum PercentConsumerPolicy {
+enum TexSpecialConsumerPolicy {
     Ignore,
     PlainText,
     Review,
 }
 
-fn percent_consumer_policy(field_name: &str) -> PercentConsumerPolicy {
+fn tex_special_consumer_policy(field_name: &str) -> TexSpecialConsumerPolicy {
+    if is_raw_identifier_field(field_name) {
+        return TexSpecialConsumerPolicy::Ignore;
+    }
     match field_name.to_ascii_lowercase().as_str() {
-        // These fields are commonly consumed by commands that assign URL-like
-        // catcodes, where a raw percent sign can be part of an identifier.
-        "archived" | "doi" | "file" | "url" => PercentConsumerPolicy::Ignore,
-        // These are conventional prose fields. Turning a raw percent into the
-        // TeX literal is source-preserving at the bibliography value boundary.
         "abstract" | "address" | "author" | "booktitle" | "editor" | "institution" | "journal"
         | "journaltitle" | "keywords" | "location" | "organization" | "publisher" | "school"
-        | "series" | "subtitle" | "title" | "translator" => PercentConsumerPolicy::PlainText,
-        // Custom and explicitly TeX-oriented fields may intentionally contain
-        // a macro whose argument changes catcodes, so require user review.
-        _ => PercentConsumerPolicy::Review,
+        | "series" | "subtitle" | "title" | "translator" => TexSpecialConsumerPolicy::PlainText,
+        _ => TexSpecialConsumerPolicy::Review,
     }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-enum PercentTexContext {
+enum TexOccurrenceClass {
+    PlainSafe,
+    Review,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum TexContext {
     Plain,
     CommandArgument,
     UrlCommandArgument,
+    Math,
 }
 
 #[derive(Debug, Clone, Default)]
-struct CappedPercentRanges {
-    ranges: Vec<TextRange>,
-    omitted: usize,
+struct LiteralTexSpecialOccurrences {
+    plain_safe: CappedTexSpecialOccurrences,
+    review: CappedTexSpecialOccurrences,
 }
 
-impl CappedPercentRanges {
-    fn push(&mut self, range: TextRange) {
-        if self.ranges.len() < MAX_PERCENT_RANGES_PER_ISSUE {
-            self.ranges.push(range);
-        } else {
-            self.omitted = self.omitted.saturating_add(1);
-        }
-    }
-
-    fn merge(&mut self, other: &Self) {
-        self.omitted = self.omitted.saturating_add(other.omitted);
-        self.ranges.extend(other.ranges.iter().copied());
-        self.ranges.sort_unstable();
-        self.ranges.dedup();
-        if self.ranges.len() > MAX_PERCENT_RANGES_PER_ISSUE {
-            self.omitted = self
-                .omitted
-                .saturating_add(self.ranges.len() - MAX_PERCENT_RANGES_PER_ISSUE);
-            self.ranges.truncate(MAX_PERCENT_RANGES_PER_ISSUE);
-        }
-    }
-
-    fn is_empty(&self) -> bool {
-        self.ranges.is_empty() && self.omitted == 0
-    }
-}
-
-#[derive(Debug, Clone, Default)]
-struct LiteralPercentOccurrences {
-    plain: CappedPercentRanges,
-    command_argument: CappedPercentRanges,
-}
-
-impl LiteralPercentOccurrences {
-    fn record(&mut self, range: TextRange, context: PercentTexContext) {
+impl LiteralTexSpecialOccurrences {
+    fn record(&mut self, occurrence: TexSpecialOccurrence, context: TexContext) {
         match context {
-            PercentTexContext::Plain => self.plain.push(range),
-            PercentTexContext::CommandArgument => self.command_argument.push(range),
-            PercentTexContext::UrlCommandArgument => {}
+            TexContext::Plain if !occurrence.kind.requires_confirmation_in_plain_text() => {
+                self.plain_safe.push(occurrence);
+            }
+            TexContext::Plain | TexContext::CommandArgument => self.review.push(occurrence),
+            TexContext::Math
+                if matches!(
+                    occurrence.kind,
+                    TexSpecialKind::Percent | TexSpecialKind::Hash | TexSpecialKind::Dollar
+                ) =>
+            {
+                self.review.push(occurrence);
+            }
+            TexContext::UrlCommandArgument | TexContext::Math => {}
         }
     }
 
-    fn groups(&self) -> [(PercentTexContext, &CappedPercentRanges); 2] {
+    fn groups(&self) -> [(TexOccurrenceClass, &CappedTexSpecialOccurrences); 2] {
         [
-            (PercentTexContext::Plain, &self.plain),
-            (PercentTexContext::CommandArgument, &self.command_argument),
+            (TexOccurrenceClass::PlainSafe, &self.plain_safe),
+            (TexOccurrenceClass::Review, &self.review),
         ]
     }
 }
 
-fn literal_percent_occurrences(
+fn literal_tex_special_occurrences(
     syntax: &SyntaxDocument,
     expression: &ValueExpression,
-) -> LiteralPercentOccurrences {
-    let mut occurrences = LiteralPercentOccurrences::default();
+) -> LiteralTexSpecialOccurrences {
+    let mut occurrences = LiteralTexSpecialOccurrences::default();
     for atom in &expression.atoms {
         if !matches!(
             atom.kind,
@@ -2021,12 +2117,12 @@ fn literal_percent_occurrences(
         let Some(value) = syntax.slice(atom.content_range) else {
             continue;
         };
-        scan_literal_percent_atom(value.as_bytes(), atom.content_range.start, &mut occurrences);
+        scan_literal_tex_special_atom(value.as_bytes(), atom.content_range.start, &mut occurrences);
     }
     occurrences
 }
 
-fn percent_expression_is_composite(expression: &ValueExpression) -> bool {
+fn tex_special_expression_is_composite(expression: &ValueExpression) -> bool {
     expression.is_concatenated()
         || expression
             .atoms
@@ -2034,14 +2130,59 @@ fn percent_expression_is_composite(expression: &ValueExpression) -> bool {
             .any(|atom| atom.kind == ValueAtomKind::Macro)
 }
 
-fn scan_literal_percent_atom(
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum MathDelimiter {
+    Dollar,
+    DisplayDollar,
+    Parenthesis,
+    Bracket,
+    EnsureMath,
+}
+
+#[derive(Debug)]
+struct MathFrame {
+    delimiter: MathDelimiter,
+    group_depth: usize,
+    openers: CappedTexSpecialOccurrences,
+    deferred: CappedTexSpecialOccurrences,
+}
+
+#[derive(Debug, Default)]
+struct UrlFrame {
+    deferred: CappedTexSpecialOccurrences,
+}
+
+impl MathFrame {
+    fn new(delimiter: MathDelimiter, group_depth: usize) -> Self {
+        Self {
+            delimiter,
+            group_depth,
+            openers: CappedTexSpecialOccurrences::default(),
+            deferred: CappedTexSpecialOccurrences::default(),
+        }
+    }
+}
+
+fn scan_literal_tex_special_atom(
     bytes: &[u8],
     content_start: u32,
-    occurrences: &mut LiteralPercentOccurrences,
+    occurrences: &mut LiteralTexSpecialOccurrences,
+) {
+    scan_literal_tex_special_atom_with_depth(bytes, content_start, occurrences, 0);
+}
+
+#[allow(clippy::too_many_lines)]
+fn scan_literal_tex_special_atom_with_depth(
+    bytes: &[u8],
+    content_start: u32,
+    occurrences: &mut LiteralTexSpecialOccurrences,
+    nested_scan_depth: usize,
 ) {
     let mut group_commands = Vec::<Option<TexCommandKind>>::new();
     let mut command_argument_depth = 0_usize;
     let mut url_command_argument_depth = 0_usize;
+    let mut url_frames = Vec::<UrlFrame>::new();
+    let mut math_frames = Vec::<MathFrame>::new();
     let mut pending_command = None::<TexCommandKind>;
     let mut continuation_command = None::<TexCommandKind>;
     let mut cursor = 0;
@@ -2049,23 +2190,64 @@ fn scan_literal_percent_atom(
         match bytes[cursor] {
             b'\\' => {
                 continuation_command = None;
-                (cursor, pending_command) =
-                    scan_tex_command(bytes, cursor, content_start, occurrences);
-            }
-            b'*' if pending_command.is_some() => cursor += 1,
-            b'[' if pending_command.is_some() => {
-                let (next, closed) =
-                    scan_optional_tex_argument(bytes, cursor, content_start, occurrences);
-                cursor = next;
-                if !closed {
+                if url_command_argument_depth > 0 {
+                    cursor = scan_url_literal_control_sequence(bytes, cursor);
                     pending_command = None;
+                } else if scan_math_control_delimiter(
+                    bytes,
+                    &mut cursor,
+                    group_commands.len(),
+                    &mut math_frames,
+                ) {
+                    pending_command = None;
+                } else {
+                    (cursor, pending_command) = scan_tex_command(
+                        bytes,
+                        cursor,
+                        content_start,
+                        occurrences,
+                        nested_scan_depth,
+                    );
+                }
+            }
+            b'*' if pending_command.is_some() => {
+                if pending_command != Some(TexCommandKind::Other) {
+                    pending_command = None;
+                }
+                cursor += 1;
+            }
+            b'[' if pending_command.is_some() => {
+                if pending_command == Some(TexCommandKind::Other) {
+                    let (next, closed) = scan_optional_tex_argument(
+                        bytes,
+                        cursor,
+                        content_start,
+                        occurrences,
+                        nested_scan_depth,
+                    );
+                    cursor = next;
+                    if !closed {
+                        pending_command = None;
+                    }
+                } else {
+                    pending_command = None;
+                    cursor += 1;
                 }
             }
             b'{' => {
                 let command = pending_command.take().or(continuation_command.take());
                 match command {
-                    Some(TexCommandKind::Url) => url_command_argument_depth += 1,
+                    Some(TexCommandKind::Url) => {
+                        url_command_argument_depth += 1;
+                        url_frames.push(UrlFrame::default());
+                    }
                     Some(TexCommandKind::Other) => command_argument_depth += 1,
+                    Some(TexCommandKind::Math) => {
+                        math_frames.push(MathFrame::new(
+                            MathDelimiter::EnsureMath,
+                            group_commands.len() + 1,
+                        ));
+                    }
                     None => {}
                 }
                 group_commands.push(command);
@@ -2073,17 +2255,44 @@ fn scan_literal_percent_atom(
             }
             b'}' => {
                 pending_command = None;
+                let closing_group_depth = group_commands.len();
                 let command = group_commands.pop().flatten();
                 match command {
                     Some(TexCommandKind::Url) => {
                         url_command_argument_depth = url_command_argument_depth.saturating_sub(1);
+                        if let Some(completed) = url_frames.pop() {
+                            if let Some(parent) = url_frames.last_mut() {
+                                parent.deferred.merge(&completed.deferred);
+                            }
+                        }
+                        invalidate_math_frames_at_group_boundary(
+                            &mut math_frames,
+                            closing_group_depth,
+                            occurrences,
+                        );
                         continuation_command = None;
                     }
                     Some(TexCommandKind::Other) => {
                         command_argument_depth = command_argument_depth.saturating_sub(1);
+                        invalidate_math_frames_at_group_boundary(
+                            &mut math_frames,
+                            closing_group_depth,
+                            occurrences,
+                        );
                         continuation_command = Some(TexCommandKind::Other);
                     }
-                    None => continuation_command = None,
+                    Some(TexCommandKind::Math) => {
+                        close_ensuremath_group(&mut math_frames, closing_group_depth, occurrences);
+                        continuation_command = None;
+                    }
+                    None => {
+                        invalidate_math_frames_at_group_boundary(
+                            &mut math_frames,
+                            closing_group_depth,
+                            occurrences,
+                        );
+                        continuation_command = None;
+                    }
                 }
                 cursor += 1;
             }
@@ -2096,18 +2305,46 @@ fn scan_literal_percent_atom(
                 cursor =
                     scan_ambiguous_delimited_argument(bytes, cursor, content_start, occurrences);
             }
-            b'%' => {
-                let context = if url_command_argument_depth > 0 {
-                    PercentTexContext::UrlCommandArgument
-                } else if command_argument_depth > 0
-                    || pending_command.is_some()
-                    || continuation_command.is_some()
-                {
-                    PercentTexContext::CommandArgument
-                } else {
-                    PercentTexContext::Plain
-                };
-                record_percent_occurrence(cursor, content_start, occurrences, context);
+            b'$' if url_command_argument_depth == 0 => {
+                scan_math_dollar(
+                    bytes,
+                    &mut cursor,
+                    content_start,
+                    group_commands.len(),
+                    &mut math_frames,
+                    occurrences,
+                );
+                pending_command = None;
+                continuation_command = None;
+            }
+            byte if TexSpecialKind::from_byte(byte).is_some() => {
+                let kind = TexSpecialKind::from_byte(byte).expect("matched TeX-special byte");
+                let occurrence = tex_special_occurrence(cursor, content_start, kind);
+                if let Some(occurrence) = occurrence {
+                    if let Some(frame) = url_frames.last_mut() {
+                        frame.deferred.push(occurrence);
+                    } else if !math_frames.is_empty()
+                        && matches!(
+                            kind,
+                            TexSpecialKind::Ampersand
+                                | TexSpecialKind::Underscore
+                                | TexSpecialKind::Caret
+                        )
+                    {
+                        if let Some(frame) = math_frames.last_mut() {
+                            frame.deferred.push(occurrence);
+                        }
+                    } else {
+                        let context = tex_context(
+                            url_command_argument_depth,
+                            command_argument_depth,
+                            pending_command,
+                            continuation_command,
+                            !math_frames.is_empty(),
+                        );
+                        occurrences.record(occurrence, context);
+                    }
+                }
                 pending_command = None;
                 continuation_command = None;
                 cursor += 1;
@@ -2119,13 +2356,216 @@ fn scan_literal_percent_atom(
             }
         }
     }
+
+    invalidate_all_math_frames(&mut math_frames, occurrences);
+    for frame in url_frames {
+        occurrences.review.merge(&frame.deferred);
+    }
+}
+
+fn scan_url_literal_control_sequence(bytes: &[u8], cursor: usize) -> usize {
+    let Some(&next) = bytes.get(cursor + 1) else {
+        return cursor + 1;
+    };
+    if !next.is_ascii_alphabetic() && next != b'@' {
+        return cursor + 2;
+    }
+    let mut end = cursor + 2;
+    while end < bytes.len() && (bytes[end].is_ascii_alphabetic() || bytes[end] == b'@') {
+        end += 1;
+    }
+    end
+}
+
+fn tex_context(
+    url_argument_depth: usize,
+    command_argument_depth: usize,
+    pending_command: Option<TexCommandKind>,
+    continuation_command: Option<TexCommandKind>,
+    in_math: bool,
+) -> TexContext {
+    if url_argument_depth > 0 {
+        TexContext::UrlCommandArgument
+    } else if in_math {
+        TexContext::Math
+    } else if command_argument_depth > 0
+        || pending_command.is_some()
+        || continuation_command.is_some()
+    {
+        TexContext::CommandArgument
+    } else {
+        TexContext::Plain
+    }
+}
+
+fn scan_math_control_delimiter(
+    bytes: &[u8],
+    cursor: &mut usize,
+    group_depth: usize,
+    frames: &mut Vec<MathFrame>,
+) -> bool {
+    let Some(next) = bytes.get(*cursor + 1).copied() else {
+        return false;
+    };
+    let delimiter = match next {
+        b'(' => Some((MathDelimiter::Parenthesis, true)),
+        b')' => Some((MathDelimiter::Parenthesis, false)),
+        b'[' => Some((MathDelimiter::Bracket, true)),
+        b']' => Some((MathDelimiter::Bracket, false)),
+        _ => None,
+    };
+    let Some((delimiter, opens)) = delimiter else {
+        return false;
+    };
+    if opens {
+        if frames.is_empty() {
+            frames.push(MathFrame::new(delimiter, group_depth));
+        }
+    } else {
+        close_math_frame(frames, delimiter, group_depth);
+    }
+    *cursor += 2;
+    true
+}
+
+fn scan_math_dollar(
+    bytes: &[u8],
+    cursor: &mut usize,
+    content_start: u32,
+    group_depth: usize,
+    frames: &mut Vec<MathFrame>,
+    occurrences: &mut LiteralTexSpecialOccurrences,
+) {
+    if frames.last().is_some_and(|frame| {
+        frame.delimiter == MathDelimiter::Dollar && frame.group_depth == group_depth
+    }) {
+        frames.pop();
+        *cursor += 1;
+        return;
+    }
+
+    let display = bytes.get(*cursor + 1) == Some(&b'$');
+    if frames.last().is_some_and(|frame| {
+        frame.delimiter == MathDelimiter::DisplayDollar && frame.group_depth == group_depth
+    }) {
+        if display {
+            frames.pop();
+            *cursor += 2;
+        } else {
+            record_tex_special_occurrence(
+                *cursor,
+                content_start,
+                TexSpecialKind::Dollar,
+                occurrences,
+                TexContext::Math,
+            );
+            *cursor += 1;
+        }
+        return;
+    }
+
+    if !frames.is_empty() {
+        record_tex_special_occurrence(
+            *cursor,
+            content_start,
+            TexSpecialKind::Dollar,
+            occurrences,
+            TexContext::Math,
+        );
+        if display {
+            record_tex_special_occurrence(
+                *cursor + 1,
+                content_start,
+                TexSpecialKind::Dollar,
+                occurrences,
+                TexContext::Math,
+            );
+        }
+        *cursor += usize::from(display) + 1;
+        return;
+    }
+
+    let delimiter = if display {
+        MathDelimiter::DisplayDollar
+    } else {
+        MathDelimiter::Dollar
+    };
+    let mut frame = MathFrame::new(delimiter, group_depth);
+    if let Some(opener) = tex_special_occurrence(*cursor, content_start, TexSpecialKind::Dollar) {
+        frame.openers.push(opener);
+    }
+    if display {
+        if let Some(opener) =
+            tex_special_occurrence(*cursor + 1, content_start, TexSpecialKind::Dollar)
+        {
+            frame.openers.push(opener);
+        }
+    }
+    frames.push(frame);
+    *cursor += usize::from(display) + 1;
+}
+
+fn close_math_frame(frames: &mut Vec<MathFrame>, delimiter: MathDelimiter, group_depth: usize) {
+    if frames
+        .last()
+        .is_some_and(|frame| frame.delimiter == delimiter && frame.group_depth == group_depth)
+    {
+        frames.pop();
+    }
+}
+
+fn merge_unclosed_math_frame(frame: &MathFrame, occurrences: &mut LiteralTexSpecialOccurrences) {
+    occurrences.review.merge(&frame.openers);
+    occurrences.review.merge(&frame.deferred);
+}
+
+fn invalidate_math_frames_at_group_boundary(
+    frames: &mut Vec<MathFrame>,
+    closing_group_depth: usize,
+    occurrences: &mut LiteralTexSpecialOccurrences,
+) {
+    while frames
+        .last()
+        .is_some_and(|frame| frame.group_depth >= closing_group_depth)
+    {
+        if let Some(frame) = frames.pop() {
+            merge_unclosed_math_frame(&frame, occurrences);
+        }
+    }
+}
+
+fn close_ensuremath_group(
+    frames: &mut Vec<MathFrame>,
+    closing_group_depth: usize,
+    occurrences: &mut LiteralTexSpecialOccurrences,
+) {
+    while frames.last().is_some_and(|frame| {
+        frame.group_depth >= closing_group_depth
+            && !(frame.group_depth == closing_group_depth
+                && frame.delimiter == MathDelimiter::EnsureMath)
+    }) {
+        if let Some(frame) = frames.pop() {
+            merge_unclosed_math_frame(&frame, occurrences);
+        }
+    }
+    close_math_frame(frames, MathDelimiter::EnsureMath, closing_group_depth);
+}
+
+fn invalidate_all_math_frames(
+    frames: &mut Vec<MathFrame>,
+    occurrences: &mut LiteralTexSpecialOccurrences,
+) {
+    while let Some(frame) = frames.pop() {
+        merge_unclosed_math_frame(&frame, occurrences);
+    }
 }
 
 fn scan_tex_command(
     bytes: &[u8],
     cursor: usize,
     content_start: u32,
-    occurrences: &mut LiteralPercentOccurrences,
+    occurrences: &mut LiteralTexSpecialOccurrences,
+    nested_scan_depth: usize,
 ) -> (usize, Option<TexCommandKind>) {
     if cursor + 1 >= bytes.len() {
         return (cursor + 1, None);
@@ -2136,6 +2576,19 @@ fn scan_tex_command(
     }
 
     let start = cursor + 1;
+    if let Some((command, end)) = known_verbatim_tex_command_prefix(bytes, start) {
+        return (
+            scan_verbatim_tex_command(
+                bytes,
+                end,
+                content_start,
+                occurrences,
+                command,
+                nested_scan_depth,
+            ),
+            None,
+        );
+    }
     let mut end = start + 1;
     while end < bytes.len() && (bytes[end].is_ascii_alphabetic() || bytes[end] == b'@') {
         end += 1;
@@ -2143,7 +2596,14 @@ fn scan_tex_command(
     let command = &bytes[start..end];
     if is_verbatim_tex_command(command) {
         (
-            scan_verbatim_tex_command(bytes, end, content_start, occurrences, command),
+            scan_verbatim_tex_command(
+                bytes,
+                end,
+                content_start,
+                occurrences,
+                command,
+                nested_scan_depth,
+            ),
             None,
         )
     } else {
@@ -2151,17 +2611,36 @@ fn scan_tex_command(
     }
 }
 
-#[derive(Debug, Clone, Copy)]
+fn known_verbatim_tex_command_prefix(bytes: &[u8], start: usize) -> Option<(&[u8], usize)> {
+    for command in [
+        b"lstinline".as_slice(),
+        b"verb".as_slice(),
+        b"Verb".as_slice(),
+    ] {
+        let end = start.checked_add(command.len())?;
+        if bytes.get(start..end) != Some(command) {
+            continue;
+        }
+        if bytes.get(end).is_some_and(u8::is_ascii_alphabetic) {
+            continue;
+        }
+        return Some((command, end));
+    }
+    None
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum TexCommandKind {
     Other,
     Url,
+    Math,
 }
 
 fn tex_command_kind(command: &[u8]) -> TexCommandKind {
-    if matches!(command, b"url" | b"nolinkurl" | b"path") {
-        TexCommandKind::Url
-    } else {
-        TexCommandKind::Other
+    match command {
+        b"url" | b"nolinkurl" | b"path" => TexCommandKind::Url,
+        b"ensuremath" => TexCommandKind::Math,
+        _ => TexCommandKind::Other,
     }
 }
 
@@ -2173,8 +2652,9 @@ fn scan_verbatim_tex_command(
     bytes: &[u8],
     mut cursor: usize,
     content_start: u32,
-    occurrences: &mut LiteralPercentOccurrences,
+    occurrences: &mut LiteralTexSpecialOccurrences,
     command: &[u8],
+    nested_scan_depth: usize,
 ) -> usize {
     if bytes.get(cursor) == Some(&b'*') {
         cursor += 1;
@@ -2184,8 +2664,13 @@ fn scan_verbatim_tex_command(
             cursor += 1;
         }
         if bytes.get(cursor) == Some(&b'[') {
-            let (next, closed) =
-                scan_optional_tex_argument(bytes, cursor, content_start, occurrences);
+            let (next, closed) = scan_optional_tex_argument(
+                bytes,
+                cursor,
+                content_start,
+                occurrences,
+                nested_scan_depth,
+            );
             cursor = next;
             if !closed {
                 return cursor;
@@ -2196,34 +2681,65 @@ fn scan_verbatim_tex_command(
         }
     }
 
-    let Some(&delimiter) = bytes.get(cursor) else {
+    let Some(delimiter) = verbatim_delimiter(bytes, cursor) else {
         return cursor;
     };
-    if delimiter.is_ascii_alphabetic() || delimiter.is_ascii_whitespace() {
+    if delimiter.character.is_ascii_alphabetic() || delimiter.character.is_ascii_whitespace() {
         let end = line_end(bytes, cursor);
-        record_command_argument_percents(bytes, cursor, end, content_start, occurrences);
+        record_command_argument_tex_specials(bytes, cursor, end, content_start, occurrences);
         return end;
     }
 
-    let value_start = cursor + 1;
+    let value_start = cursor + delimiter.len;
     let end = line_end(bytes, value_start);
     if let Some(relative) = bytes[value_start..end]
-        .iter()
-        .position(|byte| *byte == delimiter)
+        .windows(delimiter.len)
+        .position(|candidate| candidate == delimiter.bytes)
     {
-        value_start + relative + 1
+        value_start + relative + delimiter.len
     } else {
-        record_command_argument_percents(bytes, value_start, end, content_start, occurrences);
+        if let Some(kind) = TexSpecialKind::from_byte(bytes[cursor]) {
+            record_tex_special_occurrence(
+                cursor,
+                content_start,
+                kind,
+                occurrences,
+                TexContext::CommandArgument,
+            );
+        }
+        record_command_argument_tex_specials(bytes, value_start, end, content_start, occurrences);
         end
     }
+}
+
+#[derive(Debug, Clone, Copy)]
+struct VerbatimDelimiter<'a> {
+    character: char,
+    bytes: &'a [u8],
+    len: usize,
+}
+
+fn verbatim_delimiter(bytes: &[u8], cursor: usize) -> Option<VerbatimDelimiter<'_>> {
+    let character = std::str::from_utf8(bytes.get(cursor..)?)
+        .ok()?
+        .chars()
+        .next()?;
+    let len = character.len_utf8();
+    Some(VerbatimDelimiter {
+        character,
+        bytes: bytes.get(cursor..cursor.checked_add(len)?)?,
+        len,
+    })
 }
 
 fn scan_optional_tex_argument(
     bytes: &[u8],
     mut cursor: usize,
     content_start: u32,
-    occurrences: &mut LiteralPercentOccurrences,
+    occurrences: &mut LiteralTexSpecialOccurrences,
+    nested_scan_depth: usize,
 ) -> (usize, bool) {
+    let argument_content_start = cursor.saturating_add(1);
     let mut depth = 0_usize;
     while cursor < bytes.len() {
         match bytes[cursor] {
@@ -2234,24 +2750,58 @@ fn scan_optional_tex_argument(
             }
             b']' => {
                 depth = depth.saturating_sub(1);
+                let argument_content_end = cursor;
                 cursor += 1;
                 if depth == 0 {
+                    scan_optional_tex_argument_content(
+                        bytes,
+                        argument_content_start,
+                        argument_content_end,
+                        content_start,
+                        occurrences,
+                        nested_scan_depth,
+                    );
                     return (cursor, true);
                 }
-            }
-            b'%' => {
-                record_percent_occurrence(
-                    cursor,
-                    content_start,
-                    occurrences,
-                    PercentTexContext::CommandArgument,
-                );
-                cursor += 1;
             }
             _ => cursor += 1,
         }
     }
+    record_command_argument_tex_specials(
+        bytes,
+        argument_content_start,
+        cursor,
+        content_start,
+        occurrences,
+    );
     (cursor, false)
+}
+
+fn scan_optional_tex_argument_content(
+    bytes: &[u8],
+    start: usize,
+    end: usize,
+    content_start: u32,
+    occurrences: &mut LiteralTexSpecialOccurrences,
+    nested_scan_depth: usize,
+) {
+    if nested_scan_depth >= MAX_TEX_SPECIAL_NESTED_SCAN_DEPTH {
+        record_command_argument_tex_specials(bytes, start, end, content_start, occurrences);
+        return;
+    }
+    let Some(fragment) = bytes.get(start..end) else {
+        return;
+    };
+    let fragment_start = content_start.saturating_add(u32::try_from(start).unwrap_or(u32::MAX));
+    let mut fragment_occurrences = LiteralTexSpecialOccurrences::default();
+    scan_literal_tex_special_atom_with_depth(
+        fragment,
+        fragment_start,
+        &mut fragment_occurrences,
+        nested_scan_depth + 1,
+    );
+    occurrences.review.merge(&fragment_occurrences.plain_safe);
+    occurrences.review.merge(&fragment_occurrences.review);
 }
 
 fn is_ambiguous_tex_delimiter(byte: u8) -> bool {
@@ -2262,7 +2812,7 @@ fn scan_ambiguous_delimited_argument(
     bytes: &[u8],
     mut cursor: usize,
     content_start: u32,
-    occurrences: &mut LiteralPercentOccurrences,
+    occurrences: &mut LiteralTexSpecialOccurrences,
 ) -> usize {
     let delimiter = bytes[cursor];
     cursor += 1;
@@ -2270,12 +2820,13 @@ fn scan_ambiguous_delimited_argument(
         match bytes[cursor] {
             byte if byte == delimiter => return cursor + 1,
             b'\\' if cursor + 1 < bytes.len() => cursor += 2,
-            b'%' => {
-                record_percent_occurrence(
+            byte if TexSpecialKind::from_byte(byte).is_some() => {
+                record_tex_special_occurrence(
                     cursor,
                     content_start,
+                    TexSpecialKind::from_byte(byte).expect("matched TeX-special byte"),
                     occurrences,
-                    PercentTexContext::CommandArgument,
+                    TexContext::CommandArgument,
                 );
                 cursor += 1;
             }
@@ -2285,22 +2836,23 @@ fn scan_ambiguous_delimited_argument(
     cursor
 }
 
-fn record_command_argument_percents(
+fn record_command_argument_tex_specials(
     bytes: &[u8],
     mut cursor: usize,
     end: usize,
     content_start: u32,
-    occurrences: &mut LiteralPercentOccurrences,
+    occurrences: &mut LiteralTexSpecialOccurrences,
 ) {
     while cursor < end {
         match bytes[cursor] {
             b'\\' if cursor + 1 < end => cursor += 2,
-            b'%' => {
-                record_percent_occurrence(
+            byte if TexSpecialKind::from_byte(byte).is_some() => {
+                record_tex_special_occurrence(
                     cursor,
                     content_start,
+                    TexSpecialKind::from_byte(byte).expect("matched TeX-special byte"),
                     occurrences,
-                    PercentTexContext::CommandArgument,
+                    TexContext::CommandArgument,
                 );
                 cursor += 1;
             }
@@ -2309,17 +2861,29 @@ fn record_command_argument_percents(
     }
 }
 
-fn record_percent_occurrence(
+fn tex_special_occurrence(
     cursor: usize,
     content_start: u32,
-    occurrences: &mut LiteralPercentOccurrences,
-    context: PercentTexContext,
-) {
-    let Ok(offset) = u32::try_from(cursor) else {
-        return;
-    };
+    kind: TexSpecialKind,
+) -> Option<TexSpecialOccurrence> {
+    let offset = u32::try_from(cursor).ok()?;
     let start = content_start.saturating_add(offset);
-    occurrences.record(TextRange::new(start, start.saturating_add(1)), context);
+    Some(TexSpecialOccurrence {
+        range: TextRange::new(start, start.saturating_add(1)),
+        kind,
+    })
+}
+
+fn record_tex_special_occurrence(
+    cursor: usize,
+    content_start: u32,
+    kind: TexSpecialKind,
+    occurrences: &mut LiteralTexSpecialOccurrences,
+    context: TexContext,
+) {
+    if let Some(occurrence) = tex_special_occurrence(cursor, content_start, kind) {
+        occurrences.record(occurrence, context);
+    }
 }
 
 fn line_end(bytes: &[u8], start: usize) -> usize {
@@ -2330,29 +2894,28 @@ fn line_end(bytes: &[u8], start: usize) -> usize {
 }
 
 #[derive(Debug)]
-struct ReferencedStringPercentIssue {
-    ranges: Vec<TextRange>,
-    omitted: usize,
+struct ReferencedStringTexSpecialIssue {
+    occurrences: CappedTexSpecialOccurrences,
     macro_name: String,
     consumer_fields: BTreeSet<String>,
     applicability: Option<FixApplicability>,
 }
 
 #[derive(Debug)]
-struct ReferencedStringPercentUsage {
+struct ReferencedStringTexSpecialUsage {
     macro_name: String,
-    ranges: CappedPercentRanges,
+    occurrences: CappedTexSpecialOccurrences,
     consumer_fields: BTreeSet<String>,
     has_diagnostic_consumer: bool,
     has_ignored_consumer: bool,
     requires_confirmation: bool,
 }
 
-impl ReferencedStringPercentUsage {
-    fn new(macro_name: &str, ranges: &CappedPercentRanges) -> Self {
+impl ReferencedStringTexSpecialUsage {
+    fn new(macro_name: &str, occurrences: &CappedTexSpecialOccurrences) -> Self {
         Self {
             macro_name: macro_name.to_owned(),
-            ranges: ranges.clone(),
+            occurrences: occurrences.clone(),
             consumer_fields: BTreeSet::new(),
             has_diagnostic_consumer: false,
             has_ignored_consumer: false,
@@ -2363,19 +2926,20 @@ impl ReferencedStringPercentUsage {
     fn record(
         &mut self,
         field_name: &str,
-        policy: PercentConsumerPolicy,
-        context: PercentTexContext,
-        expansion_risk: PercentExpansionRisk,
+        policy: TexSpecialConsumerPolicy,
+        class: TexOccurrenceClass,
+        expansion_risk: TexSpecialExpansionRisk,
     ) {
         self.consumer_fields.insert(field_name.to_ascii_lowercase());
         match policy {
-            PercentConsumerPolicy::Ignore => self.has_ignored_consumer = true,
-            PercentConsumerPolicy::PlainText => {
+            TexSpecialConsumerPolicy::Ignore => self.has_ignored_consumer = true,
+            TexSpecialConsumerPolicy::PlainText => {
                 self.has_diagnostic_consumer = true;
-                self.requires_confirmation |= expansion_risk == PercentExpansionRisk::Concatenated
-                    || context == PercentTexContext::CommandArgument;
+                self.requires_confirmation |= expansion_risk
+                    == TexSpecialExpansionRisk::Concatenated
+                    || class == TexOccurrenceClass::Review;
             }
-            PercentConsumerPolicy::Review => {
+            TexSpecialConsumerPolicy::Review => {
                 self.has_diagnostic_consumer = true;
                 self.requires_confirmation = true;
             }
@@ -2384,59 +2948,64 @@ impl ReferencedStringPercentUsage {
 }
 
 #[derive(Debug)]
-struct PercentStringDefinition {
+struct TexSpecialStringDefinition {
     range: TextRange,
     macro_name: String,
-    occurrences: LiteralPercentOccurrences,
+    occurrences: LiteralTexSpecialOccurrences,
+    references: Vec<TexSpecialMacroReference>,
+}
+
+#[derive(Debug, Default)]
+struct TexSpecialStringDefinitionGroup {
+    definitions: Vec<TexSpecialStringDefinition>,
     concatenated: bool,
-    references: Vec<PercentMacroReference>,
 }
 
 #[derive(Debug)]
-struct PercentConsumerContext {
-    policy: PercentConsumerPolicy,
-    roots: BTreeMap<(String, PercentExpansionRisk), TextRange>,
+struct TexSpecialConsumerContext {
+    policy: TexSpecialConsumerPolicy,
+    roots: BTreeMap<(String, TexSpecialExpansionRisk), TextRange>,
 }
 
 #[derive(Debug)]
-struct PercentMacroReference {
+struct TexSpecialMacroReference {
     name: String,
     range: TextRange,
 }
 
 #[derive(Debug)]
-struct PercentMacroQueueItem {
+struct TexSpecialMacroQueueItem {
     macro_name: String,
     depth: usize,
-    expansion_risk: PercentExpansionRisk,
+    expansion_risk: TexSpecialExpansionRisk,
     origin_range: TextRange,
 }
 
 #[derive(Debug)]
-struct ReferencedStringPercentAnalysis {
-    issues: Vec<ReferencedStringPercentIssue>,
+struct ReferencedStringTexSpecialAnalysis {
+    issues: Vec<ReferencedStringTexSpecialIssue>,
     completed_macro_visits: usize,
     incomplete_range: Option<TextRange>,
 }
 
-type PercentStringDefinitions = BTreeMap<String, Vec<PercentStringDefinition>>;
-type ReferencedStringPercentUsages =
-    BTreeMap<(TextRange, PercentTexContext), ReferencedStringPercentUsage>;
+type TexSpecialStringDefinitions = BTreeMap<String, TexSpecialStringDefinitionGroup>;
+type ReferencedStringTexSpecialUsages =
+    BTreeMap<(TextRange, TexOccurrenceClass), ReferencedStringTexSpecialUsage>;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-enum PercentFixDisposition {
+enum TexSpecialFixDisposition {
     NoFix,
     Safe,
     RequiresConfirmation,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-enum PercentExpansionRisk {
+enum TexSpecialExpansionRisk {
     Plain,
     Concatenated,
 }
 
-impl PercentExpansionRisk {
+impl TexSpecialExpansionRisk {
     fn from_concatenated(concatenated: bool) -> Self {
         if concatenated {
             Self::Concatenated
@@ -2450,7 +3019,7 @@ impl PercentExpansionRisk {
     }
 }
 
-impl PercentFixDisposition {
+impl TexSpecialFixDisposition {
     fn applicability(self) -> Option<FixApplicability> {
         match self {
             Self::NoFix => None,
@@ -2460,68 +3029,75 @@ impl PercentFixDisposition {
     }
 }
 
-fn referenced_string_percent_analysis(syntax: &SyntaxDocument) -> ReferencedStringPercentAnalysis {
-    referenced_string_percent_analysis_with_limit(syntax, MAX_PERCENT_MACRO_VISITS)
+fn referenced_string_tex_special_analysis(
+    syntax: &SyntaxDocument,
+) -> ReferencedStringTexSpecialAnalysis {
+    referenced_string_tex_special_analysis_with_limit(syntax, MAX_TEX_SPECIAL_MACRO_VISITS)
 }
 
-fn referenced_string_percent_analysis_with_limit(
+fn referenced_string_tex_special_analysis_with_limit(
     syntax: &SyntaxDocument,
     visit_limit: usize,
-) -> ReferencedStringPercentAnalysis {
-    let definitions = percent_string_definitions(syntax);
-    let consumer_contexts = percent_consumer_contexts(syntax);
+) -> ReferencedStringTexSpecialAnalysis {
+    let definitions = tex_special_string_definitions(syntax);
+    let consumer_contexts = tex_special_consumer_contexts(syntax);
     let (usages, completed_macro_visits, incomplete_range) =
-        collect_referenced_string_percent_usages(&definitions, consumer_contexts, visit_limit);
-    ReferencedStringPercentAnalysis {
-        issues: referenced_string_percent_issues_from_usages(usages),
+        collect_referenced_string_tex_special_usages(&definitions, consumer_contexts, visit_limit);
+    ReferencedStringTexSpecialAnalysis {
+        issues: referenced_string_tex_special_issues_from_usages(usages),
         completed_macro_visits,
         incomplete_range,
     }
 }
 
-fn percent_string_definitions(syntax: &SyntaxDocument) -> PercentStringDefinitions {
-    let mut definitions = PercentStringDefinitions::new();
+fn tex_special_string_definitions(syntax: &SyntaxDocument) -> TexSpecialStringDefinitions {
+    let mut definitions = TexSpecialStringDefinitions::new();
     for definition in syntax.strings() {
-        let references = definition
-            .value
-            .atoms
-            .iter()
-            .filter(|atom| atom.kind == ValueAtomKind::Macro)
-            .filter_map(|atom| {
-                syntax
-                    .slice(atom.content_range)
-                    .map(|name| PercentMacroReference {
-                        name: name.to_owned(),
-                        range: atom.content_range,
-                    })
-            })
-            .collect();
-        definitions
+        let concatenated = definition.value.is_concatenated();
+        let mut references = BTreeMap::<String, TextRange>::new();
+        for atom in &definition.value.atoms {
+            if atom.kind != ValueAtomKind::Macro {
+                continue;
+            }
+            let Some(name) = syntax.slice(atom.content_range) else {
+                continue;
+            };
+            let Some(canonical) = canonical_tex_special_macro_name(name) else {
+                continue;
+            };
+            references.entry(canonical).or_insert(atom.content_range);
+        }
+        let group = definitions
             .entry(definition.name.text.to_ascii_lowercase())
-            .or_default()
-            .push(PercentStringDefinition {
-                range: definition.range,
-                macro_name: definition.name.text.clone(),
-                occurrences: literal_percent_occurrences(syntax, &definition.value),
-                concatenated: definition.value.is_concatenated(),
-                references,
-            });
+            .or_default();
+        group.concatenated |= concatenated;
+        group.definitions.push(TexSpecialStringDefinition {
+            range: definition.range,
+            macro_name: definition.name.text.clone(),
+            occurrences: literal_tex_special_occurrences(syntax, &definition.value),
+            references: references
+                .into_iter()
+                .map(|(name, range)| TexSpecialMacroReference { name, range })
+                .collect(),
+        });
     }
     definitions
 }
 
-fn percent_consumer_contexts(syntax: &SyntaxDocument) -> BTreeMap<String, PercentConsumerContext> {
-    let mut consumer_contexts = BTreeMap::<String, PercentConsumerContext>::new();
+fn tex_special_consumer_contexts(
+    syntax: &SyntaxDocument,
+) -> BTreeMap<String, TexSpecialConsumerContext> {
+    let mut consumer_contexts = BTreeMap::<String, TexSpecialConsumerContext>::new();
     for entry in syntax.entries() {
         for field in &entry.fields {
-            let policy = percent_consumer_policy(&field.name.text);
+            let policy = tex_special_consumer_policy(&field.name.text);
             let expansion_risk =
-                PercentExpansionRisk::from_concatenated(field.value.is_concatenated());
+                TexSpecialExpansionRisk::from_concatenated(field.value.is_concatenated());
             let field_name = field.name.text.to_ascii_lowercase();
             let context =
                 consumer_contexts
                     .entry(field_name)
-                    .or_insert_with(|| PercentConsumerContext {
+                    .or_insert_with(|| TexSpecialConsumerContext {
                         policy,
                         roots: BTreeMap::new(),
                     });
@@ -2532,7 +3108,7 @@ fn percent_consumer_contexts(syntax: &SyntaxDocument) -> BTreeMap<String, Percen
                 let Some(name) = syntax.slice(atom.content_range) else {
                     continue;
                 };
-                if let Some(canonical) = canonical_percent_macro_name(name) {
+                if let Some(canonical) = canonical_tex_special_macro_name(name) {
                     context
                         .roots
                         .entry((canonical, expansion_risk))
@@ -2544,20 +3120,21 @@ fn percent_consumer_contexts(syntax: &SyntaxDocument) -> BTreeMap<String, Percen
     consumer_contexts
 }
 
-fn collect_referenced_string_percent_usages(
-    definitions: &PercentStringDefinitions,
-    consumer_contexts: BTreeMap<String, PercentConsumerContext>,
+fn collect_referenced_string_tex_special_usages(
+    definitions: &TexSpecialStringDefinitions,
+    consumer_contexts: BTreeMap<String, TexSpecialConsumerContext>,
     visit_limit: usize,
-) -> (ReferencedStringPercentUsages, usize, Option<TextRange>) {
-    let mut usages = ReferencedStringPercentUsages::new();
+) -> (ReferencedStringTexSpecialUsages, usize, Option<TextRange>) {
+    let mut usages = ReferencedStringTexSpecialUsages::new();
     let mut completed_macro_visits = 0_usize;
+    let mut completed_work_units = 0_usize;
     let mut incomplete_range = None;
     'consumers: for (field_name, consumer) in consumer_contexts {
-        let mut queue = VecDeque::<PercentMacroQueueItem>::new();
-        let mut scheduled = BTreeSet::<(String, PercentExpansionRisk)>::new();
-        let mut completed = BTreeSet::<(String, PercentExpansionRisk)>::new();
+        let mut queue = VecDeque::<TexSpecialMacroQueueItem>::new();
+        let mut scheduled = BTreeSet::<(String, TexSpecialExpansionRisk)>::new();
+        let mut completed = BTreeSet::<(String, TexSpecialExpansionRisk)>::new();
         for ((root, expansion_risk), origin_range) in consumer.roots {
-            enqueue_percent_macro(
+            enqueue_tex_special_macro(
                 definitions,
                 &mut queue,
                 &mut scheduled,
@@ -2572,45 +3149,50 @@ fn collect_referenced_string_percent_usages(
             if completed.contains(&state) {
                 continue;
             }
-            if item.depth >= MAX_PERCENT_MACRO_EXPANSION_DEPTH {
+            if item.depth >= MAX_TEX_SPECIAL_MACRO_EXPANSION_DEPTH {
                 incomplete_range = Some(item.origin_range);
                 break 'consumers;
             }
-            if completed_macro_visits >= visit_limit {
+            if completed_work_units >= visit_limit {
                 incomplete_range = Some(item.origin_range);
                 break 'consumers;
             }
             completed.insert(state);
             completed_macro_visits = completed_macro_visits.saturating_add(1);
-            let Some(candidates) = definitions.get(&item.macro_name) else {
+            completed_work_units = completed_work_units.saturating_add(1);
+            let Some(group) = definitions.get(&item.macro_name) else {
                 continue;
             };
-            for definition in candidates {
-                for (tex_context, ranges) in definition.occurrences.groups() {
-                    if ranges.is_empty() {
+            for (candidate_index, definition) in group.definitions.iter().enumerate() {
+                // The macro-state work unit covers its first definition; duplicate
+                // definitions consume additional units so fan-out cannot bypass the cap.
+                if candidate_index > 0 {
+                    if completed_work_units >= visit_limit {
+                        incomplete_range = Some(item.origin_range);
+                        break 'consumers;
+                    }
+                    completed_work_units = completed_work_units.saturating_add(1);
+                }
+                for (class, occurrences) in definition.occurrences.groups() {
+                    if occurrences.is_empty() {
                         continue;
                     }
                     usages
-                        .entry((definition.range, tex_context))
+                        .entry((definition.range, class))
                         .or_insert_with(|| {
-                            ReferencedStringPercentUsage::new(&definition.macro_name, ranges)
+                            ReferencedStringTexSpecialUsage::new(
+                                &definition.macro_name,
+                                occurrences,
+                            )
                         })
-                        .record(
-                            &field_name,
-                            consumer.policy,
-                            tex_context,
-                            item.expansion_risk,
-                        );
+                        .record(&field_name, consumer.policy, class, item.expansion_risk);
                 }
                 for reference in &definition.references {
-                    let Some(canonical) = canonical_percent_macro_name(&reference.name) else {
-                        continue;
-                    };
-                    enqueue_percent_macro(
+                    enqueue_tex_special_macro(
                         definitions,
                         &mut queue,
                         &mut scheduled,
-                        canonical,
+                        reference.name.clone(),
                         item.depth + 1,
                         item.expansion_risk,
                         reference.range,
@@ -2622,23 +3204,23 @@ fn collect_referenced_string_percent_usages(
     (usages, completed_macro_visits, incomplete_range)
 }
 
-fn enqueue_percent_macro(
-    definitions: &PercentStringDefinitions,
-    queue: &mut VecDeque<PercentMacroQueueItem>,
-    scheduled: &mut BTreeSet<(String, PercentExpansionRisk)>,
+fn enqueue_tex_special_macro(
+    definitions: &TexSpecialStringDefinitions,
+    queue: &mut VecDeque<TexSpecialMacroQueueItem>,
+    scheduled: &mut BTreeSet<(String, TexSpecialExpansionRisk)>,
     macro_name: String,
     depth: usize,
-    incoming_risk: PercentExpansionRisk,
+    incoming_risk: TexSpecialExpansionRisk,
     origin_range: TextRange,
 ) {
-    let definition_risk = PercentExpansionRisk::from_concatenated(
+    let definition_risk = TexSpecialExpansionRisk::from_concatenated(
         definitions
             .get(&macro_name)
-            .is_some_and(|candidates| candidates.iter().any(|definition| definition.concatenated)),
+            .is_some_and(|group| group.concatenated),
     );
     let expansion_risk = incoming_risk.merge(definition_risk);
     if scheduled.insert((macro_name.clone(), expansion_risk)) {
-        queue.push_back(PercentMacroQueueItem {
+        queue.push_back(TexSpecialMacroQueueItem {
             macro_name,
             depth,
             expansion_risk,
@@ -2647,62 +3229,71 @@ fn enqueue_percent_macro(
     }
 }
 
-fn referenced_string_percent_issues_from_usages(
-    usages: ReferencedStringPercentUsages,
-) -> Vec<ReferencedStringPercentIssue> {
+fn referenced_string_tex_special_issues_from_usages(
+    usages: ReferencedStringTexSpecialUsages,
+) -> Vec<ReferencedStringTexSpecialIssue> {
     let mut issues =
-        BTreeMap::<(TextRange, PercentFixDisposition), ReferencedStringPercentIssue>::new();
+        BTreeMap::<(TextRange, TexSpecialFixDisposition), ReferencedStringTexSpecialIssue>::new();
     for ((definition_range, _), usage) in usages {
         if !usage.has_diagnostic_consumer {
             continue;
         }
         let disposition = if usage.has_ignored_consumer {
-            PercentFixDisposition::NoFix
+            TexSpecialFixDisposition::NoFix
         } else if usage.requires_confirmation {
-            PercentFixDisposition::RequiresConfirmation
+            TexSpecialFixDisposition::RequiresConfirmation
         } else {
-            PercentFixDisposition::Safe
+            TexSpecialFixDisposition::Safe
         };
         let issue = issues
             .entry((definition_range, disposition))
-            .or_insert_with(|| ReferencedStringPercentIssue {
-                ranges: Vec::new(),
-                omitted: 0,
+            .or_insert_with(|| ReferencedStringTexSpecialIssue {
+                occurrences: CappedTexSpecialOccurrences::default(),
                 macro_name: usage.macro_name.clone(),
                 consumer_fields: BTreeSet::new(),
                 applicability: disposition.applicability(),
             });
-        let mut merged = CappedPercentRanges {
-            ranges: std::mem::take(&mut issue.ranges),
-            omitted: issue.omitted,
-        };
-        merged.merge(&usage.ranges);
-        issue.ranges = merged.ranges;
-        issue.omitted = merged.omitted;
+        issue.occurrences.merge(&usage.occurrences);
         issue.consumer_fields.extend(usage.consumer_fields);
     }
     issues.into_values().collect()
 }
 
-fn canonical_percent_macro_name(name: &str) -> Option<String> {
+fn canonical_tex_special_macro_name(name: &str) -> Option<String> {
     let canonical = name.trim().to_ascii_lowercase();
     (!canonical.is_empty() && !is_builtin_month_macro(&canonical)).then_some(canonical)
 }
 
-fn percent_escape_edits(ranges: &[TextRange]) -> Vec<TextEdit> {
-    ranges
+fn tex_special_escape_edits(occurrences: &[TexSpecialOccurrence]) -> Vec<TextEdit> {
+    occurrences
         .iter()
-        .copied()
-        .map(|range| TextEdit {
-            range,
-            replacement: String::from("\\%"),
+        .map(|occurrence| TextEdit {
+            range: occurrence.range,
+            replacement: String::from(occurrence.kind.replacement()),
         })
         .collect()
 }
 
-fn percent_omission_note(shown: usize, omitted: usize) -> String {
+fn tex_special_labels(occurrences: &[TexSpecialOccurrence]) -> String {
+    occurrences
+        .iter()
+        .map(|occurrence| occurrence.kind)
+        .collect::<BTreeSet<_>>()
+        .into_iter()
+        .map(|kind| format!("`{}`", kind.symbol()))
+        .collect::<Vec<_>>()
+        .join(", ")
+}
+
+fn tex_special_note() -> String {
+    String::from(
+        "BibTeX retains these characters in database values, but TeX interprets `%`, `&`, `#`, `_`, `^`, and `$` as syntax when a bibliography style writes them to `.bbl`",
+    )
+}
+
+fn tex_special_omission_note(shown: usize, omitted: usize) -> String {
     format!(
-        "this diagnostic represents {} unescaped percent signs; {omitted} additional ranges were omitted to keep validation output bounded, so no automatic fix is offered",
+        "this diagnostic represents {} unescaped TeX-special characters; {omitted} additional ranges were omitted to keep validation output bounded, so no automatic fix is offered",
         shown.saturating_add(omitted)
     )
 }
@@ -2908,7 +3499,7 @@ fn default_rule_setting(code: &str) -> RuleSetting {
         | "BIB-SEMANTIC-002"
         | "BIB-SEMANTIC-006"
         | RULE_INLINE_PERCENT_COMMENT
-        | RULE_UNESCAPED_PERCENT => Severity::Warning,
+        | RULE_UNESCAPED_TEX_SPECIAL => Severity::Warning,
         RULE_FIELD_CASE | RULE_TRAILING_COMMA => Severity::Hint,
         RULE_FIELD_ORDER | RULE_VALUE_DELIMITER | RULE_EQUALS_WHITESPACE => Severity::Information,
         RULE_REQUIRED_DATA | RULE_IDENTIFIER_CONFLICT => Severity::Error,
@@ -2932,7 +3523,7 @@ fn is_parser_rule(code: &str) -> bool {
 mod tests {
     use super::*;
     use bibmgr_edit::{apply_fix_plan, plan_fixes, FixSelection};
-    use bibmgr_semantics::analyze;
+    use bibmgr_semantics::{analyze, RAW_IDENTIFIER_FIELD_NAMES};
     use bibmgr_syntax::{parse, ParseOptions};
     use std::fmt::Write as _;
 
@@ -3344,6 +3935,385 @@ exclude = []
     }
 
     #[test]
+    fn tex_special_rule_splits_safe_and_review_fixes_for_mixed_plain_text() {
+        let source = "@misc{k, title={100% A&B #1 value_1 caret^ and cost$5},}\n";
+        let result = run(source, &ValidationPolicy::laboratory());
+        let diagnostics = result
+            .diagnostics
+            .iter()
+            .filter(|diagnostic| diagnostic.code.as_str() == RULE_UNESCAPED_TEX_SPECIAL)
+            .collect::<Vec<_>>();
+        assert_eq!(diagnostics.len(), 2);
+        assert!(diagnostics.iter().all(|diagnostic| diagnostic.blocking));
+        assert!(diagnostics
+            .iter()
+            .all(|diagnostic| diagnostic.severity == Severity::Error));
+
+        let fixes = diagnostics
+            .iter()
+            .map(|diagnostic| {
+                result
+                    .fixes
+                    .iter()
+                    .find(|fix| diagnostic.fixes.contains(&fix.id))
+                    .unwrap()
+            })
+            .collect::<Vec<_>>();
+        let safe = fixes
+            .iter()
+            .find(|fix| fix.applicability == FixApplicability::Safe)
+            .unwrap();
+        assert_eq!(
+            safe.edits
+                .iter()
+                .map(|edit| edit.replacement.as_str())
+                .collect::<Vec<_>>(),
+            ["\\%", "\\&", "\\#", "\\_"]
+        );
+        let review = fixes
+            .iter()
+            .find(|fix| fix.applicability == FixApplicability::RequiresConfirmation)
+            .unwrap();
+        assert_eq!(
+            review
+                .edits
+                .iter()
+                .map(|edit| edit.replacement.as_str())
+                .collect::<Vec<_>>(),
+            ["\\textasciicircum{}", "\\$"]
+        );
+    }
+
+    #[test]
+    fn tex_special_scanner_observes_escaped_backslash_parity() {
+        let source = r"@misc{k, title={escaped \% \& \# \_ \^ \$ raw \\% \\& \\# \\_ \\^ \\$},}
+";
+        let result = run(source, &ValidationPolicy::laboratory());
+        let edits = result
+            .fixes
+            .iter()
+            .filter(|fix| fix.id.as_str().starts_with(RULE_UNESCAPED_TEX_SPECIAL))
+            .flat_map(|fix| &fix.edits)
+            .collect::<Vec<_>>();
+        assert_eq!(edits.len(), 6);
+        assert_eq!(
+            edits
+                .iter()
+                .map(|edit| edit.replacement.as_str())
+                .collect::<BTreeSet<_>>(),
+            BTreeSet::from(["\\%", "\\&", "\\#", "\\_", "\\textasciicircum{}", "\\$",])
+        );
+    }
+
+    #[test]
+    fn tex_special_rule_preserves_math_but_reviews_percent_and_hash_in_math() {
+        let source = "@misc{k, title={text #1 and $x_1 & y^2 # 20%$ plus $$a_1 & b^2$$ plus \\(c_1 & d^2\\) plus \\[e_1 & f^2\\] plus \\ensuremath{g_1 & h^2}},}\n";
+        let result = run(source, &ValidationPolicy::laboratory());
+        let diagnostics = result
+            .diagnostics
+            .iter()
+            .filter(|diagnostic| diagnostic.code.as_str() == RULE_UNESCAPED_TEX_SPECIAL)
+            .collect::<Vec<_>>();
+        assert_eq!(diagnostics.len(), 2);
+        let fixes = diagnostics
+            .iter()
+            .map(|diagnostic| {
+                result
+                    .fixes
+                    .iter()
+                    .find(|fix| diagnostic.fixes.contains(&fix.id))
+                    .unwrap()
+            })
+            .collect::<Vec<_>>();
+        let safe = fixes
+            .iter()
+            .find(|fix| fix.applicability == FixApplicability::Safe)
+            .unwrap();
+        assert_eq!(safe.edits.len(), 1);
+        assert_eq!(safe.edits[0].replacement, "\\#");
+        let review = fixes
+            .iter()
+            .find(|fix| fix.applicability == FixApplicability::RequiresConfirmation)
+            .unwrap();
+        assert_eq!(
+            review
+                .edits
+                .iter()
+                .map(|edit| edit.replacement.as_str())
+                .collect::<Vec<_>>(),
+            ["\\#", "\\%"]
+        );
+    }
+
+    #[test]
+    fn tex_math_dollar_scanner_handles_adjacent_and_malformed_boundaries() {
+        for value in ["$x$$y$", "$$x$$$y$", "$x\\$y$"] {
+            let source = format!("@misc{{k, title={{{value}}},}}\n");
+            assert!(run(&source, &ValidationPolicy::laboratory())
+                .diagnostics
+                .iter()
+                .all(|diagnostic| diagnostic.code.as_str() != RULE_UNESCAPED_TEX_SPECIAL));
+        }
+
+        for (value, expected_edits) in [
+            ("$x$$$", 2),
+            ("$$x$", 3),
+            ("$$x$y$$", 1),
+            ("$$a_1 $b_2$", 6),
+        ] {
+            let source = format!("@misc{{k, title={{{value}}},}}\n");
+            let result = run(&source, &ValidationPolicy::laboratory());
+            let fixes = result
+                .fixes
+                .iter()
+                .filter(|fix| fix.id.as_str().starts_with(RULE_UNESCAPED_TEX_SPECIAL))
+                .collect::<Vec<_>>();
+            assert_eq!(fixes.len(), 1, "{value}");
+            assert_eq!(
+                fixes[0].applicability,
+                FixApplicability::RequiresConfirmation,
+                "{value}"
+            );
+            assert_eq!(fixes[0].edits.len(), expected_edits, "{value}");
+        }
+
+        for value in ["\\(\\(x\\) y_1\\)", "\\[\\[x\\] y_1\\]"] {
+            let source = format!("@misc{{k, title={{{value}}},}}\n");
+            let result = run(&source, &ValidationPolicy::laboratory());
+            let fixes = result
+                .fixes
+                .iter()
+                .filter(|fix| fix.id.as_str().starts_with(RULE_UNESCAPED_TEX_SPECIAL))
+                .collect::<Vec<_>>();
+            assert_eq!(fixes.len(), 1, "{value}");
+            assert_eq!(fixes[0].applicability, FixApplicability::Safe, "{value}");
+            assert_eq!(fixes[0].edits.len(), 1, "{value}");
+            assert_eq!(fixes[0].edits[0].replacement, "\\_", "{value}");
+        }
+    }
+
+    #[test]
+    fn math_delimiters_cannot_pair_across_brace_group_boundaries() {
+        for (value, expected) in [
+            ("{$x_1} prose $", vec!["$", "_", "$"]),
+            ("\\foo{$x_1} prose $", vec!["$", "_", "$"]),
+            ("{\\(x_1} prose \\)", vec!["_"]),
+            ("{\\[x_1} prose \\]", vec!["_"]),
+        ] {
+            let source = format!("@misc{{k, title=\"{value}\",}}\n");
+            let result = run(&source, &ValidationPolicy::laboratory());
+            let diagnostic = result
+                .diagnostics
+                .iter()
+                .find(|diagnostic| diagnostic.code.as_str() == RULE_UNESCAPED_TEX_SPECIAL)
+                .unwrap();
+            let fix = result
+                .fixes
+                .iter()
+                .find(|fix| diagnostic.fixes.contains(&fix.id))
+                .unwrap();
+            assert_eq!(fix.applicability, FixApplicability::RequiresConfirmation);
+            assert_eq!(
+                fix.edits
+                    .iter()
+                    .map(|edit| &source[edit.range.start as usize..edit.range.end as usize])
+                    .collect::<Vec<_>>(),
+                expected,
+                "{value}"
+            );
+        }
+    }
+
+    #[test]
+    fn outer_math_survives_balanced_groups_but_reviews_wrong_depth_dollars() {
+        for value in [
+            "$ {x_1} y $",
+            "\\({x_1} y\\)",
+            "\\[{x_1} y\\]",
+            "\\ensuremath{{z_2}}",
+            "\\( {x \\) } y_1 \\)",
+        ] {
+            let source = format!("@misc{{k, title={{{value}}},}}\n");
+            assert!(run(&source, &ValidationPolicy::laboratory())
+                .diagnostics
+                .iter()
+                .all(|diagnostic| diagnostic.code.as_str() != RULE_UNESCAPED_TEX_SPECIAL));
+        }
+
+        let source = "@misc{k, title={$ {x $ } y $},}\n";
+        let result = run(source, &ValidationPolicy::laboratory());
+        let diagnostic = result
+            .diagnostics
+            .iter()
+            .find(|diagnostic| diagnostic.code.as_str() == RULE_UNESCAPED_TEX_SPECIAL)
+            .unwrap();
+        let fix = result
+            .fixes
+            .iter()
+            .find(|fix| diagnostic.fixes.contains(&fix.id))
+            .unwrap();
+        assert_eq!(fix.applicability, FixApplicability::RequiresConfirmation);
+        assert_eq!(fix.edits.len(), 1);
+        assert_eq!(
+            &source[fix.edits[0].range.start as usize..fix.edits[0].range.end as usize],
+            "$"
+        );
+    }
+
+    #[test]
+    fn ensuremath_closes_after_reviewing_nested_unmatched_math() {
+        let source = "@misc{k, title={\\ensuremath{{x_1 $} y_2}},}\n";
+        let result = run(source, &ValidationPolicy::laboratory());
+        let diagnostic = result
+            .diagnostics
+            .iter()
+            .find(|diagnostic| diagnostic.code.as_str() == RULE_UNESCAPED_TEX_SPECIAL)
+            .unwrap();
+        let fix = result
+            .fixes
+            .iter()
+            .find(|fix| diagnostic.fixes.contains(&fix.id))
+            .unwrap();
+        assert_eq!(fix.applicability, FixApplicability::RequiresConfirmation);
+        assert_eq!(fix.edits.len(), 1);
+        assert_eq!(
+            &source[fix.edits[0].range.start as usize..fix.edits[0].range.end as usize],
+            "$"
+        );
+    }
+
+    #[test]
+    fn url_and_math_commands_require_an_immediate_unmodified_argument_form() {
+        let source = "@misc{k, title={\\url {raw_%&#^$} \\url*{star_1} \\url[x]{option_1} \\ensuremath{math_1 & y^2} \\ensuremath*{star_math_1} \\ensuremath[x]{option_math_1}},}\n";
+        let result = run(source, &ValidationPolicy::laboratory());
+        let edits = result
+            .fixes
+            .iter()
+            .filter(|fix| fix.id.as_str().starts_with(RULE_UNESCAPED_TEX_SPECIAL))
+            .flat_map(|fix| &fix.edits)
+            .collect::<Vec<_>>();
+        let edited_source_characters = edits
+            .iter()
+            .map(|edit| &source[edit.range.start as usize..edit.range.end as usize])
+            .collect::<Vec<_>>();
+        assert_eq!(edited_source_characters, ["_", "_", "_", "_", "_", "_"]);
+        assert!(edits.iter().all(|edit| edit.replacement == "\\_"));
+    }
+
+    #[test]
+    fn only_complete_url_arguments_exclude_tex_special_validation() {
+        let complete = "@misc{k, title=\"\\url{a_b%20&c#d^e$f}\",}\n";
+        assert!(run(complete, &ValidationPolicy::laboratory())
+            .diagnostics
+            .iter()
+            .all(|diagnostic| diagnostic.code.as_str() != RULE_UNESCAPED_TEX_SPECIAL));
+
+        let incomplete = "@misc{k, title=\"\\url{a_b%20\",}\n";
+        let result = run(incomplete, &ValidationPolicy::laboratory());
+        let diagnostics = result
+            .diagnostics
+            .iter()
+            .filter(|diagnostic| diagnostic.code.as_str() == RULE_UNESCAPED_TEX_SPECIAL)
+            .collect::<Vec<_>>();
+        assert_eq!(diagnostics.len(), 1);
+        let fix = result
+            .fixes
+            .iter()
+            .find(|fix| diagnostics[0].fixes.contains(&fix.id))
+            .unwrap();
+        assert_eq!(fix.applicability, FixApplicability::RequiresConfirmation);
+        assert_eq!(
+            fix.edits
+                .iter()
+                .map(|edit| &incomplete[edit.range.start as usize..edit.range.end as usize])
+                .collect::<Vec<_>>(),
+            ["_", "%"]
+        );
+    }
+
+    #[test]
+    fn nested_url_specials_remain_deferred_until_the_outer_argument_closes() {
+        let complete = "@misc{k, title=\"\\url{pre \\url{inner_} post%20}\",}\n";
+        assert!(run(complete, &ValidationPolicy::laboratory())
+            .diagnostics
+            .iter()
+            .all(|diagnostic| diagnostic.code.as_str() != RULE_UNESCAPED_TEX_SPECIAL));
+
+        let incomplete = "@misc{k, title=\"\\url{pre \\url{inner_} post%20\",}\n";
+        let result = run(incomplete, &ValidationPolicy::laboratory());
+        let diagnostic = result
+            .diagnostics
+            .iter()
+            .find(|diagnostic| diagnostic.code.as_str() == RULE_UNESCAPED_TEX_SPECIAL)
+            .unwrap();
+        let fix = result
+            .fixes
+            .iter()
+            .find(|fix| diagnostic.fixes.contains(&fix.id))
+            .unwrap();
+        assert_eq!(fix.applicability, FixApplicability::RequiresConfirmation);
+        assert_eq!(
+            fix.edits
+                .iter()
+                .map(|edit| &incomplete[edit.range.start as usize..edit.range.end as usize])
+                .collect::<Vec<_>>(),
+            ["_", "%"]
+        );
+    }
+
+    #[test]
+    fn outer_url_arguments_are_opaque_to_nested_command_syntax() {
+        let complete =
+            "@misc{k, title=\"\\url{\\foo[x_y] \\unknown|a_b| \\verb|inner_| post%20}\",}\n";
+        assert!(run(complete, &ValidationPolicy::laboratory())
+            .diagnostics
+            .iter()
+            .all(|diagnostic| diagnostic.code.as_str() != RULE_UNESCAPED_TEX_SPECIAL));
+
+        let incomplete =
+            "@misc{k, title=\"\\url{\\foo[x_y] \\unknown|a_b| \\verb|inner_| post%20\",}\n";
+        let result = run(incomplete, &ValidationPolicy::laboratory());
+        let diagnostic = result
+            .diagnostics
+            .iter()
+            .find(|diagnostic| diagnostic.code.as_str() == RULE_UNESCAPED_TEX_SPECIAL)
+            .unwrap();
+        let fix = result
+            .fixes
+            .iter()
+            .find(|fix| diagnostic.fixes.contains(&fix.id))
+            .unwrap();
+        assert_eq!(fix.applicability, FixApplicability::RequiresConfirmation);
+        assert_eq!(
+            fix.edits
+                .iter()
+                .map(|edit| &incomplete[edit.range.start as usize..edit.range.end as usize])
+                .collect::<Vec<_>>(),
+            ["_", "_", "_", "%"]
+        );
+    }
+
+    #[test]
+    fn closing_math_delimiters_clear_pending_command_context() {
+        let source = "@misc{k, title={$\\url$ {outside_1} $\\verb|x|$|outside_2|},}\n";
+        let result = run(source, &ValidationPolicy::laboratory());
+        let fixes = result
+            .fixes
+            .iter()
+            .filter(|fix| fix.id.as_str().starts_with(RULE_UNESCAPED_TEX_SPECIAL))
+            .collect::<Vec<_>>();
+        assert_eq!(fixes.len(), 1);
+        assert_eq!(fixes[0].applicability, FixApplicability::Safe);
+        assert_eq!(fixes[0].edits.len(), 2);
+        for edit in &fixes[0].edits {
+            assert_eq!(
+                &source[edit.range.start as usize..edit.range.end as usize],
+                "_"
+            );
+        }
+    }
+
+    #[test]
     fn unescaped_percent_rule_is_field_aware() {
         let source = "@misc{k, url={https://example.test/a%20b}, doi={10.1000/a%2Fb}, file={paper%20draft.pdf}, note={50% complete},}\n";
         let result = run(source, &ValidationPolicy::default());
@@ -3365,6 +4335,38 @@ exclude = []
             .find(|fix| diagnostics[0].fixes.contains(&fix.id))
             .unwrap();
         assert_eq!(fix.applicability, FixApplicability::RequiresConfirmation);
+    }
+
+    #[test]
+    fn every_export_raw_identifier_field_excludes_tex_special_validation() {
+        let mut direct_fields = String::new();
+        let mut macro_fields = String::new();
+        for field in RAW_IDENTIFIER_FIELD_NAMES {
+            writeln!(direct_fields, "  {field} = {{raw%&#_^$}},").unwrap();
+            writeln!(macro_fields, "  {field} = rawidentifier,").unwrap();
+        }
+        let source = format!(
+            "@string{{rawidentifier={{raw%&#_^$}}}}\n@misc{{direct,\n{direct_fields}}}\n@misc{{macro,\n{macro_fields}}}\n"
+        );
+        assert!(run(&source, &ValidationPolicy::laboratory())
+            .diagnostics
+            .iter()
+            .all(|diagnostic| diagnostic.code.as_str() != RULE_UNESCAPED_TEX_SPECIAL));
+    }
+
+    #[test]
+    fn shared_tex_special_macro_uses_all_consumer_policies_and_withholds_fixes() {
+        let source = "@string{shared={100% A&B #1 value_1 caret^ cost$5}}\n@misc{k, title=shared, url=shared,}\n";
+        let result = run(source, &ValidationPolicy::laboratory());
+        let diagnostics = result
+            .diagnostics
+            .iter()
+            .filter(|diagnostic| diagnostic.code.as_str() == RULE_UNESCAPED_TEX_SPECIAL)
+            .collect::<Vec<_>>();
+        assert_eq!(diagnostics.len(), 1);
+        assert!(diagnostics[0].message.contains("`title`"));
+        assert!(diagnostics[0].message.contains("`url`"));
+        assert!(diagnostics[0].fixes.is_empty());
     }
 
     #[test]
@@ -3487,6 +4489,218 @@ exclude = []
     }
 
     #[test]
+    fn ambiguous_delimited_command_arguments_are_forced_text_context() {
+        for (value, expected) in [
+            ("\\unknown|$x_1 & y^2$|", vec!["$", "_", "&", "^", "$"]),
+            ("$\\unknown|x_1 & y^2|$", vec!["_", "&", "^"]),
+        ] {
+            let source = format!("@misc{{k, title={{{value}}},}}\n");
+            let result = run(&source, &ValidationPolicy::laboratory());
+            let diagnostic = result
+                .diagnostics
+                .iter()
+                .find(|diagnostic| diagnostic.code.as_str() == RULE_UNESCAPED_TEX_SPECIAL)
+                .unwrap();
+            let fix = result
+                .fixes
+                .iter()
+                .find(|fix| diagnostic.fixes.contains(&fix.id))
+                .unwrap();
+            assert_eq!(fix.applicability, FixApplicability::RequiresConfirmation);
+            assert_eq!(
+                fix.edits
+                    .iter()
+                    .map(|edit| &source[edit.range.start as usize..edit.range.end as usize])
+                    .collect::<Vec<_>>(),
+                expected,
+                "{value}"
+            );
+        }
+    }
+
+    #[test]
+    fn tex_special_scanner_skips_every_target_inside_complete_verbatim_commands() {
+        let source = "@misc{k, title={\\verb|%&#_^$| \\verb*+%&#_^$+ \\Verb[formatcom=small]!%&#_^$! \\lstinline*[language=TeX]/%&#_^$/},}\n";
+        assert!(run(source, &ValidationPolicy::laboratory())
+            .diagnostics
+            .iter()
+            .all(|diagnostic| diagnostic.code.as_str() != RULE_UNESCAPED_TEX_SPECIAL));
+    }
+
+    #[test]
+    fn incomplete_verbatim_arguments_require_confirmation() {
+        let source = "@misc{k, title=\"\\verb|%&#_^$\",}\n";
+        let result = run(source, &ValidationPolicy::laboratory());
+        let diagnostics = result
+            .diagnostics
+            .iter()
+            .filter(|diagnostic| diagnostic.code.as_str() == RULE_UNESCAPED_TEX_SPECIAL)
+            .collect::<Vec<_>>();
+        assert_eq!(diagnostics.len(), 1);
+        let fix = result
+            .fixes
+            .iter()
+            .find(|fix| diagnostics[0].fixes.contains(&fix.id))
+            .unwrap();
+        assert_eq!(fix.applicability, FixApplicability::RequiresConfirmation);
+        assert_eq!(fix.edits.len(), 6);
+    }
+
+    #[test]
+    fn unicode_verbatim_delimiters_are_matched_as_characters() {
+        let complete = "@misc{k, title=\"\\verbあい_うあ\",}\n";
+        assert!(run(complete, &ValidationPolicy::laboratory())
+            .diagnostics
+            .iter()
+            .all(|diagnostic| diagnostic.code.as_str() != RULE_UNESCAPED_TEX_SPECIAL));
+
+        let incomplete = "@misc{k, title=\"\\verbあい_う\",}\n";
+        let result = run(incomplete, &ValidationPolicy::laboratory());
+        let diagnostic = result
+            .diagnostics
+            .iter()
+            .find(|diagnostic| diagnostic.code.as_str() == RULE_UNESCAPED_TEX_SPECIAL)
+            .unwrap();
+        let fix = result
+            .fixes
+            .iter()
+            .find(|fix| diagnostic.fixes.contains(&fix.id))
+            .unwrap();
+        assert_eq!(fix.applicability, FixApplicability::RequiresConfirmation);
+        assert_eq!(fix.edits.len(), 1);
+        assert_eq!(
+            &incomplete[fix.edits[0].range.start as usize..fix.edits[0].range.end as usize],
+            "_"
+        );
+    }
+
+    #[test]
+    fn at_sign_is_recognized_as_a_verbatim_delimiter() {
+        let complete = "@misc{k, title=\"\\verb@a_b%@\",}\n";
+        assert!(run(complete, &ValidationPolicy::laboratory())
+            .diagnostics
+            .iter()
+            .all(|diagnostic| diagnostic.code.as_str() != RULE_UNESCAPED_TEX_SPECIAL));
+
+        let incomplete = "@misc{k, title=\"\\verb@a_b%\",}\n";
+        let result = run(incomplete, &ValidationPolicy::laboratory());
+        let diagnostic = result
+            .diagnostics
+            .iter()
+            .find(|diagnostic| diagnostic.code.as_str() == RULE_UNESCAPED_TEX_SPECIAL)
+            .unwrap();
+        let fix = result
+            .fixes
+            .iter()
+            .find(|fix| diagnostic.fixes.contains(&fix.id))
+            .unwrap();
+        assert_eq!(fix.applicability, FixApplicability::RequiresConfirmation);
+        assert_eq!(fix.edits.len(), 2);
+    }
+
+    #[test]
+    fn incomplete_special_verbatim_delimiters_require_confirmation() {
+        for delimiter in ['%', '$'] {
+            let complete = format!("@misc{{k, title=\"\\verb{delimiter}abc{delimiter}\",}}\n");
+            assert!(run(&complete, &ValidationPolicy::laboratory())
+                .diagnostics
+                .iter()
+                .all(|diagnostic| diagnostic.code.as_str() != RULE_UNESCAPED_TEX_SPECIAL));
+
+            let incomplete = format!("@misc{{k, title=\"\\verb{delimiter}abc\",}}\n");
+            let result = run(&incomplete, &ValidationPolicy::laboratory());
+            let diagnostic = result
+                .diagnostics
+                .iter()
+                .find(|diagnostic| diagnostic.code.as_str() == RULE_UNESCAPED_TEX_SPECIAL)
+                .unwrap();
+            let fix = result
+                .fixes
+                .iter()
+                .find(|fix| diagnostic.fixes.contains(&fix.id))
+                .unwrap();
+            assert_eq!(fix.applicability, FixApplicability::RequiresConfirmation);
+            assert_eq!(fix.edits.len(), 1);
+            assert_eq!(
+                &incomplete[fix.edits[0].range.start as usize..fix.edits[0].range.end as usize],
+                delimiter.to_string()
+            );
+        }
+    }
+
+    #[test]
+    fn verbatim_options_use_the_normal_literal_and_math_scanner() {
+        let source = "@misc{k, title={\\Verb[format=$x_1$ # 20%, url=\\url{a_b%20}, code=\\verb|x_y%|, raw=z_1]|ok|},}\n";
+        let result = run(source, &ValidationPolicy::laboratory());
+        let diagnostic = result
+            .diagnostics
+            .iter()
+            .find(|diagnostic| diagnostic.code.as_str() == RULE_UNESCAPED_TEX_SPECIAL)
+            .unwrap();
+        let fix = result
+            .fixes
+            .iter()
+            .find(|fix| diagnostic.fixes.contains(&fix.id))
+            .unwrap();
+        assert_eq!(fix.applicability, FixApplicability::RequiresConfirmation);
+        assert_eq!(
+            fix.edits
+                .iter()
+                .map(|edit| &source[edit.range.start as usize..edit.range.end as usize])
+                .collect::<Vec<_>>(),
+            ["#", "%", "_"]
+        );
+    }
+
+    #[test]
+    fn incomplete_verbatim_options_suppress_nested_math_recognition() {
+        let source = "@misc{k, title=\"\\Verb[format=$x_1^2 & y # 20%$\",}\n";
+        let result = run(source, &ValidationPolicy::laboratory());
+        let diagnostic = result
+            .diagnostics
+            .iter()
+            .find(|diagnostic| diagnostic.code.as_str() == RULE_UNESCAPED_TEX_SPECIAL)
+            .unwrap();
+        let fix = result
+            .fixes
+            .iter()
+            .find(|fix| diagnostic.fixes.contains(&fix.id))
+            .unwrap();
+        assert_eq!(fix.applicability, FixApplicability::RequiresConfirmation);
+        assert_eq!(
+            fix.edits
+                .iter()
+                .map(|edit| &source[edit.range.start as usize..edit.range.end as usize])
+                .collect::<Vec<_>>(),
+            ["$", "_", "^", "&", "#", "%", "$"]
+        );
+    }
+
+    #[test]
+    fn optional_argument_math_is_scoped_to_the_argument() {
+        let source = "@misc{k, title={\\Verb[$x_1]|body| $y_2},}\n";
+        let result = run(source, &ValidationPolicy::laboratory());
+        let diagnostic = result
+            .diagnostics
+            .iter()
+            .find(|diagnostic| diagnostic.code.as_str() == RULE_UNESCAPED_TEX_SPECIAL)
+            .unwrap();
+        let fix = result
+            .fixes
+            .iter()
+            .find(|fix| diagnostic.fixes.contains(&fix.id))
+            .unwrap();
+        assert_eq!(fix.applicability, FixApplicability::RequiresConfirmation);
+        assert_eq!(
+            fix.edits
+                .iter()
+                .map(|edit| &source[edit.range.start as usize..edit.range.end as usize])
+                .collect::<Vec<_>>(),
+            ["$", "_", "$", "_"]
+        );
+    }
+
+    #[test]
     fn referenced_string_percent_propagates_concatenation_risk() {
         for (source, expected) in [
             (
@@ -3494,7 +4708,7 @@ exclude = []
                 FixApplicability::Safe,
             ),
             (
-                "@string{urlcmd={\\url}}\n@string{urlarg={{https://example.test/a%20b}}}\n@string{full=urlcmd # urlarg}\n@misc{k, title=full,}\n",
+                "@string{urlcmd={\\url}}\n@string{urlarg={{https://example.test/a%20_b?x=1&anchor=#frag^$}}}\n@string{full=urlcmd # urlarg}\n@misc{k, title=full,}\n",
                 FixApplicability::RequiresConfirmation,
             ),
             (
@@ -3516,6 +4730,28 @@ exclude = []
                 .unwrap();
             assert_eq!(fix.applicability, expected, "{source}");
         }
+    }
+
+    #[test]
+    fn tex_special_macro_math_split_never_offers_a_safe_fix() {
+        let source = "@string{open={$}}\n@string{body={x_1^2}}\n@string{close={$}}\n@string{full=open # body # close}\n@misc{k, title=full,}\n";
+        let result = run(source, &ValidationPolicy::laboratory());
+        let diagnostics = result
+            .diagnostics
+            .iter()
+            .filter(|diagnostic| diagnostic.code.as_str() == RULE_UNESCAPED_TEX_SPECIAL)
+            .collect::<Vec<_>>();
+        assert_eq!(diagnostics.len(), 3);
+        assert!(diagnostics.iter().all(|diagnostic| diagnostic.blocking));
+        let fixes = diagnostics
+            .iter()
+            .flat_map(|diagnostic| &diagnostic.fixes)
+            .map(|id| result.fixes.iter().find(|fix| &fix.id == id).unwrap())
+            .collect::<Vec<_>>();
+        assert_eq!(fixes.len(), 3);
+        assert!(fixes
+            .iter()
+            .all(|fix| fix.applicability == FixApplicability::RequiresConfirmation));
     }
 
     #[test]
@@ -3555,7 +4791,7 @@ exclude = []
             .unwrap();
         assert_eq!(fix.edits.len(), 2);
 
-        let many_percents = "%".repeat(MAX_PERCENT_RANGES_PER_ISSUE + 32);
+        let many_percents = "%".repeat(MAX_TEX_SPECIAL_OCCURRENCES_PER_ISSUE + 32);
         for source in [
             format!("@misc{{k, title={{{many_percents}}},}}\n"),
             format!("@string{{many={{{many_percents}}}}}\n@misc{{k, title=many,}}\n"),
@@ -3585,17 +4821,73 @@ exclude = []
         value.extend(std::iter::repeat_n(b'%', percent_count));
         value.extend(std::iter::repeat_n(b'}', nesting + 1));
 
-        let mut occurrences = LiteralPercentOccurrences::default();
-        scan_literal_percent_atom(&value, 0, &mut occurrences);
+        let mut occurrences = LiteralTexSpecialOccurrences::default();
+        scan_literal_tex_special_atom(&value, 0, &mut occurrences);
 
-        assert!(occurrences.plain.is_empty());
+        assert!(occurrences.plain_safe.is_empty());
         assert_eq!(
-            occurrences.command_argument.ranges.len(),
-            MAX_PERCENT_RANGES_PER_ISSUE
+            occurrences.review.items.len(),
+            MAX_TEX_SPECIAL_OCCURRENCES_PER_ISSUE
         );
         assert_eq!(
-            occurrences.command_argument.omitted,
-            percent_count - MAX_PERCENT_RANGES_PER_ISSUE
+            occurrences.review.omitted,
+            percent_count - MAX_TEX_SPECIAL_OCCURRENCES_PER_ISSUE
+        );
+    }
+
+    #[test]
+    fn tex_special_scanner_bounds_mixed_output_and_deep_incomplete_math() {
+        let repeats = 512 * 1024;
+        let mut mixed = Vec::with_capacity(repeats * 5 + 9);
+        mixed.extend_from_slice(b"\\textbf{");
+        for _ in 0..repeats {
+            mixed.extend_from_slice(b"%&#_^");
+        }
+        mixed.push(b'}');
+        let mut occurrences = LiteralTexSpecialOccurrences::default();
+        scan_literal_tex_special_atom(&mixed, 0, &mut occurrences);
+        assert!(occurrences.plain_safe.is_empty());
+        assert_eq!(
+            occurrences.review.len(),
+            MAX_TEX_SPECIAL_OCCURRENCES_PER_ISSUE
+        );
+        assert_eq!(
+            occurrences.review.omitted,
+            repeats * 5 - MAX_TEX_SPECIAL_OCCURRENCES_PER_ISSUE
+        );
+
+        for opener in [b"\\(".as_slice(), b"\\[".as_slice()] {
+            let mut incomplete = Vec::with_capacity(20_001 * opener.len());
+            for _ in 0..20_000 {
+                incomplete.extend_from_slice(opener);
+                incomplete.push(b'_');
+            }
+            let mut occurrences = LiteralTexSpecialOccurrences::default();
+            scan_literal_tex_special_atom(&incomplete, 0, &mut occurrences);
+            assert_eq!(
+                occurrences.review.len(),
+                MAX_TEX_SPECIAL_OCCURRENCES_PER_ISSUE
+            );
+            assert_eq!(
+                occurrences.review.omitted,
+                20_000 - MAX_TEX_SPECIAL_OCCURRENCES_PER_ISSUE
+            );
+        }
+
+        let mut ensuremath = Vec::new();
+        for _ in 0..20_000 {
+            ensuremath.extend_from_slice(b"\\ensuremath{");
+            ensuremath.push(b'_');
+        }
+        let mut occurrences = LiteralTexSpecialOccurrences::default();
+        scan_literal_tex_special_atom(&ensuremath, 0, &mut occurrences);
+        assert_eq!(
+            occurrences.review.len(),
+            MAX_TEX_SPECIAL_OCCURRENCES_PER_ISSUE
+        );
+        assert_eq!(
+            occurrences.review.omitted,
+            20_000 - MAX_TEX_SPECIAL_OCCURRENCES_PER_ISSUE
         );
     }
 
@@ -3610,7 +4902,7 @@ exclude = []
         }
         dag.push_str("@string{shared={50%\n}}\n");
         let syntax = parse(&dag, ParseOptions::tolerant());
-        let analysis = referenced_string_percent_analysis(&syntax);
+        let analysis = referenced_string_tex_special_analysis(&syntax);
         assert_eq!(analysis.issues.len(), 1);
         assert_eq!(analysis.issues[0].macro_name, "shared");
         assert_eq!(analysis.completed_macro_visits, 65);
@@ -3618,36 +4910,36 @@ exclude = []
 
         let cycle = "@string{a=b # {50%\n}}\n@string{b=a}\n@misc{k, title=a,}\n";
         let syntax = parse(cycle, ParseOptions::tolerant());
-        let analysis = referenced_string_percent_analysis(&syntax);
+        let analysis = referenced_string_tex_special_analysis(&syntax);
         assert_eq!(analysis.issues.len(), 1);
         assert_eq!(analysis.issues[0].macro_name, "a");
         assert_eq!(analysis.completed_macro_visits, 2);
         assert!(analysis.incomplete_range.is_none());
 
-        let exact = percent_macro_chain(MAX_PERCENT_MACRO_EXPANSION_DEPTH);
+        let exact = percent_macro_chain(MAX_TEX_SPECIAL_MACRO_EXPANSION_DEPTH);
         let syntax = parse(&exact, ParseOptions::tolerant());
-        let analysis = referenced_string_percent_analysis(&syntax);
+        let analysis = referenced_string_tex_special_analysis(&syntax);
         assert_eq!(analysis.issues.len(), 1);
         assert_eq!(analysis.issues[0].macro_name, "m0");
         assert_eq!(
             analysis.completed_macro_visits,
-            MAX_PERCENT_MACRO_EXPANSION_DEPTH
+            MAX_TEX_SPECIAL_MACRO_EXPANSION_DEPTH
         );
         assert!(analysis.incomplete_range.is_none());
 
-        let root = MAX_PERCENT_MACRO_EXPANSION_DEPTH;
+        let root = MAX_TEX_SPECIAL_MACRO_EXPANSION_DEPTH;
         let over = percent_macro_chain(root + 1).replacen(
             &format!("@string{{m{root}=m{}}}\n", root - 1),
             &format!("@string{{m{root}={{25%\n}} # m{}}}\n", root - 1),
             1,
         );
         let syntax = parse(&over, ParseOptions::tolerant());
-        let analysis = referenced_string_percent_analysis(&syntax);
+        let analysis = referenced_string_tex_special_analysis(&syntax);
         assert_eq!(analysis.issues.len(), 1);
         assert_eq!(analysis.issues[0].macro_name, format!("m{root}"));
         assert_eq!(
             analysis.completed_macro_visits,
-            MAX_PERCENT_MACRO_EXPANSION_DEPTH
+            MAX_TEX_SPECIAL_MACRO_EXPANSION_DEPTH
         );
         let incomplete_range = analysis.incomplete_range.unwrap();
         assert_eq!(syntax.slice(incomplete_range), Some("m0"));
@@ -3690,7 +4982,7 @@ exclude = []
         let source =
             "@string{root={50%\n} # child}\n@string{child={25%\n}}\n@misc{k, title=root,}\n";
         let syntax = parse(source, ParseOptions::tolerant());
-        let analysis = referenced_string_percent_analysis_with_limit(&syntax, 1);
+        let analysis = referenced_string_tex_special_analysis_with_limit(&syntax, 1);
         assert_eq!(analysis.completed_macro_visits, 1);
         assert_eq!(analysis.issues.len(), 1);
         let incomplete_range = analysis.incomplete_range.unwrap();
@@ -3698,7 +4990,7 @@ exclude = []
 
         let policy = ValidationPolicy::laboratory();
         let mut engine = Engine::new(&syntax, &policy);
-        engine.validate_referenced_string_percents_with_limit(1);
+        engine.validate_referenced_string_tex_specials_with_limit(1);
         let result = engine.finish();
         let diagnostics = result
             .diagnostics
@@ -3715,6 +5007,54 @@ exclude = []
             .any(|diagnostic| diagnostic.message.contains("incomplete")));
         assert!(result.has_blocking_diagnostics());
         assert!(result.fixes.is_empty());
+    }
+
+    #[test]
+    fn duplicate_string_definition_candidates_consume_the_global_visit_budget() {
+        let source =
+            "@string{x={first_}}\n@string{x={second_}}\n@string{x={third_}}\n@misc{k, f0=x, f1=x,}\n";
+        let syntax = parse(source, ParseOptions::tolerant());
+        let analysis = referenced_string_tex_special_analysis_with_limit(&syntax, 4);
+        assert_eq!(analysis.completed_macro_visits, 2);
+        assert_eq!(analysis.issues.len(), 3);
+        let incomplete_range = analysis.incomplete_range.unwrap();
+        assert_eq!(syntax.slice(incomplete_range), Some("x"));
+
+        let policy = ValidationPolicy::laboratory();
+        let mut engine = Engine::new(&syntax, &policy);
+        engine.validate_referenced_string_tex_specials_with_limit(4);
+        let result = engine.finish();
+        let diagnostics = result
+            .diagnostics
+            .iter()
+            .filter(|diagnostic| diagnostic.code.as_str() == RULE_UNESCAPED_TEX_SPECIAL)
+            .collect::<Vec<_>>();
+        assert_eq!(diagnostics.len(), 4);
+        assert!(diagnostics.iter().all(|diagnostic| diagnostic.blocking));
+        assert!(diagnostics
+            .iter()
+            .all(|diagnostic| diagnostic.fixes.is_empty()));
+        assert!(diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.message.contains("incomplete")));
+        assert!(result.fixes.is_empty());
+    }
+
+    #[test]
+    fn string_definition_index_precomputes_risk_and_deduplicates_reference_edges() {
+        let source =
+            "@string{x=y # Y # y}\n@string{x={plain}}\n@string{y={value_1}}\n@misc{k, title=x,}\n";
+        let syntax = parse(source, ParseOptions::tolerant());
+        let definitions = tex_special_string_definitions(&syntax);
+        let x = definitions.get("x").unwrap();
+        assert!(x.concatenated);
+        assert_eq!(x.definitions.len(), 2);
+        assert_eq!(x.definitions[0].references.len(), 1);
+        assert_eq!(x.definitions[0].references[0].name, "y");
+
+        let analysis = referenced_string_tex_special_analysis(&syntax);
+        assert_eq!(analysis.completed_macro_visits, 2);
+        assert!(analysis.incomplete_range.is_none());
     }
 
     #[test]

@@ -58,6 +58,44 @@ string_value!(Isbn);
 string_value!(Issn);
 string_value!(Url);
 
+/// BibTeX fields whose values are identifier-like bytes rather than TeX prose.
+///
+/// Validation and export share this classification so that a value accepted as
+/// a literal identifier is never rewritten by the serializer later.
+pub const RAW_IDENTIFIER_FIELD_NAMES: &[&str] = &[
+    "url",
+    "doi",
+    "file",
+    "eprint",
+    "arxiv",
+    "archiveprefix",
+    "eprinttype",
+    "primaryclass",
+    "eprintclass",
+    "isbn",
+    "isbn-10",
+    "isbn-13",
+    "issn",
+    "eissn",
+    "coden",
+    "lccn",
+    "pmid",
+    "pmcid",
+    "pubmed",
+    "eid",
+    "pid",
+    "islrn",
+    "articleno",
+    "crossref",
+    "archived",
+];
+
+pub fn is_raw_identifier_field(field_name: &str) -> bool {
+    RAW_IDENTIFIER_FIELD_NAMES
+        .iter()
+        .any(|candidate| candidate.eq_ignore_ascii_case(field_name))
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "snake_case")]
 pub enum ValueStatus {
@@ -446,3 +484,23 @@ pub fn analyze(document: &SyntaxDocument) -> Bibliography {
 }
 
 pub use names::parse_people;
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::collections::BTreeSet;
+
+    #[test]
+    fn raw_identifier_field_classification_is_unique_and_case_insensitive() {
+        let unique = RAW_IDENTIFIER_FIELD_NAMES
+            .iter()
+            .map(|name| name.to_ascii_lowercase())
+            .collect::<BTreeSet<_>>();
+
+        assert_eq!(unique.len(), RAW_IDENTIFIER_FIELD_NAMES.len());
+        assert!(RAW_IDENTIFIER_FIELD_NAMES
+            .iter()
+            .all(|name| is_raw_identifier_field(&name.to_ascii_uppercase())));
+        assert!(!is_raw_identifier_field("title"));
+    }
+}

@@ -34,8 +34,10 @@ FIXTURES = {
   title = {An unfinished entry},
   author = {Example, Alice}
 """,
-    "unescaped-percent": """@misc{percent-value,
-  title = {100% Effective},
+    "unsafe-tex-specials": """@misc{tex-special-value,
+  title = {R&D #1 item_2 at 50% with 2^3 cases},
+  note = {US$5},
+  abstract = {$x_1^2$},
 }
 """,
     "json-like-strings": """@misc{transport-strings,
