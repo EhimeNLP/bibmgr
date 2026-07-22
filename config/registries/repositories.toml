@@ -1,0 +1,37 @@
+schema_version = "1"
+
+[[repositories]]
+id = "arxiv"
+full_name = "arXiv"
+short_name = "arXiv"
+aliases = ["arXiv.org", "Cornell arXiv"]
+archive_prefix = "arXiv"
+identifier_pattern = '^(?:arXiv:)?(?:[a-z-]+(?:\.[A-Z]{2})?/\d{7}|\d{4}\.\d{4,5})(?:v\d+)?$'
+url_template = "https://arxiv.org/abs/{identifier}"
+
+[[repositories]]
+id = "biorxiv"
+full_name = "bioRxiv"
+short_name = "bioRxiv"
+aliases = ["bioRxiv preprint"]
+archive_prefix = "bioRxiv"
+identifier_pattern = '^10\.1101/\d+(?:\.\d+)*$'
+url_template = "https://www.biorxiv.org/content/{identifier}"
+
+[[repositories]]
+id = "medrxiv"
+full_name = "medRxiv"
+short_name = "medRxiv"
+aliases = ["medRxiv preprint"]
+archive_prefix = "medRxiv"
+identifier_pattern = '^10\.1101/\d{4}\.\d{2}\.\d{2}\.\d+$'
+url_template = "https://www.medrxiv.org/content/{identifier}"
+
+[[repositories]]
+id = "zenodo"
+full_name = "Zenodo"
+short_name = "Zenodo"
+aliases = []
+archive_prefix = "Zenodo"
+identifier_pattern = '^(?:10\.5281/zenodo\.)?\d+$'
+url_template = "https://doi.org/10.5281/zenodo.{identifier}"

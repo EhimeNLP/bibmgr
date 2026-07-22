@@ -1,0 +1,60 @@
+schema_version = "1"
+profile = "classical-bst"
+display_name = "Classical BibTeX"
+description = "Conservative output for classical bst styles using howpublished for preprints."
+validation_profile = "classical-bst"
+preprint_representation = "misc-howpublished"
+venue_style = "as-recorded"
+field_order = [
+  "author",
+  "editor",
+  "title",
+  "booktitle",
+  "journal",
+  "volume",
+  "number",
+  "series",
+  "pages",
+  "publisher",
+  "institution",
+  "school",
+  "address",
+  "edition",
+  "month",
+  "year",
+  "howpublished",
+  "note",
+]
+field_case = "lowercase"
+value_delimiter = "braces"
+line_ending = "lf"
+indent = "  "
+trailing_comma = true
+include_doi = false
+include_url = false
+include_extra_fields = true
+excluded_fields = []
+allow_unknown_work_type = false
+
+[field_selection]
+allowed_fields = [
+  "author",
+  "editor",
+  "title",
+  "booktitle",
+  "journal",
+  "volume",
+  "number",
+  "series",
+  "pages",
+  "publisher",
+  "institution",
+  "school",
+  "address",
+  "edition",
+  "month",
+  "year",
+  "howpublished",
+  "note",
+]
+excluded_fields = ["url", "eprint", "archiveprefix", "primaryclass"]

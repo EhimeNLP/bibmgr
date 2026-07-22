@@ -1,0 +1,63 @@
+schema_version = "1"
+profile = "laboratory"
+display_name = "Laboratory Canonical"
+description = "Canonical laboratory output with full venue names and a compact field projection."
+validation_profile = "laboratory"
+preprint_representation = "misc-eprint"
+venue_style = "full"
+field_order = [
+  "title",
+  "author",
+  "editor",
+  "journal",
+  "booktitle",
+  "series",
+  "volume",
+  "number",
+  "pages",
+  "publisher",
+  "institution",
+  "school",
+  "address",
+  "year",
+  "doi",
+  "eprint",
+  "archiveprefix",
+  "primaryclass",
+  "url",
+  "note",
+]
+field_case = "lowercase"
+value_delimiter = "braces"
+line_ending = "lf"
+indent = "  "
+trailing_comma = true
+include_doi = true
+include_url = false
+include_extra_fields = true
+excluded_fields = []
+allow_unknown_work_type = false
+
+[field_selection]
+allowed_fields = [
+  "title",
+  "author",
+  "editor",
+  "journal",
+  "booktitle",
+  "series",
+  "volume",
+  "number",
+  "pages",
+  "publisher",
+  "institution",
+  "school",
+  "address",
+  "year",
+  "doi",
+  "eprint",
+  "archiveprefix",
+  "primaryclass",
+  "note",
+]
+excluded_fields = ["url"]

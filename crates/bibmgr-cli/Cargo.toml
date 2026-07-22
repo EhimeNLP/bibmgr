@@ -1,0 +1,26 @@
+[package]
+name = "bibmgr-cli"
+description = "Command-line frontend for the shared bibmgr Rust core"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+publish.workspace = true
+
+[[bin]]
+name = "bibmgr"
+path = "src/main.rs"
+
+[dependencies]
+bibmgr-core.workspace = true
+clap.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+rayon.workspace = true
+
+[dev-dependencies]
+tempfile = "3.20"
+
+[lints]
+workspace = true

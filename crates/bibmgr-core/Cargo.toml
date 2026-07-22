@@ -1,0 +1,25 @@
+[package]
+name = "bibmgr-core"
+description = "High-level facade for BibTeX analysis, editing, registration, and export"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+publish.workspace = true
+
+[dependencies]
+bibmgr-edit.workspace = true
+bibmgr-export.workspace = true
+bibmgr-model.workspace = true
+bibmgr-semantics.workspace = true
+bibmgr-syntax.workspace = true
+bibmgr-validation.workspace = true
+serde.workspace = true
+thiserror.workspace = true
+
+[dev-dependencies]
+serde_json.workspace = true
+
+[lints]
+workspace = true

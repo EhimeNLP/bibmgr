@@ -1,0 +1,20 @@
+[package]
+name = "bibmgr-edit"
+description = "Atomic source-preserving BibTeX edit planning and application"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+publish.workspace = true
+
+[dependencies]
+bibmgr-model.workspace = true
+serde.workspace = true
+thiserror.workspace = true
+
+[dev-dependencies]
+proptest = "1.11"
+
+[lints]
+workspace = true
