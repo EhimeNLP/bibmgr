@@ -34,6 +34,15 @@ FIXTURES = {
   title = {An unfinished entry},
   author = {Example, Alice}
 """,
+    "unescaped-percent": """@misc{percent-value,
+  title = {100% Effective},
+}
+""",
+    "json-like-strings": """@misc{transport-strings,
+  title = {{"key":"value"}},
+  customfield = {[1,2]},
+}
+""",
 }
 
 EXPORT_SOURCE = """@misc{smith-2024,
@@ -55,6 +64,17 @@ EXPORT_PROFILES = (
     "laboratory",
     "acl",
     "aaai",
+    "acm-publications",
+    "ieee-publications",
+    "natbib-full-author-names",
+    "springer-lncs",
+    "ml-conferences",
+    "lrec",
+    "eamt",
+    "ipsj-japanese",
+    "ipsj-english",
+    "jnlp-japanese",
+    "jsai-journal",
     "classical-bst",
     "legacy-arxiv-article",
 )
