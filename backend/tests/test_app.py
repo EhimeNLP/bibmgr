@@ -129,6 +129,13 @@ def test_apply_requires_the_analyzed_source_revision() -> None:
     )
 
     assert response.status_code == 422
+    assert response.json() == {
+        "schema_version": "1",
+        "error": {
+            "code": "invalid_request",
+            "message": "Request validation failed.",
+        },
+    }
     assert engine.calls == []
 
 
@@ -187,7 +194,7 @@ def test_export_profile_catalog_is_forwarded_without_adapter_rules() -> None:
 
 
 def test_unknown_request_fields_are_rejected() -> None:
-    client, _engine = client_and_engine()
+    client, engine = client_and_engine()
 
     response = client.post(
         "/bibtex/analyze",
@@ -195,6 +202,28 @@ def test_unknown_request_fields_are_rejected() -> None:
     )
 
     assert response.status_code == 422
+    assert response.json() == {
+        "schema_version": "1",
+        "error": {
+            "code": "invalid_request",
+            "message": "Request validation failed.",
+        },
+    }
+    assert engine.calls == []
+
+
+def test_openapi_advertises_versioned_request_validation_errors() -> None:
+    schema = create_app(RecordingEngine()).openapi()
+
+    response_schema = schema["paths"]["/bibtex/analyze"]["post"]["responses"][
+        "422"
+    ]["content"]["application/json"]["schema"]
+
+    assert response_schema == {"$ref": "#/components/schemas/ErrorResponse"}
+    assert schema["components"]["schemas"]["ErrorResponse"]["required"] == [
+        "schema_version",
+        "error",
+    ]
 
 
 class FailingEngine(RecordingEngine):

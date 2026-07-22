@@ -84,7 +84,7 @@ class NativeEngine:
         try:
             function = getattr(self.native, function_name)
             result = function(*args, **kwargs)
-            dto = _to_jsonable(result)
+            dto = _to_jsonable(result, decode_transport_json=True)
         except NativeCallError:
             raise
         except Exception as error:  # PyO3 exception classes are runtime-defined.
@@ -102,15 +102,15 @@ class NativeEngine:
         return dto
 
 
-def _to_jsonable(value: Any) -> Any:
+def _to_jsonable(value: Any, *, decode_transport_json: bool = False) -> Any:
     """Convert an owned native DTO without changing its field semantics."""
 
     if value is None or isinstance(value, (str, int, float, bool)):
-        if isinstance(value, str):
+        if isinstance(value, str) and decode_transport_json:
             stripped = value.lstrip()
             if stripped.startswith("{") or stripped.startswith("["):
                 try:
-                    return json.loads(value)
+                    return _to_jsonable(json.loads(value))
                 except json.JSONDecodeError:
                     pass
         return value
@@ -130,7 +130,7 @@ def _to_jsonable(value: Any) -> Any:
         return _to_jsonable(to_dict())
     to_json = getattr(value, "to_json", None)
     if callable(to_json):
-        return _to_jsonable(to_json())
+        return _to_jsonable(to_json(), decode_transport_json=True)
 
     public_values = {
         name: _to_jsonable(item)

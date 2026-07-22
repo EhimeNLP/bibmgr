@@ -1,9 +1,11 @@
 """FastAPI transport over the shared native engine."""
 
-from typing import Annotated, Any, Protocol
+from typing import Annotated, Any, Literal, Protocol
 
 from fastapi import Depends, FastAPI, Request
+from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
+from pydantic import BaseModel, ConfigDict, Field
 
 from .models import (
     AnalyzeRequest,
@@ -12,6 +14,33 @@ from .models import (
     RegistrationRequest,
 )
 from .native import NativeCallError, NativeEngine
+
+
+class ErrorPayload(BaseModel):
+    """Application-owned error details advertised by OpenAPI."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    code: str = Field(min_length=1)
+    message: str
+    details: dict[str, Any] = Field(default_factory=dict)
+
+
+class ErrorResponse(BaseModel):
+    """Schema-v1 error envelope advertised by OpenAPI."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    schema_version: Literal["1"]
+    error: ErrorPayload
+
+
+REQUEST_VALIDATION_RESPONSES: dict[int, dict[str, Any]] = {
+    422: {
+        "description": "Invalid request",
+        "model": ErrorResponse,
+    }
+}
 
 
 class Engine(Protocol):
@@ -43,16 +72,29 @@ def create_app(engine: Engine | None = None) -> FastAPI:
 
     EngineDependency = Annotated[Engine, Depends(get_engine)]
 
+    def error_response(status_code: int, code: str, message: str) -> JSONResponse:
+        return JSONResponse(
+            status_code=status_code,
+            content={
+                "schema_version": "1",
+                "error": {"code": code, "message": message},
+            },
+        )
+
     @application.exception_handler(NativeCallError)
     async def native_error_handler(
         _request: Request, error: NativeCallError
     ) -> JSONResponse:
-        return JSONResponse(
-            status_code=error.status_code,
-            content={
-                "schema_version": "1",
-                "error": {"code": error.code, "message": str(error)},
-            },
+        return error_response(error.status_code, error.code, str(error))
+
+    @application.exception_handler(RequestValidationError)
+    async def request_validation_error_handler(
+        _request: Request, _error: RequestValidationError
+    ) -> JSONResponse:
+        return error_response(
+            422,
+            "invalid_request",
+            "Request validation failed.",
         )
 
     @application.get("/healthz")
@@ -60,13 +102,17 @@ def create_app(engine: Engine | None = None) -> FastAPI:
         # Import is intentionally lazy; liveness must not invoke bibliography logic.
         return {"status": "ok"}
 
-    @application.post("/bibtex/analyze")
+    @application.post(
+        "/bibtex/analyze", responses=REQUEST_VALIDATION_RESPONSES
+    )
     def analyze(
         request: AnalyzeRequest, native: EngineDependency
     ) -> dict[str, Any]:
         return native.analyze(request.source, request.profile, request.mode)
 
-    @application.post("/bibtex/fixes/apply")
+    @application.post(
+        "/bibtex/fixes/apply", responses=REQUEST_VALIDATION_RESPONSES
+    )
     def apply_fixes(
         request: ApplyFixesRequest, native: EngineDependency
     ) -> dict[str, Any]:
@@ -77,7 +123,9 @@ def create_app(engine: Engine | None = None) -> FastAPI:
             request.profile,
         )
 
-    @application.post("/bibtex/registration/validate")
+    @application.post(
+        "/bibtex/registration/validate", responses=REQUEST_VALIDATION_RESPONSES
+    )
     def validate_registration(
         request: RegistrationRequest, native: EngineDependency
     ) -> dict[str, Any]:
@@ -87,7 +135,9 @@ def create_app(engine: Engine | None = None) -> FastAPI:
     def export_profiles(native: EngineDependency) -> dict[str, Any]:
         return native.export_profiles()
 
-    @application.post("/bibtex/export")
+    @application.post(
+        "/bibtex/export", responses=REQUEST_VALIDATION_RESPONSES
+    )
     def export_source(
         request: ExportRequest, native: EngineDependency
     ) -> dict[str, Any]:
