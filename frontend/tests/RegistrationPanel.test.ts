@@ -475,6 +475,90 @@ describe("RegistrationPanel", () => {
     });
   });
 
+  it("sends a braced raw percent value unchanged to native validation", async () => {
+    const bibtex = "@misc{key, title = {100% Effective}, }";
+    const percentOffset = bibtex.indexOf("%");
+    bibtexApiMocks.validateBibtexForRegistration.mockResolvedValueOnce({
+      schema_version: "1",
+      accepted: false,
+      source: bibtex,
+      source_revision: sourceRevision,
+      diagnostics: [
+        {
+          id: "BIB-SYNTAX-008:0",
+          code: "BIB-SYNTAX-008",
+          severity: "error",
+          blocking: true,
+          message: "field `title` contains an unescaped `%`",
+          primary_location: {
+            source_id: "source:0",
+            range: { start: percentOffset, end: percentOffset + 1 },
+          },
+          related_locations: [],
+          notes: [],
+          fixes: ["BIB-SYNTAX-008:0"],
+        },
+      ],
+      bibliography: { records: [], diagnostics: [] },
+      applied_fix_ids: [],
+      unresolved_semantics: false,
+    });
+    const wrapper = renderPanel();
+    await openFilePanel(wrapper);
+
+    await chooseFile(wrapper, createFile("percent.bib", bibtex));
+
+    expect(wrapper.get('#registration-panel-file [role="status"]').text()).toBe(
+      "percent.bib is ready. 1 entry detected.",
+    );
+    await wrapper
+      .get("#registration-panel-file button.button-primary")
+      .trigger("click");
+    await flushPromises();
+
+    expect(bibtexApiMocks.validateBibtexForRegistration).toHaveBeenCalledWith({
+      source: bibtex,
+      policy: "laboratory",
+    });
+    expect(apiMocks.registerBibtexToDatabase).not.toHaveBeenCalled();
+  });
+
+  it("uses native validation rather than the estimated entry count as authority", async () => {
+    const source = "% metadata without a detected entry\n";
+    bibtexApiMocks.validateBibtexForRegistration.mockResolvedValueOnce({
+      schema_version: "1",
+      accepted: false,
+      source,
+      source_revision: sourceRevision,
+      diagnostics: [],
+      bibliography: { records: [], diagnostics: [] },
+      applied_fix_ids: [],
+      unresolved_semantics: false,
+    });
+    const wrapper = renderPanel();
+    await openFilePanel(wrapper);
+
+    await chooseFile(wrapper, createFile("metadata.bib", source));
+
+    expect(wrapper.get('#registration-panel-file [role="status"]').text()).toBe(
+      "metadata.bib is ready. 0 entries detected.",
+    );
+    expect(wrapper.get("#file-bibtex-preview").exists()).toBe(true);
+    const registerButton = wrapper.get(
+      "#registration-panel-file button.button-primary",
+    );
+    expect(registerButton.attributes("disabled")).toBeUndefined();
+
+    await registerButton.trigger("click");
+    await flushPromises();
+
+    expect(bibtexApiMocks.validateBibtexForRegistration).toHaveBeenCalledWith({
+      source,
+      policy: "laboratory",
+    });
+    expect(apiMocks.registerBibtexToDatabase).not.toHaveBeenCalled();
+  });
+
   it("rejects invalid and empty files without stale content", async () => {
     const wrapper = renderPanel();
     await openFilePanel(wrapper);

@@ -43,7 +43,7 @@ const fileEntryCount = computed(() => countBibliographicEntries(fileBibtex.value
 const canRegisterFile = computed(
   () =>
     Boolean(selectedBibFile.value) &&
-    fileEntryCount.value > 0 &&
+    fileBibtex.value.trim().length > 0 &&
     !isFileReading.value &&
     !isFileRegistering.value,
 );
@@ -188,11 +188,6 @@ async function onBibFileChange(event: Event) {
       return;
     }
 
-    const entryCount = countBibliographicEntries(bibtex);
-    if (entryCount === 0) {
-      failFileSelection("No BibTeX entry was found in this file.", input);
-      return;
-    }
     fileBibtex.value = bibtex;
     fileMessage.value = `${file.name} is ready.`;
   } catch (error) {

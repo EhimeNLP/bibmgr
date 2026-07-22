@@ -44,7 +44,7 @@ export function tokenizeBibtex(source: string): BibtexToken[] {
   while (index < source.length) {
     const character = source[index];
 
-    if (character === "%" && source[index - 1] !== "\\") {
+    if (character === "%" && !isEscaped(source, index)) {
       const end = lineEnd(source, index);
       push("comment", source.slice(index, end));
       index = end;
@@ -180,7 +180,7 @@ export function extractBibliographicEntries(source: string): string[] {
   let index = 0;
 
   while (index < source.length) {
-    if (source[index] === "%" && source[index - 1] !== "\\") {
+    if (source[index] === "%" && !isEscaped(source, index)) {
       index = lineEnd(source, index);
       continue;
     }
@@ -199,10 +199,15 @@ export function extractBibliographicEntries(source: string): string[] {
       continue;
     }
 
-    const end = bibtexEntryEnd(source, openIndex, open, open === "{" ? "}" : ")");
+    const end = bibtexEntryEnd(
+      source,
+      openIndex,
+      open,
+      open === "{" ? "}" : ")",
+      !SPECIAL_ENTRY_TYPES.has(entryType),
+    );
     if (end === undefined) {
-      index = typeEnd;
-      continue;
+      break;
     }
 
     if (!SPECIAL_ENTRY_TYPES.has(entryType)) {
@@ -251,6 +256,14 @@ function minimumPositive(...values: number[]): number {
 
 function isWhitespace(value: string | undefined): boolean {
   return Boolean(value && /\s/.test(value));
+}
+
+function isEscaped(source: string, index: number): boolean {
+  let backslashes = 0;
+  for (let cursor = index; cursor > 0 && source[cursor - 1] === "\\"; cursor -= 1) {
+    backslashes += 1;
+  }
+  return backslashes % 2 === 1;
 }
 
 function skipWhitespace(source: string, start: number): number {
@@ -322,43 +335,53 @@ function bibtexEntryEnd(
   start: number,
   open: string,
   close: string,
+  allowBodyComments: boolean,
 ): number | undefined {
-  let depth = 0;
-  let escaped = false;
+  let braceDepth = open === "{" ? 1 : 0;
   let inQuote = false;
   let inComment = false;
+  let precedingBackslashes = 0;
 
-  for (let index = start; index < source.length; index += 1) {
+  for (let index = start + 1; index < source.length; index += 1) {
     const character = source[index];
 
     if (inComment) {
+      precedingBackslashes = 0;
       if (character === "\n" || character === "\r") inComment = false;
       continue;
     }
 
-    if (escaped) {
-      escaped = false;
+    const escaped = precedingBackslashes % 2 === 1;
+    precedingBackslashes =
+      character === "\\" ? precedingBackslashes + 1 : 0;
+    const atBodyLevel = open === "{" ? braceDepth === 1 : braceDepth === 0;
+
+    if (inQuote) {
+      if (character === '"' && !escaped) inQuote = false;
       continue;
     }
-    if (character === "\\") {
-      escaped = true;
-      continue;
-    }
-    if (character === "%" && !inQuote) {
+
+    if (allowBodyComments && character === "%" && atBodyLevel && !escaped) {
       inComment = true;
       continue;
     }
-    if (character === '"') {
-      inQuote = !inQuote;
+
+    if (character === '"' && atBodyLevel && !escaped) {
+      inQuote = true;
       continue;
     }
-    if (inQuote) continue;
 
-    if (character === open) depth += 1;
-    if (character === close) {
-      depth -= 1;
-      if (depth === 0) return index + 1;
+    if (character === "{" && !escaped) {
+      braceDepth += 1;
+      continue;
     }
+    if (character === "}" && !escaped) {
+      braceDepth = Math.max(0, braceDepth - 1);
+      if (close === "}" && braceDepth === 0) return index + 1;
+      continue;
+    }
+    if (close === ")" && character === ")" && braceDepth === 0 && !escaped)
+      return index + 1;
   }
 
   return undefined;

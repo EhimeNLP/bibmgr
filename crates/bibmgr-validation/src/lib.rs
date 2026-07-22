@@ -6,10 +6,10 @@ use bibmgr_model::{
 };
 pub use bibmgr_semantics::VenueKind;
 use bibmgr_semantics::{Bibliography, WorkType};
-use bibmgr_syntax::{EntryNode, FieldNode, SyntaxDocument, ValueAtomKind};
+use bibmgr_syntax::{EntryNode, FieldNode, SyntaxDocument, ValueAtomKind, ValueExpression};
 use regex::Regex;
 use serde::{Deserialize, Serialize};
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::{BTreeMap, BTreeSet, VecDeque};
 use std::sync::OnceLock;
 
 pub const RULE_DUPLICATE_FIELD: &str = "BIB-SYNTAX-001";
@@ -19,6 +19,7 @@ pub const RULE_TRAILING_COMMA: &str = "BIB-SYNTAX-004";
 pub const RULE_VALUE_DELIMITER: &str = "BIB-SYNTAX-005";
 pub const RULE_EQUALS_WHITESPACE: &str = "BIB-SYNTAX-006";
 pub const RULE_INLINE_PERCENT_COMMENT: &str = "BIB-SYNTAX-007";
+pub const RULE_UNESCAPED_PERCENT: &str = "BIB-SYNTAX-008";
 pub const RULE_DOI: &str = "BIB-SEMANTIC-001";
 pub const RULE_ARXIV: &str = "BIB-SEMANTIC-002";
 pub const RULE_REQUIRED_DATA: &str = "BIB-SEMANTIC-003";
@@ -57,6 +58,7 @@ pub const REGISTERED_RULE_CODES: &[&str] = &[
     RULE_VALUE_DELIMITER,
     RULE_EQUALS_WHITESPACE,
     RULE_INLINE_PERCENT_COMMENT,
+    RULE_UNESCAPED_PERCENT,
     "BIB-SEMANTIC-101",
     "BIB-SEMANTIC-102",
     "BIB-SEMANTIC-106",
@@ -741,6 +743,7 @@ pub fn validate(
             engine.validate_semantics(entry, record);
         }
     }
+    engine.validate_referenced_string_percents();
     engine.validate_bibliography_duplicates(semantics);
     engine.finish()
 }
@@ -1080,6 +1083,100 @@ impl<'a> Engine<'a> {
                 vec![],
                 vec![String::from(
                     "inline percent comments inside entries are not portable BibTeX",
+                )],
+                None,
+            );
+        }
+
+        for field in &entry.fields {
+            for issue in unescaped_percent_issues(self.syntax, field) {
+                let Some(primary_range) = issue.ranges.first().copied() else {
+                    continue;
+                };
+                let mut notes = vec![String::from(
+                    "BibTeX retains `%` in database values, but TeX treats it as a line comment when a bibliography style writes it to `.bbl`",
+                )];
+                if issue.omitted > 0 {
+                    notes.push(percent_omission_note(issue.ranges.len(), issue.omitted));
+                }
+                self.emit(
+                    RULE_UNESCAPED_PERCENT,
+                    format!("field `{}` contains an unescaped `%`", field.name.text),
+                    primary_range,
+                    vec![],
+                    notes,
+                    (issue.omitted == 0).then(|| FixDraft {
+                        title: format!("Escape `%` in `{}`", field.name.text),
+                        applicability: issue.applicability,
+                        edits: percent_escape_edits(&issue.ranges),
+                    }),
+                );
+            }
+        }
+    }
+
+    fn validate_referenced_string_percents(&mut self) {
+        let analysis = referenced_string_percent_analysis(self.syntax);
+        self.emit_referenced_string_percent_analysis(analysis);
+    }
+
+    #[cfg(test)]
+    fn validate_referenced_string_percents_with_limit(&mut self, visit_limit: usize) {
+        let analysis = referenced_string_percent_analysis_with_limit(self.syntax, visit_limit);
+        self.emit_referenced_string_percent_analysis(analysis);
+    }
+
+    fn emit_referenced_string_percent_analysis(
+        &mut self,
+        analysis: ReferencedStringPercentAnalysis,
+    ) {
+        let fixes_allowed = analysis.incomplete_range.is_none();
+        for issue in analysis.issues {
+            let Some(primary_range) = issue.ranges.first().copied() else {
+                continue;
+            };
+            let fields = issue
+                .consumer_fields
+                .iter()
+                .map(|field| format!("`{field}`"))
+                .collect::<Vec<_>>()
+                .join(", ");
+            let mut notes = vec![String::from(
+                "BibTeX retains `%` in database values, but TeX treats it as a line comment when a bibliography style writes it to `.bbl`",
+            )];
+            if issue.omitted > 0 {
+                notes.push(percent_omission_note(issue.ranges.len(), issue.omitted));
+            }
+            self.emit(
+                RULE_UNESCAPED_PERCENT,
+                format!(
+                    "@string `{}` used by field(s) {fields} contains an unescaped `%`",
+                    issue.macro_name
+                ),
+                primary_range,
+                vec![],
+                notes,
+                issue
+                    .applicability
+                    .filter(|_| fixes_allowed)
+                    .and_then(|applicability| {
+                        (issue.omitted == 0).then(|| FixDraft {
+                            title: format!("Escape `%` in @string `{}`", issue.macro_name),
+                            applicability,
+                            edits: percent_escape_edits(&issue.ranges),
+                        })
+                    }),
+            );
+        }
+        if let Some(range) = analysis.incomplete_range {
+            self.emit(
+                RULE_UNESCAPED_PERCENT,
+                String::from("unescaped-percent analysis is incomplete"),
+                range,
+                vec![],
+                vec![format!(
+                    "analysis stopped after {} @string expansion visits because a traversal bound was reached; automatic fixes for referenced @string values are disabled",
+                    analysis.completed_macro_visits
                 )],
                 None,
             );
@@ -1774,6 +1871,860 @@ fn inline_percent_comment_ranges(syntax: &SyntaxDocument, entry: &EntryNode) -> 
     ranges
 }
 
+const MAX_PERCENT_RANGES_PER_ISSUE: usize = 256;
+const MAX_PERCENT_MACRO_EXPANSION_DEPTH: usize = 256;
+const MAX_PERCENT_MACRO_VISITS: usize = 65_536;
+
+#[derive(Debug)]
+struct UnescapedPercentIssue {
+    ranges: Vec<TextRange>,
+    omitted: usize,
+    applicability: FixApplicability,
+}
+
+fn unescaped_percent_issues(
+    syntax: &SyntaxDocument,
+    field: &FieldNode,
+) -> Vec<UnescapedPercentIssue> {
+    let policy = percent_consumer_policy(&field.name.text);
+    if policy == PercentConsumerPolicy::Ignore {
+        return Vec::new();
+    }
+    let composite = percent_expression_is_composite(&field.value);
+    let occurrences = literal_percent_occurrences(syntax, &field.value);
+    let mut safe = CappedPercentRanges::default();
+    let mut review = CappedPercentRanges::default();
+
+    if policy == PercentConsumerPolicy::Review || composite {
+        review.merge(&occurrences.plain);
+    } else {
+        safe.merge(&occurrences.plain);
+    }
+    review.merge(&occurrences.command_argument);
+
+    let mut issues = Vec::new();
+    if !safe.is_empty() {
+        issues.push(UnescapedPercentIssue {
+            ranges: safe.ranges,
+            omitted: safe.omitted,
+            applicability: FixApplicability::Safe,
+        });
+    }
+    if !review.is_empty() {
+        issues.push(UnescapedPercentIssue {
+            ranges: review.ranges,
+            omitted: review.omitted,
+            applicability: FixApplicability::RequiresConfirmation,
+        });
+    }
+    issues
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum PercentConsumerPolicy {
+    Ignore,
+    PlainText,
+    Review,
+}
+
+fn percent_consumer_policy(field_name: &str) -> PercentConsumerPolicy {
+    match field_name.to_ascii_lowercase().as_str() {
+        // These fields are commonly consumed by commands that assign URL-like
+        // catcodes, where a raw percent sign can be part of an identifier.
+        "archived" | "doi" | "file" | "url" => PercentConsumerPolicy::Ignore,
+        // These are conventional prose fields. Turning a raw percent into the
+        // TeX literal is source-preserving at the bibliography value boundary.
+        "abstract" | "address" | "author" | "booktitle" | "editor" | "institution" | "journal"
+        | "journaltitle" | "keywords" | "location" | "organization" | "publisher" | "school"
+        | "series" | "subtitle" | "title" | "translator" => PercentConsumerPolicy::PlainText,
+        // Custom and explicitly TeX-oriented fields may intentionally contain
+        // a macro whose argument changes catcodes, so require user review.
+        _ => PercentConsumerPolicy::Review,
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+enum PercentTexContext {
+    Plain,
+    CommandArgument,
+    UrlCommandArgument,
+}
+
+#[derive(Debug, Clone, Default)]
+struct CappedPercentRanges {
+    ranges: Vec<TextRange>,
+    omitted: usize,
+}
+
+impl CappedPercentRanges {
+    fn push(&mut self, range: TextRange) {
+        if self.ranges.len() < MAX_PERCENT_RANGES_PER_ISSUE {
+            self.ranges.push(range);
+        } else {
+            self.omitted = self.omitted.saturating_add(1);
+        }
+    }
+
+    fn merge(&mut self, other: &Self) {
+        self.omitted = self.omitted.saturating_add(other.omitted);
+        self.ranges.extend(other.ranges.iter().copied());
+        self.ranges.sort_unstable();
+        self.ranges.dedup();
+        if self.ranges.len() > MAX_PERCENT_RANGES_PER_ISSUE {
+            self.omitted = self
+                .omitted
+                .saturating_add(self.ranges.len() - MAX_PERCENT_RANGES_PER_ISSUE);
+            self.ranges.truncate(MAX_PERCENT_RANGES_PER_ISSUE);
+        }
+    }
+
+    fn is_empty(&self) -> bool {
+        self.ranges.is_empty() && self.omitted == 0
+    }
+}
+
+#[derive(Debug, Clone, Default)]
+struct LiteralPercentOccurrences {
+    plain: CappedPercentRanges,
+    command_argument: CappedPercentRanges,
+}
+
+impl LiteralPercentOccurrences {
+    fn record(&mut self, range: TextRange, context: PercentTexContext) {
+        match context {
+            PercentTexContext::Plain => self.plain.push(range),
+            PercentTexContext::CommandArgument => self.command_argument.push(range),
+            PercentTexContext::UrlCommandArgument => {}
+        }
+    }
+
+    fn groups(&self) -> [(PercentTexContext, &CappedPercentRanges); 2] {
+        [
+            (PercentTexContext::Plain, &self.plain),
+            (PercentTexContext::CommandArgument, &self.command_argument),
+        ]
+    }
+}
+
+fn literal_percent_occurrences(
+    syntax: &SyntaxDocument,
+    expression: &ValueExpression,
+) -> LiteralPercentOccurrences {
+    let mut occurrences = LiteralPercentOccurrences::default();
+    for atom in &expression.atoms {
+        if !matches!(
+            atom.kind,
+            ValueAtomKind::Braced { .. } | ValueAtomKind::Quoted { .. }
+        ) {
+            continue;
+        }
+        let Some(value) = syntax.slice(atom.content_range) else {
+            continue;
+        };
+        scan_literal_percent_atom(value.as_bytes(), atom.content_range.start, &mut occurrences);
+    }
+    occurrences
+}
+
+fn percent_expression_is_composite(expression: &ValueExpression) -> bool {
+    expression.is_concatenated()
+        || expression
+            .atoms
+            .iter()
+            .any(|atom| atom.kind == ValueAtomKind::Macro)
+}
+
+fn scan_literal_percent_atom(
+    bytes: &[u8],
+    content_start: u32,
+    occurrences: &mut LiteralPercentOccurrences,
+) {
+    let mut group_commands = Vec::<Option<TexCommandKind>>::new();
+    let mut command_argument_depth = 0_usize;
+    let mut url_command_argument_depth = 0_usize;
+    let mut pending_command = None::<TexCommandKind>;
+    let mut continuation_command = None::<TexCommandKind>;
+    let mut cursor = 0;
+    while cursor < bytes.len() {
+        match bytes[cursor] {
+            b'\\' => {
+                continuation_command = None;
+                (cursor, pending_command) =
+                    scan_tex_command(bytes, cursor, content_start, occurrences);
+            }
+            b'*' if pending_command.is_some() => cursor += 1,
+            b'[' if pending_command.is_some() => {
+                let (next, closed) =
+                    scan_optional_tex_argument(bytes, cursor, content_start, occurrences);
+                cursor = next;
+                if !closed {
+                    pending_command = None;
+                }
+            }
+            b'{' => {
+                let command = pending_command.take().or(continuation_command.take());
+                match command {
+                    Some(TexCommandKind::Url) => url_command_argument_depth += 1,
+                    Some(TexCommandKind::Other) => command_argument_depth += 1,
+                    None => {}
+                }
+                group_commands.push(command);
+                cursor += 1;
+            }
+            b'}' => {
+                pending_command = None;
+                let command = group_commands.pop().flatten();
+                match command {
+                    Some(TexCommandKind::Url) => {
+                        url_command_argument_depth = url_command_argument_depth.saturating_sub(1);
+                        continuation_command = None;
+                    }
+                    Some(TexCommandKind::Other) => {
+                        command_argument_depth = command_argument_depth.saturating_sub(1);
+                        continuation_command = Some(TexCommandKind::Other);
+                    }
+                    None => continuation_command = None,
+                }
+                cursor += 1;
+            }
+            byte if byte.is_ascii_whitespace() => cursor += 1,
+            byte if (pending_command.is_some() || continuation_command.is_some())
+                && is_ambiguous_tex_delimiter(byte) =>
+            {
+                pending_command = None;
+                continuation_command = None;
+                cursor =
+                    scan_ambiguous_delimited_argument(bytes, cursor, content_start, occurrences);
+            }
+            b'%' => {
+                let context = if url_command_argument_depth > 0 {
+                    PercentTexContext::UrlCommandArgument
+                } else if command_argument_depth > 0
+                    || pending_command.is_some()
+                    || continuation_command.is_some()
+                {
+                    PercentTexContext::CommandArgument
+                } else {
+                    PercentTexContext::Plain
+                };
+                record_percent_occurrence(cursor, content_start, occurrences, context);
+                pending_command = None;
+                continuation_command = None;
+                cursor += 1;
+            }
+            _ => {
+                pending_command = None;
+                continuation_command = None;
+                cursor += 1;
+            }
+        }
+    }
+}
+
+fn scan_tex_command(
+    bytes: &[u8],
+    cursor: usize,
+    content_start: u32,
+    occurrences: &mut LiteralPercentOccurrences,
+) -> (usize, Option<TexCommandKind>) {
+    if cursor + 1 >= bytes.len() {
+        return (cursor + 1, None);
+    }
+    let next = bytes[cursor + 1];
+    if !next.is_ascii_alphabetic() && next != b'@' {
+        return (cursor + 2, None);
+    }
+
+    let start = cursor + 1;
+    let mut end = start + 1;
+    while end < bytes.len() && (bytes[end].is_ascii_alphabetic() || bytes[end] == b'@') {
+        end += 1;
+    }
+    let command = &bytes[start..end];
+    if is_verbatim_tex_command(command) {
+        (
+            scan_verbatim_tex_command(bytes, end, content_start, occurrences, command),
+            None,
+        )
+    } else {
+        (end, Some(tex_command_kind(command)))
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+enum TexCommandKind {
+    Other,
+    Url,
+}
+
+fn tex_command_kind(command: &[u8]) -> TexCommandKind {
+    if matches!(command, b"url" | b"nolinkurl" | b"path") {
+        TexCommandKind::Url
+    } else {
+        TexCommandKind::Other
+    }
+}
+
+fn is_verbatim_tex_command(command: &[u8]) -> bool {
+    matches!(command, b"verb" | b"Verb" | b"lstinline")
+}
+
+fn scan_verbatim_tex_command(
+    bytes: &[u8],
+    mut cursor: usize,
+    content_start: u32,
+    occurrences: &mut LiteralPercentOccurrences,
+    command: &[u8],
+) -> usize {
+    if bytes.get(cursor) == Some(&b'*') {
+        cursor += 1;
+    }
+    if matches!(command, b"Verb" | b"lstinline") {
+        while matches!(bytes.get(cursor), Some(b' ' | b'\t')) {
+            cursor += 1;
+        }
+        if bytes.get(cursor) == Some(&b'[') {
+            let (next, closed) =
+                scan_optional_tex_argument(bytes, cursor, content_start, occurrences);
+            cursor = next;
+            if !closed {
+                return cursor;
+            }
+            while matches!(bytes.get(cursor), Some(b' ' | b'\t')) {
+                cursor += 1;
+            }
+        }
+    }
+
+    let Some(&delimiter) = bytes.get(cursor) else {
+        return cursor;
+    };
+    if delimiter.is_ascii_alphabetic() || delimiter.is_ascii_whitespace() {
+        let end = line_end(bytes, cursor);
+        record_command_argument_percents(bytes, cursor, end, content_start, occurrences);
+        return end;
+    }
+
+    let value_start = cursor + 1;
+    let end = line_end(bytes, value_start);
+    if let Some(relative) = bytes[value_start..end]
+        .iter()
+        .position(|byte| *byte == delimiter)
+    {
+        value_start + relative + 1
+    } else {
+        record_command_argument_percents(bytes, value_start, end, content_start, occurrences);
+        end
+    }
+}
+
+fn scan_optional_tex_argument(
+    bytes: &[u8],
+    mut cursor: usize,
+    content_start: u32,
+    occurrences: &mut LiteralPercentOccurrences,
+) -> (usize, bool) {
+    let mut depth = 0_usize;
+    while cursor < bytes.len() {
+        match bytes[cursor] {
+            b'\\' if cursor + 1 < bytes.len() => cursor += 2,
+            b'[' => {
+                depth += 1;
+                cursor += 1;
+            }
+            b']' => {
+                depth = depth.saturating_sub(1);
+                cursor += 1;
+                if depth == 0 {
+                    return (cursor, true);
+                }
+            }
+            b'%' => {
+                record_percent_occurrence(
+                    cursor,
+                    content_start,
+                    occurrences,
+                    PercentTexContext::CommandArgument,
+                );
+                cursor += 1;
+            }
+            _ => cursor += 1,
+        }
+    }
+    (cursor, false)
+}
+
+fn is_ambiguous_tex_delimiter(byte: u8) -> bool {
+    matches!(byte, b'|' | b'!' | b'+' | b'/' | b':' | b';')
+}
+
+fn scan_ambiguous_delimited_argument(
+    bytes: &[u8],
+    mut cursor: usize,
+    content_start: u32,
+    occurrences: &mut LiteralPercentOccurrences,
+) -> usize {
+    let delimiter = bytes[cursor];
+    cursor += 1;
+    while cursor < bytes.len() && !matches!(bytes[cursor], b'\n' | b'\r') {
+        match bytes[cursor] {
+            byte if byte == delimiter => return cursor + 1,
+            b'\\' if cursor + 1 < bytes.len() => cursor += 2,
+            b'%' => {
+                record_percent_occurrence(
+                    cursor,
+                    content_start,
+                    occurrences,
+                    PercentTexContext::CommandArgument,
+                );
+                cursor += 1;
+            }
+            _ => cursor += 1,
+        }
+    }
+    cursor
+}
+
+fn record_command_argument_percents(
+    bytes: &[u8],
+    mut cursor: usize,
+    end: usize,
+    content_start: u32,
+    occurrences: &mut LiteralPercentOccurrences,
+) {
+    while cursor < end {
+        match bytes[cursor] {
+            b'\\' if cursor + 1 < end => cursor += 2,
+            b'%' => {
+                record_percent_occurrence(
+                    cursor,
+                    content_start,
+                    occurrences,
+                    PercentTexContext::CommandArgument,
+                );
+                cursor += 1;
+            }
+            _ => cursor += 1,
+        }
+    }
+}
+
+fn record_percent_occurrence(
+    cursor: usize,
+    content_start: u32,
+    occurrences: &mut LiteralPercentOccurrences,
+    context: PercentTexContext,
+) {
+    let Ok(offset) = u32::try_from(cursor) else {
+        return;
+    };
+    let start = content_start.saturating_add(offset);
+    occurrences.record(TextRange::new(start, start.saturating_add(1)), context);
+}
+
+fn line_end(bytes: &[u8], start: usize) -> usize {
+    bytes[start..]
+        .iter()
+        .position(|byte| matches!(*byte, b'\n' | b'\r'))
+        .map_or(bytes.len(), |relative| start + relative)
+}
+
+#[derive(Debug)]
+struct ReferencedStringPercentIssue {
+    ranges: Vec<TextRange>,
+    omitted: usize,
+    macro_name: String,
+    consumer_fields: BTreeSet<String>,
+    applicability: Option<FixApplicability>,
+}
+
+#[derive(Debug)]
+struct ReferencedStringPercentUsage {
+    macro_name: String,
+    ranges: CappedPercentRanges,
+    consumer_fields: BTreeSet<String>,
+    has_diagnostic_consumer: bool,
+    has_ignored_consumer: bool,
+    requires_confirmation: bool,
+}
+
+impl ReferencedStringPercentUsage {
+    fn new(macro_name: &str, ranges: &CappedPercentRanges) -> Self {
+        Self {
+            macro_name: macro_name.to_owned(),
+            ranges: ranges.clone(),
+            consumer_fields: BTreeSet::new(),
+            has_diagnostic_consumer: false,
+            has_ignored_consumer: false,
+            requires_confirmation: false,
+        }
+    }
+
+    fn record(
+        &mut self,
+        field_name: &str,
+        policy: PercentConsumerPolicy,
+        context: PercentTexContext,
+        expansion_risk: PercentExpansionRisk,
+    ) {
+        self.consumer_fields.insert(field_name.to_ascii_lowercase());
+        match policy {
+            PercentConsumerPolicy::Ignore => self.has_ignored_consumer = true,
+            PercentConsumerPolicy::PlainText => {
+                self.has_diagnostic_consumer = true;
+                self.requires_confirmation |= expansion_risk == PercentExpansionRisk::Concatenated
+                    || context == PercentTexContext::CommandArgument;
+            }
+            PercentConsumerPolicy::Review => {
+                self.has_diagnostic_consumer = true;
+                self.requires_confirmation = true;
+            }
+        }
+    }
+}
+
+#[derive(Debug)]
+struct PercentStringDefinition {
+    range: TextRange,
+    macro_name: String,
+    occurrences: LiteralPercentOccurrences,
+    concatenated: bool,
+    references: Vec<PercentMacroReference>,
+}
+
+#[derive(Debug)]
+struct PercentConsumerContext {
+    policy: PercentConsumerPolicy,
+    roots: BTreeMap<(String, PercentExpansionRisk), TextRange>,
+}
+
+#[derive(Debug)]
+struct PercentMacroReference {
+    name: String,
+    range: TextRange,
+}
+
+#[derive(Debug)]
+struct PercentMacroQueueItem {
+    macro_name: String,
+    depth: usize,
+    expansion_risk: PercentExpansionRisk,
+    origin_range: TextRange,
+}
+
+#[derive(Debug)]
+struct ReferencedStringPercentAnalysis {
+    issues: Vec<ReferencedStringPercentIssue>,
+    completed_macro_visits: usize,
+    incomplete_range: Option<TextRange>,
+}
+
+type PercentStringDefinitions = BTreeMap<String, Vec<PercentStringDefinition>>;
+type ReferencedStringPercentUsages =
+    BTreeMap<(TextRange, PercentTexContext), ReferencedStringPercentUsage>;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+enum PercentFixDisposition {
+    NoFix,
+    Safe,
+    RequiresConfirmation,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+enum PercentExpansionRisk {
+    Plain,
+    Concatenated,
+}
+
+impl PercentExpansionRisk {
+    fn from_concatenated(concatenated: bool) -> Self {
+        if concatenated {
+            Self::Concatenated
+        } else {
+            Self::Plain
+        }
+    }
+
+    fn merge(self, other: Self) -> Self {
+        self.max(other)
+    }
+}
+
+impl PercentFixDisposition {
+    fn applicability(self) -> Option<FixApplicability> {
+        match self {
+            Self::NoFix => None,
+            Self::Safe => Some(FixApplicability::Safe),
+            Self::RequiresConfirmation => Some(FixApplicability::RequiresConfirmation),
+        }
+    }
+}
+
+fn referenced_string_percent_analysis(syntax: &SyntaxDocument) -> ReferencedStringPercentAnalysis {
+    referenced_string_percent_analysis_with_limit(syntax, MAX_PERCENT_MACRO_VISITS)
+}
+
+fn referenced_string_percent_analysis_with_limit(
+    syntax: &SyntaxDocument,
+    visit_limit: usize,
+) -> ReferencedStringPercentAnalysis {
+    let definitions = percent_string_definitions(syntax);
+    let consumer_contexts = percent_consumer_contexts(syntax);
+    let (usages, completed_macro_visits, incomplete_range) =
+        collect_referenced_string_percent_usages(&definitions, consumer_contexts, visit_limit);
+    ReferencedStringPercentAnalysis {
+        issues: referenced_string_percent_issues_from_usages(usages),
+        completed_macro_visits,
+        incomplete_range,
+    }
+}
+
+fn percent_string_definitions(syntax: &SyntaxDocument) -> PercentStringDefinitions {
+    let mut definitions = PercentStringDefinitions::new();
+    for definition in syntax.strings() {
+        let references = definition
+            .value
+            .atoms
+            .iter()
+            .filter(|atom| atom.kind == ValueAtomKind::Macro)
+            .filter_map(|atom| {
+                syntax
+                    .slice(atom.content_range)
+                    .map(|name| PercentMacroReference {
+                        name: name.to_owned(),
+                        range: atom.content_range,
+                    })
+            })
+            .collect();
+        definitions
+            .entry(definition.name.text.to_ascii_lowercase())
+            .or_default()
+            .push(PercentStringDefinition {
+                range: definition.range,
+                macro_name: definition.name.text.clone(),
+                occurrences: literal_percent_occurrences(syntax, &definition.value),
+                concatenated: definition.value.is_concatenated(),
+                references,
+            });
+    }
+    definitions
+}
+
+fn percent_consumer_contexts(syntax: &SyntaxDocument) -> BTreeMap<String, PercentConsumerContext> {
+    let mut consumer_contexts = BTreeMap::<String, PercentConsumerContext>::new();
+    for entry in syntax.entries() {
+        for field in &entry.fields {
+            let policy = percent_consumer_policy(&field.name.text);
+            let expansion_risk =
+                PercentExpansionRisk::from_concatenated(field.value.is_concatenated());
+            let field_name = field.name.text.to_ascii_lowercase();
+            let context =
+                consumer_contexts
+                    .entry(field_name)
+                    .or_insert_with(|| PercentConsumerContext {
+                        policy,
+                        roots: BTreeMap::new(),
+                    });
+            for atom in &field.value.atoms {
+                if atom.kind != ValueAtomKind::Macro {
+                    continue;
+                }
+                let Some(name) = syntax.slice(atom.content_range) else {
+                    continue;
+                };
+                if let Some(canonical) = canonical_percent_macro_name(name) {
+                    context
+                        .roots
+                        .entry((canonical, expansion_risk))
+                        .or_insert(atom.content_range);
+                }
+            }
+        }
+    }
+    consumer_contexts
+}
+
+fn collect_referenced_string_percent_usages(
+    definitions: &PercentStringDefinitions,
+    consumer_contexts: BTreeMap<String, PercentConsumerContext>,
+    visit_limit: usize,
+) -> (ReferencedStringPercentUsages, usize, Option<TextRange>) {
+    let mut usages = ReferencedStringPercentUsages::new();
+    let mut completed_macro_visits = 0_usize;
+    let mut incomplete_range = None;
+    'consumers: for (field_name, consumer) in consumer_contexts {
+        let mut queue = VecDeque::<PercentMacroQueueItem>::new();
+        let mut scheduled = BTreeSet::<(String, PercentExpansionRisk)>::new();
+        let mut completed = BTreeSet::<(String, PercentExpansionRisk)>::new();
+        for ((root, expansion_risk), origin_range) in consumer.roots {
+            enqueue_percent_macro(
+                definitions,
+                &mut queue,
+                &mut scheduled,
+                root,
+                0,
+                expansion_risk,
+                origin_range,
+            );
+        }
+        while let Some(item) = queue.pop_front() {
+            let state = (item.macro_name.clone(), item.expansion_risk);
+            if completed.contains(&state) {
+                continue;
+            }
+            if item.depth >= MAX_PERCENT_MACRO_EXPANSION_DEPTH {
+                incomplete_range = Some(item.origin_range);
+                break 'consumers;
+            }
+            if completed_macro_visits >= visit_limit {
+                incomplete_range = Some(item.origin_range);
+                break 'consumers;
+            }
+            completed.insert(state);
+            completed_macro_visits = completed_macro_visits.saturating_add(1);
+            let Some(candidates) = definitions.get(&item.macro_name) else {
+                continue;
+            };
+            for definition in candidates {
+                for (tex_context, ranges) in definition.occurrences.groups() {
+                    if ranges.is_empty() {
+                        continue;
+                    }
+                    usages
+                        .entry((definition.range, tex_context))
+                        .or_insert_with(|| {
+                            ReferencedStringPercentUsage::new(&definition.macro_name, ranges)
+                        })
+                        .record(
+                            &field_name,
+                            consumer.policy,
+                            tex_context,
+                            item.expansion_risk,
+                        );
+                }
+                for reference in &definition.references {
+                    let Some(canonical) = canonical_percent_macro_name(&reference.name) else {
+                        continue;
+                    };
+                    enqueue_percent_macro(
+                        definitions,
+                        &mut queue,
+                        &mut scheduled,
+                        canonical,
+                        item.depth + 1,
+                        item.expansion_risk,
+                        reference.range,
+                    );
+                }
+            }
+        }
+    }
+    (usages, completed_macro_visits, incomplete_range)
+}
+
+fn enqueue_percent_macro(
+    definitions: &PercentStringDefinitions,
+    queue: &mut VecDeque<PercentMacroQueueItem>,
+    scheduled: &mut BTreeSet<(String, PercentExpansionRisk)>,
+    macro_name: String,
+    depth: usize,
+    incoming_risk: PercentExpansionRisk,
+    origin_range: TextRange,
+) {
+    let definition_risk = PercentExpansionRisk::from_concatenated(
+        definitions
+            .get(&macro_name)
+            .is_some_and(|candidates| candidates.iter().any(|definition| definition.concatenated)),
+    );
+    let expansion_risk = incoming_risk.merge(definition_risk);
+    if scheduled.insert((macro_name.clone(), expansion_risk)) {
+        queue.push_back(PercentMacroQueueItem {
+            macro_name,
+            depth,
+            expansion_risk,
+            origin_range,
+        });
+    }
+}
+
+fn referenced_string_percent_issues_from_usages(
+    usages: ReferencedStringPercentUsages,
+) -> Vec<ReferencedStringPercentIssue> {
+    let mut issues =
+        BTreeMap::<(TextRange, PercentFixDisposition), ReferencedStringPercentIssue>::new();
+    for ((definition_range, _), usage) in usages {
+        if !usage.has_diagnostic_consumer {
+            continue;
+        }
+        let disposition = if usage.has_ignored_consumer {
+            PercentFixDisposition::NoFix
+        } else if usage.requires_confirmation {
+            PercentFixDisposition::RequiresConfirmation
+        } else {
+            PercentFixDisposition::Safe
+        };
+        let issue = issues
+            .entry((definition_range, disposition))
+            .or_insert_with(|| ReferencedStringPercentIssue {
+                ranges: Vec::new(),
+                omitted: 0,
+                macro_name: usage.macro_name.clone(),
+                consumer_fields: BTreeSet::new(),
+                applicability: disposition.applicability(),
+            });
+        let mut merged = CappedPercentRanges {
+            ranges: std::mem::take(&mut issue.ranges),
+            omitted: issue.omitted,
+        };
+        merged.merge(&usage.ranges);
+        issue.ranges = merged.ranges;
+        issue.omitted = merged.omitted;
+        issue.consumer_fields.extend(usage.consumer_fields);
+    }
+    issues.into_values().collect()
+}
+
+fn canonical_percent_macro_name(name: &str) -> Option<String> {
+    let canonical = name.trim().to_ascii_lowercase();
+    (!canonical.is_empty() && !is_builtin_month_macro(&canonical)).then_some(canonical)
+}
+
+fn percent_escape_edits(ranges: &[TextRange]) -> Vec<TextEdit> {
+    ranges
+        .iter()
+        .copied()
+        .map(|range| TextEdit {
+            range,
+            replacement: String::from("\\%"),
+        })
+        .collect()
+}
+
+fn percent_omission_note(shown: usize, omitted: usize) -> String {
+    format!(
+        "this diagnostic represents {} unescaped percent signs; {omitted} additional ranges were omitted to keep validation output bounded, so no automatic fix is offered",
+        shown.saturating_add(omitted)
+    )
+}
+
+fn is_builtin_month_macro(name: &str) -> bool {
+    matches!(
+        name,
+        "jan"
+            | "feb"
+            | "mar"
+            | "apr"
+            | "may"
+            | "jun"
+            | "jul"
+            | "aug"
+            | "sep"
+            | "oct"
+            | "nov"
+            | "dec"
+    )
+}
+
 fn is_escaped_percent(bytes: &[u8], percent: usize) -> bool {
     let mut backslashes = 0;
     let mut cursor = percent;
@@ -1956,7 +2907,8 @@ fn default_rule_setting(code: &str) -> RuleSetting {
         "BIB-SEMANTIC-001"
         | "BIB-SEMANTIC-002"
         | "BIB-SEMANTIC-006"
-        | RULE_INLINE_PERCENT_COMMENT => Severity::Warning,
+        | RULE_INLINE_PERCENT_COMMENT
+        | RULE_UNESCAPED_PERCENT => Severity::Warning,
         RULE_FIELD_CASE | RULE_TRAILING_COMMA => Severity::Hint,
         RULE_FIELD_ORDER | RULE_VALUE_DELIMITER | RULE_EQUALS_WHITESPACE => Severity::Information,
         RULE_REQUIRED_DATA | RULE_IDENTIFIER_CONFLICT => Severity::Error,
@@ -1982,11 +2934,24 @@ mod tests {
     use bibmgr_edit::{apply_fix_plan, plan_fixes, FixSelection};
     use bibmgr_semantics::analyze;
     use bibmgr_syntax::{parse, ParseOptions};
+    use std::fmt::Write as _;
 
     fn run(source: &str, policy: &ValidationPolicy) -> ValidationResult {
         let syntax = parse(source, ParseOptions::tolerant());
         let semantics = analyze(&syntax);
         validate(&syntax, &semantics, policy)
+    }
+
+    fn percent_macro_chain(nodes: usize) -> String {
+        assert!(nodes > 0);
+        let last = nodes - 1;
+        let mut source = String::new();
+        for index in 1..=last {
+            writeln!(source, "@string{{m{index}=m{}}}", index - 1).unwrap();
+        }
+        writeln!(source, "@misc{{k, title=m{last},}}").unwrap();
+        source.push_str("@string{m0={50%\n}}\n");
+        source
     }
 
     #[test]
@@ -2337,6 +3302,422 @@ exclude = []
     }
 
     #[test]
+    fn unescaped_percent_in_text_value_has_a_precise_safe_fix() {
+        let source = "@misc{k,\n  title = {日本語 100% ready and 50\\% done},\n}\n";
+        let result = run(source, &ValidationPolicy::laboratory());
+        let diagnostics = result
+            .diagnostics
+            .iter()
+            .filter(|diagnostic| diagnostic.code.as_str() == RULE_UNESCAPED_PERCENT)
+            .collect::<Vec<_>>();
+        assert_eq!(diagnostics.len(), 1);
+        let diagnostic = diagnostics[0];
+        let percent = source.find("100%").unwrap() + 3;
+        assert_eq!(
+            diagnostic.primary_location.as_ref().unwrap().range,
+            TextRange::checked(percent, percent + 1).unwrap()
+        );
+        assert_eq!(diagnostic.severity, Severity::Error);
+        assert!(diagnostic.blocking);
+
+        let fix = result
+            .fixes
+            .iter()
+            .find(|fix| diagnostic.fixes.contains(&fix.id))
+            .unwrap();
+        assert_eq!(fix.applicability, FixApplicability::Safe);
+        let plan = plan_fixes(
+            &SourceRevision::of(source),
+            &result.fixes,
+            &FixSelection::Ids(vec![fix.id.clone()]),
+        )
+        .unwrap();
+        let applied = apply_fix_plan(source, &plan).unwrap();
+        assert_eq!(
+            applied.source,
+            "@misc{k,\n  title = {日本語 100\\% ready and 50\\% done},\n}\n"
+        );
+        assert!(!run(&applied.source, &ValidationPolicy::laboratory())
+            .diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.code.as_str() == RULE_UNESCAPED_PERCENT));
+    }
+
+    #[test]
+    fn unescaped_percent_rule_is_field_aware() {
+        let source = "@misc{k, url={https://example.test/a%20b}, doi={10.1000/a%2Fb}, file={paper%20draft.pdf}, note={50% complete},}\n";
+        let result = run(source, &ValidationPolicy::default());
+        let diagnostics = result
+            .diagnostics
+            .iter()
+            .filter(|diagnostic| diagnostic.code.as_str() == RULE_UNESCAPED_PERCENT)
+            .collect::<Vec<_>>();
+        assert_eq!(diagnostics.len(), 1);
+        let range = diagnostics[0].primary_location.as_ref().unwrap().range;
+        assert_eq!(
+            &source[range.start as usize..range.end as usize],
+            "%",
+            "only the note value should be diagnosed"
+        );
+        let fix = result
+            .fixes
+            .iter()
+            .find(|fix| diagnostics[0].fixes.contains(&fix.id))
+            .unwrap();
+        assert_eq!(fix.applicability, FixApplicability::RequiresConfirmation);
+    }
+
+    #[test]
+    fn unescaped_percent_rule_follows_direct_and_nested_string_macros() {
+        for source in [
+            "@string{percenttitle={100% Effective}}\n@misc{k, title=percenttitle,}\n",
+            "@string{percenttitle={100% Effective}}\n@string{nested=percenttitle}\n@misc{k, title=nested,}\n",
+        ] {
+            let result = run(source, &ValidationPolicy::laboratory());
+            let diagnostics = result
+                .diagnostics
+                .iter()
+                .filter(|diagnostic| diagnostic.code.as_str() == RULE_UNESCAPED_PERCENT)
+                .collect::<Vec<_>>();
+            assert_eq!(diagnostics.len(), 1, "{source}");
+            let percent = source.find("100%").unwrap() + 3;
+            assert_eq!(
+                diagnostics[0].primary_location.as_ref().unwrap().range,
+                TextRange::checked(percent, percent + 1).unwrap()
+            );
+            let fix = result
+                .fixes
+                .iter()
+                .find(|fix| diagnostics[0].fixes.contains(&fix.id))
+                .unwrap();
+            assert_eq!(fix.applicability, FixApplicability::Safe);
+            let plan = plan_fixes(
+                &SourceRevision::of(source),
+                &result.fixes,
+                &FixSelection::Ids(vec![fix.id.clone()]),
+            )
+            .unwrap();
+            let applied = apply_fix_plan(source, &plan).unwrap();
+            assert!(!run(&applied.source, &ValidationPolicy::laboratory())
+                .diagnostics
+                .iter()
+                .any(|diagnostic| diagnostic.code.as_str() == RULE_UNESCAPED_PERCENT));
+        }
+    }
+
+    #[test]
+    fn referenced_string_percent_uses_every_consumer_field_context() {
+        let source = "@string{urlonly={https://example.test/a%20b}}\n@string{shared={https://example.test/b%20c}}\n@string{urlcommand={See \\url{https://example.test/c%20d}}}\n@string{jan={100% shadowed definition}}\n@misc{k, title=shared, url=urlonly, note=urlcommand, month=jan,}\n@misc{k2, title={T}, url=shared,}\n";
+        let result = run(source, &ValidationPolicy::laboratory());
+        let diagnostics = result
+            .diagnostics
+            .iter()
+            .filter(|diagnostic| diagnostic.code.as_str() == RULE_UNESCAPED_PERCENT)
+            .collect::<Vec<_>>();
+        assert_eq!(diagnostics.len(), 1);
+        let percent = source.find("b%20c").unwrap() + 1;
+        assert_eq!(
+            diagnostics[0].primary_location.as_ref().unwrap().range,
+            TextRange::checked(percent, percent + 1).unwrap()
+        );
+        assert!(diagnostics[0].message.contains("`title`"));
+        assert!(diagnostics[0].message.contains("`url`"));
+        assert!(diagnostics[0].fixes.is_empty());
+    }
+
+    #[test]
+    fn percent_fix_applicability_uses_tex_command_context() {
+        let source = "@misc{k, title={Plain 100% \\url{https://example.test/a%20b} \\nolinkurl{https://example.test/b%20c} \\path{paper%20draft.pdf} \\textbf{50% complete}},}\n";
+        let result = run(source, &ValidationPolicy::laboratory());
+        let diagnostics = result
+            .diagnostics
+            .iter()
+            .filter(|diagnostic| diagnostic.code.as_str() == RULE_UNESCAPED_PERCENT)
+            .collect::<Vec<_>>();
+        assert_eq!(diagnostics.len(), 2);
+
+        let cases = [
+            ("100%", 3, FixApplicability::Safe),
+            ("50%", 2, FixApplicability::RequiresConfirmation),
+        ];
+        for (text, relative, expected) in cases {
+            let percent = source.find(text).unwrap() + relative;
+            let range = TextRange::checked(percent, percent + 1).unwrap();
+            let diagnostic = diagnostics
+                .iter()
+                .find(|diagnostic| diagnostic.primary_location.as_ref().unwrap().range == range)
+                .unwrap();
+            let fix = result
+                .fixes
+                .iter()
+                .find(|fix| diagnostic.fixes.contains(&fix.id))
+                .unwrap();
+            assert_eq!(fix.applicability, expected);
+        }
+    }
+
+    #[test]
+    fn percent_scanner_skips_known_verbatim_commands_and_reviews_ambiguous_delimiters() {
+        let source = "@misc{k, title={Code \\verb|100% ready| \\verb*+50%+ \\verb1digit 8%1 \\Verb!25%! \\lstinline[language=C]!10%! outside 5% \\unknown|2%|},}\n";
+        let result = run(source, &ValidationPolicy::laboratory());
+        let diagnostics = result
+            .diagnostics
+            .iter()
+            .filter(|diagnostic| diagnostic.code.as_str() == RULE_UNESCAPED_PERCENT)
+            .collect::<Vec<_>>();
+        assert_eq!(diagnostics.len(), 2);
+
+        for (prefix, applicability) in [
+            ("outside 5", FixApplicability::Safe),
+            ("\\unknown|2", FixApplicability::RequiresConfirmation),
+        ] {
+            let percent = source.find(prefix).unwrap() + prefix.len();
+            let range = TextRange::checked(percent, percent + 1).unwrap();
+            let diagnostic = diagnostics
+                .iter()
+                .find(|diagnostic| diagnostic.primary_location.as_ref().unwrap().range == range)
+                .unwrap();
+            let fix = result
+                .fixes
+                .iter()
+                .find(|fix| diagnostic.fixes.contains(&fix.id))
+                .unwrap();
+            assert_eq!(fix.applicability, applicability);
+        }
+    }
+
+    #[test]
+    fn referenced_string_percent_propagates_concatenation_risk() {
+        for (source, expected) in [
+            (
+                "@string{leaf={100% ready}}\n@string{nested=leaf}\n@misc{k, title=nested,}\n",
+                FixApplicability::Safe,
+            ),
+            (
+                "@string{urlcmd={\\url}}\n@string{urlarg={{https://example.test/a%20b}}}\n@string{full=urlcmd # urlarg}\n@misc{k, title=full,}\n",
+                FixApplicability::RequiresConfirmation,
+            ),
+            (
+                "@string{leaf={50% ready}}\n@string{nested=leaf}\n@misc{k, title={Prefix} # nested,}\n",
+                FixApplicability::RequiresConfirmation,
+            ),
+        ] {
+            let result = run(source, &ValidationPolicy::laboratory());
+            let diagnostics = result
+                .diagnostics
+                .iter()
+                .filter(|diagnostic| diagnostic.code.as_str() == RULE_UNESCAPED_PERCENT)
+                .collect::<Vec<_>>();
+            assert_eq!(diagnostics.len(), 1, "{source}");
+            let fix = result
+                .fixes
+                .iter()
+                .find(|fix| diagnostics[0].fixes.contains(&fix.id))
+                .unwrap();
+            assert_eq!(fix.applicability, expected, "{source}");
+        }
+    }
+
+    #[test]
+    fn archived_percent_values_are_url_like_and_shared_macros_have_no_fix() {
+        let source = "@string{shared={https://example.test/shared%20copy}}\n@misc{k, archived={https://example.test/direct%20copy}, title=shared,}\n@misc{k2, archived=shared,}\n";
+        let result = run(source, &ValidationPolicy::laboratory());
+        let diagnostics = result
+            .diagnostics
+            .iter()
+            .filter(|diagnostic| diagnostic.code.as_str() == RULE_UNESCAPED_PERCENT)
+            .collect::<Vec<_>>();
+        assert_eq!(diagnostics.len(), 1);
+        let percent = source.find("shared%20").unwrap() + "shared".len();
+        assert_eq!(
+            diagnostics[0].primary_location.as_ref().unwrap().range,
+            TextRange::checked(percent, percent + 1).unwrap()
+        );
+        assert!(diagnostics[0].message.contains("`archived`"));
+        assert!(diagnostics[0].message.contains("`title`"));
+        assert!(diagnostics[0].fixes.is_empty());
+    }
+
+    #[test]
+    fn percent_diagnostics_aggregate_edits_and_bound_large_values() {
+        let source = "@misc{k, title={10% ready and 20% complete},}\n";
+        let result = run(source, &ValidationPolicy::laboratory());
+        let diagnostics = result
+            .diagnostics
+            .iter()
+            .filter(|diagnostic| diagnostic.code.as_str() == RULE_UNESCAPED_PERCENT)
+            .collect::<Vec<_>>();
+        assert_eq!(diagnostics.len(), 1);
+        let fix = result
+            .fixes
+            .iter()
+            .find(|fix| diagnostics[0].fixes.contains(&fix.id))
+            .unwrap();
+        assert_eq!(fix.edits.len(), 2);
+
+        let many_percents = "%".repeat(MAX_PERCENT_RANGES_PER_ISSUE + 32);
+        for source in [
+            format!("@misc{{k, title={{{many_percents}}},}}\n"),
+            format!("@string{{many={{{many_percents}}}}}\n@misc{{k, title=many,}}\n"),
+        ] {
+            let result = run(&source, &ValidationPolicy::laboratory());
+            let diagnostics = result
+                .diagnostics
+                .iter()
+                .filter(|diagnostic| diagnostic.code.as_str() == RULE_UNESCAPED_PERCENT)
+                .collect::<Vec<_>>();
+            assert_eq!(diagnostics.len(), 1);
+            assert!(diagnostics[0].fixes.is_empty());
+            assert!(diagnostics[0]
+                .notes
+                .iter()
+                .any(|note| note.contains("32 additional ranges were omitted")));
+        }
+    }
+
+    #[test]
+    fn percent_scanner_is_linear_and_has_bounded_output_for_deep_large_values() {
+        let nesting = 16_384;
+        let percent_count = 2 * 1024 * 1024;
+        let mut value = Vec::with_capacity(nesting * 2 + percent_count + 9);
+        value.extend_from_slice(b"\\textbf{");
+        value.extend(std::iter::repeat_n(b'{', nesting));
+        value.extend(std::iter::repeat_n(b'%', percent_count));
+        value.extend(std::iter::repeat_n(b'}', nesting + 1));
+
+        let mut occurrences = LiteralPercentOccurrences::default();
+        scan_literal_percent_atom(&value, 0, &mut occurrences);
+
+        assert!(occurrences.plain.is_empty());
+        assert_eq!(
+            occurrences.command_argument.ranges.len(),
+            MAX_PERCENT_RANGES_PER_ISSUE
+        );
+        assert_eq!(
+            occurrences.command_argument.omitted,
+            percent_count - MAX_PERCENT_RANGES_PER_ISSUE
+        );
+    }
+
+    #[test]
+    fn referenced_string_percent_traversal_is_memoized_cycle_safe_and_depth_bounded() {
+        let mut dag = String::new();
+        for index in 0..64 {
+            writeln!(dag, "@string{{branch{index}=shared}}").unwrap();
+        }
+        for index in 0..64 {
+            writeln!(dag, "@misc{{k{index}, title=branch{index},}}").unwrap();
+        }
+        dag.push_str("@string{shared={50%\n}}\n");
+        let syntax = parse(&dag, ParseOptions::tolerant());
+        let analysis = referenced_string_percent_analysis(&syntax);
+        assert_eq!(analysis.issues.len(), 1);
+        assert_eq!(analysis.issues[0].macro_name, "shared");
+        assert_eq!(analysis.completed_macro_visits, 65);
+        assert!(analysis.incomplete_range.is_none());
+
+        let cycle = "@string{a=b # {50%\n}}\n@string{b=a}\n@misc{k, title=a,}\n";
+        let syntax = parse(cycle, ParseOptions::tolerant());
+        let analysis = referenced_string_percent_analysis(&syntax);
+        assert_eq!(analysis.issues.len(), 1);
+        assert_eq!(analysis.issues[0].macro_name, "a");
+        assert_eq!(analysis.completed_macro_visits, 2);
+        assert!(analysis.incomplete_range.is_none());
+
+        let exact = percent_macro_chain(MAX_PERCENT_MACRO_EXPANSION_DEPTH);
+        let syntax = parse(&exact, ParseOptions::tolerant());
+        let analysis = referenced_string_percent_analysis(&syntax);
+        assert_eq!(analysis.issues.len(), 1);
+        assert_eq!(analysis.issues[0].macro_name, "m0");
+        assert_eq!(
+            analysis.completed_macro_visits,
+            MAX_PERCENT_MACRO_EXPANSION_DEPTH
+        );
+        assert!(analysis.incomplete_range.is_none());
+
+        let root = MAX_PERCENT_MACRO_EXPANSION_DEPTH;
+        let over = percent_macro_chain(root + 1).replacen(
+            &format!("@string{{m{root}=m{}}}\n", root - 1),
+            &format!("@string{{m{root}={{25%\n}} # m{}}}\n", root - 1),
+            1,
+        );
+        let syntax = parse(&over, ParseOptions::tolerant());
+        let analysis = referenced_string_percent_analysis(&syntax);
+        assert_eq!(analysis.issues.len(), 1);
+        assert_eq!(analysis.issues[0].macro_name, format!("m{root}"));
+        assert_eq!(
+            analysis.completed_macro_visits,
+            MAX_PERCENT_MACRO_EXPANSION_DEPTH
+        );
+        let incomplete_range = analysis.incomplete_range.unwrap();
+        assert_eq!(syntax.slice(incomplete_range), Some("m0"));
+
+        let semantics = analyze(&syntax);
+        let registration = validate_for_registration(
+            &syntax,
+            &semantics,
+            &ValidationPolicy::laboratory(),
+            &RegistrationPolicy::laboratory(),
+        );
+        assert!(!registration.accepted);
+        let percent_diagnostics = registration
+            .diagnostics
+            .iter()
+            .filter(|diagnostic| diagnostic.code.as_str() == RULE_UNESCAPED_PERCENT)
+            .collect::<Vec<_>>();
+        assert_eq!(percent_diagnostics.len(), 2);
+        assert!(percent_diagnostics
+            .iter()
+            .all(|diagnostic| diagnostic.fixes.is_empty()));
+        let incomplete = registration
+            .diagnostics
+            .iter()
+            .find(|diagnostic| {
+                diagnostic.code.as_str() == RULE_UNESCAPED_PERCENT
+                    && diagnostic.message.contains("incomplete")
+            })
+            .expect("depth-limit incomplete diagnostic");
+        assert!(incomplete.blocking);
+        assert!(incomplete.fixes.is_empty());
+        assert_eq!(
+            incomplete.primary_location.as_ref().unwrap().range,
+            incomplete_range
+        );
+    }
+
+    #[test]
+    fn referenced_string_percent_visit_cap_is_blocking_and_disables_macro_fixes() {
+        let source =
+            "@string{root={50%\n} # child}\n@string{child={25%\n}}\n@misc{k, title=root,}\n";
+        let syntax = parse(source, ParseOptions::tolerant());
+        let analysis = referenced_string_percent_analysis_with_limit(&syntax, 1);
+        assert_eq!(analysis.completed_macro_visits, 1);
+        assert_eq!(analysis.issues.len(), 1);
+        let incomplete_range = analysis.incomplete_range.unwrap();
+        assert_eq!(syntax.slice(incomplete_range), Some("child"));
+
+        let policy = ValidationPolicy::laboratory();
+        let mut engine = Engine::new(&syntax, &policy);
+        engine.validate_referenced_string_percents_with_limit(1);
+        let result = engine.finish();
+        let diagnostics = result
+            .diagnostics
+            .iter()
+            .filter(|diagnostic| diagnostic.code.as_str() == RULE_UNESCAPED_PERCENT)
+            .collect::<Vec<_>>();
+        assert_eq!(diagnostics.len(), 2);
+        assert!(diagnostics.iter().all(|diagnostic| diagnostic.blocking));
+        assert!(diagnostics
+            .iter()
+            .all(|diagnostic| diagnostic.fixes.is_empty()));
+        assert!(diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.message.contains("incomplete")));
+        assert!(result.has_blocking_diagnostics());
+        assert!(result.fixes.is_empty());
+    }
+
+    #[test]
     fn syntax_style_severity_and_blocking_are_policy_controlled() {
         for (source, code) in [
             ("@misc{k,title={T},}\n", RULE_EQUALS_WHITESPACE),
@@ -2642,6 +4023,54 @@ exclude = []
             .expect("entry-internal percent comment diagnostic");
         assert_eq!(comment.severity, Severity::Warning);
         assert!(comment.blocking);
+    }
+
+    #[test]
+    fn laboratory_registration_rejects_an_unescaped_percent_value() {
+        let source = "@article{smith2024,\n  title = {100% Effective},\n  author = {Doe, Jane},\n  journal = {J},\n  year = {2024},\n}\n";
+        let syntax = parse(source, ParseOptions::tolerant());
+        let semantics = analyze(&syntax);
+        let result = validate_for_registration(
+            &syntax,
+            &semantics,
+            &ValidationPolicy::laboratory(),
+            &RegistrationPolicy::laboratory(),
+        );
+
+        assert!(!result.accepted);
+        let diagnostic = result
+            .diagnostics
+            .iter()
+            .find(|diagnostic| diagnostic.code.as_str() == RULE_UNESCAPED_PERCENT)
+            .expect("unescaped percent diagnostic");
+        assert_eq!(diagnostic.severity, Severity::Error);
+        assert!(diagnostic.blocking);
+        assert_eq!(diagnostic.fixes.len(), 1);
+        assert!(result.safe_fix_ids.contains(&diagnostic.fixes[0]));
+    }
+
+    #[test]
+    fn laboratory_registration_rejects_an_unescaped_percent_from_a_string_macro() {
+        let source = "@string{percenttitle={100% Effective}}\n@article{smith2024,\n  title = percenttitle,\n  author = {Doe, Jane},\n  journal = {J},\n  year = {2024},\n}\n";
+        let syntax = parse(source, ParseOptions::tolerant());
+        let semantics = analyze(&syntax);
+        let result = validate_for_registration(
+            &syntax,
+            &semantics,
+            &ValidationPolicy::laboratory(),
+            &RegistrationPolicy::laboratory(),
+        );
+
+        assert!(!result.accepted);
+        let diagnostic = result
+            .diagnostics
+            .iter()
+            .find(|diagnostic| diagnostic.code.as_str() == RULE_UNESCAPED_PERCENT)
+            .expect("unescaped percent diagnostic from @string");
+        assert_eq!(diagnostic.severity, Severity::Error);
+        assert!(diagnostic.blocking);
+        assert_eq!(diagnostic.fixes.len(), 1);
+        assert!(result.safe_fix_ids.contains(&diagnostic.fixes[0]));
     }
 
     #[test]

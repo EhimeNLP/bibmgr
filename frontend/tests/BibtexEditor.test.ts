@@ -62,6 +62,67 @@ describe("BibTeX highlighting", () => {
     ).toBe(2);
   });
 
+  it("keeps raw percent signs inside braced and quoted values", () => {
+    const braced = "@misc{key, title = {100% Effective}, }";
+    const quoted = '@misc{key, title = "100% Effective", }';
+
+    expect(countBibliographicEntries(braced)).toBe(1);
+    expect(
+      countBibliographicEntries("@misc(key, title = {100% Effective}, )"),
+    ).toBe(1);
+    expect(countBibliographicEntries(quoted)).toBe(1);
+    expect(tokenizeBibtex(braced)).toContainEqual({
+      kind: "value",
+      value: "{100% Effective}",
+    });
+    expect(tokenizeBibtex(quoted)).toContainEqual({
+      kind: "value",
+      value: '"100% Effective"',
+    });
+  });
+
+  it("ignores entry delimiters inside body-level percent comments", () => {
+    const source = `@misc{one,
+  title = {100% Effective}, % ignored } and @book{fake,
+  year = {2026},
+}
+@misc(two,
+  title = "50% Effective", % ignored ) and @book(fake,
+  year = {2026},
+)`;
+
+    expect(countBibliographicEntries(source)).toBe(2);
+  });
+
+  it("tracks escaped entry syntax and resets escaping after comments", () => {
+    const source =
+      '@misc{one,\n  title = "A \\"quoted\\" title",\n' +
+      "  note = {A \\} literal brace},\n" +
+      "  howpublished = macro\\%value,\n" +
+      "  % ignored } and trailing \\\n" +
+      "  year = {2026},\n}\n" +
+      "@book{two, title={Two}}";
+
+    expect(countBibliographicEntries(source)).toBe(2);
+  });
+
+  it("counts long escaped values in linear time", () => {
+    const backslashes = "\\".repeat(100_000);
+    const first = "@misc{one, note={" + backslashes + "}}";
+    const second = "@book{two, title={Two}}";
+
+    expect(extractBibliographicEntries(`${first}\n${second}`)).toEqual([
+      first,
+      second,
+    ]);
+  });
+
+  it("stops after an unterminated entry has already been scanned to the end", () => {
+    const source = "@misc{broken,\n" + "@x{".repeat(20_000);
+
+    expect(extractBibliographicEntries(source)).toEqual([]);
+  });
+
   it("extracts multiple complete entries without changing their contents", () => {
     const first = "@article{one, title={A {Nested} Title}}";
     const second = '@book(two, title="Two", year=2026)';
