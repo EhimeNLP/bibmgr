@@ -1,0 +1,133 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: "1"
+
+jobs:
+  rust:
+    name: Rust checks
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - uses: Swatinem/rust-cache@v2
+      - uses: astral-sh/setup-uv@v8
+        with:
+          enable-cache: true
+          python-version: "3.12"
+      - name: Repository format checks
+        run: |
+          uv run --frozen --no-default-groups poe check-lock
+          uv run --frozen --no-default-groups poe check-markdown
+          uv run --frozen --no-default-groups poe check-schema
+      - name: Architecture, formatting, Clippy, and documentation checks
+        run: uv run --frozen --no-default-groups poe check-rust
+      - name: Unit and integration tests
+        run: uv run --frozen --no-default-groups poe test-rust
+
+  frontend:
+    name: Frontend checks
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v8
+        with:
+          enable-cache: true
+          python-version: "3.12"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: uv run --frozen --no-default-groups poe setup-frontend
+      - run: uv run --frozen --no-default-groups poe check-frontend
+      - run: uv run --frozen --no-default-groups poe test-frontend
+      - run: uv run --frozen --no-default-groups poe build-frontend
+
+  python-parity:
+    name: Python binding and adapter parity
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - uses: astral-sh/setup-uv@v8
+        with:
+          enable-cache: true
+          python-version: "3.12"
+      - name: Build native wheel
+        run: uv run --frozen poe build-native
+      - name: Python binding/backend tests
+        run: uv run --frozen poe test-backend
+      - name: Build backend wheel
+        run: uv run --frozen poe build-backend
+      - name: CLI, PyO3, and backend DTO parity
+        run: uv run --frozen poe test-parity
+
+  fuzz-build:
+    name: Fuzz target build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@nightly
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: fuzz -> target
+      - run: cargo install cargo-fuzz --locked
+      - run: cargo fuzz build
+
+  security:
+    name: Dependency, source, and license policy
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      checks: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Resolve the audited dependency graph
+        run: cargo generate-lockfile
+      - uses: rustsec/audit-check@v2.0.0
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+      - uses: EmbarkStudios/cargo-deny-action@v2
+        with:
+          command: check
+          arguments: --all-features
+          command-arguments: licenses bans sources
+
+  benchmark-record:
+    name: Benchmark record
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: benches -> target
+      - name: Build benchmark harness
+        run: cargo bench --manifest-path benches/Cargo.toml --no-run
+      - name: Record Criterion measurements
+        run: cargo bench --manifest-path benches/Cargo.toml -- --noplot
+      - name: Upload benchmark record
+        uses: actions/upload-artifact@v4
+        with:
+          name: criterion-${{ github.sha }}
+          path: benches/target/criterion
+          if-no-files-found: error
+          retention-days: 30
