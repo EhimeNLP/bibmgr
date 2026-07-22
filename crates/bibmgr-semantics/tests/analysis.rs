@@ -554,6 +554,41 @@ fn original_entry_kind_survives_coarser_work_type_mapping() {
 }
 
 #[test]
+fn bst_native_entry_types_map_to_semantic_work_types() {
+    let cases = [
+        ("webpage", WorkType::WebResource),
+        ("electronic", WorkType::WebResource),
+        ("internet", WorkType::WebResource),
+        ("www", WorkType::WebResource),
+        ("languageresource", WorkType::Dataset),
+        ("artifactdataset", WorkType::Dataset),
+        ("artifactsoftware", WorkType::Software),
+        ("mastersreport", WorkType::TechnicalReport),
+        ("dbathesis", WorkType::Thesis),
+        ("eddthesis", WorkType::Thesis),
+        ("presentation", WorkType::Miscellaneous),
+        ("patent", WorkType::Miscellaneous),
+        ("standard", WorkType::Miscellaneous),
+        ("underreview", WorkType::Miscellaneous),
+        ("game", WorkType::Miscellaneous),
+        ("video", WorkType::Miscellaneous),
+        ("ieeetranbstctl", WorkType::Miscellaneous),
+        ("preprint", WorkType::Preprint),
+    ];
+
+    for (entry_type, expected) in cases {
+        let source = format!("@{entry_type}{{k,title={{T}}}}");
+        let record = one(&source);
+        assert_eq!(
+            record.work_type.value, expected,
+            "unexpected semantic classification for @{entry_type}"
+        );
+        assert_eq!(record.entry_type.value, entry_type);
+        assert_eq!(record.entry_type.origins[0].kind, OriginKind::EntryType);
+    }
+}
+
+#[test]
 fn very_deep_macro_chains_become_unresolved_instead_of_overflowing_the_stack() {
     let mut source = String::new();
     for index in 0..1_000 {

@@ -12,6 +12,17 @@ pub const BUILTIN_EXPORT_PROFILE_IDS: &[&str] = &[
     "laboratory",
     "acl",
     "aaai",
+    "acm-publications",
+    "ieee-publications",
+    "natbib-full-author-names",
+    "springer-lncs",
+    "ml-conferences",
+    "lrec",
+    "eamt",
+    "ipsj-japanese",
+    "ipsj-english",
+    "jnlp-japanese",
+    "jsai-journal",
     "classical-bst",
     "legacy-arxiv-article",
 ];
@@ -67,6 +78,14 @@ impl LineEnding {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "kebab-case")]
+pub enum MonthFormat {
+    #[default]
+    Numeric,
+    BibtexMacro,
+}
+
 /// Field projection applied after all semantic and extra fields are generated.
 ///
 /// An absent allowlist keeps every candidate field. Names are compared without
@@ -93,6 +112,11 @@ pub struct ExportProfile {
     pub validation_profile: ProfileId,
     pub preprint_representation: PreprintRepresentation,
     pub venue_style: VenueStyle,
+    pub month_format: MonthFormat,
+    /// Target entry types understood by the bibliography style. An empty list
+    /// keeps the general semantic-to-BibTeX mapping; a populated list also
+    /// preserves an original entry type when the target style supports it.
+    pub supported_entry_types: Vec<String>,
     pub field_order: Vec<String>,
     pub field_case: ExportFieldCase,
     pub value_delimiter: ValueDelimiter,
@@ -102,6 +126,9 @@ pub struct ExportProfile {
     pub include_doi: bool,
     pub include_url: bool,
     pub include_extra_fields: bool,
+    /// Case-insensitive source-to-target field spelling conversions applied
+    /// before the target allowlist (for example, `pmid` to `pubmed`).
+    pub field_renames: BTreeMap<String, String>,
     pub field_selection: ExportFieldSelection,
     /// Legacy denylist retained for source compatibility. Unlike older
     /// versions, it is now applied to every generated field.
@@ -125,6 +152,8 @@ impl ExportProfile {
             validation_profile: ProfileId::new("modern"),
             preprint_representation: PreprintRepresentation::MiscEprint,
             venue_style: VenueStyle::AsRecorded,
+            month_format: MonthFormat::Numeric,
+            supported_entry_types: Vec::new(),
             field_order: default_field_order(),
             field_case: ExportFieldCase::Canonical,
             value_delimiter: ValueDelimiter::Braces,
@@ -134,6 +163,7 @@ impl ExportProfile {
             include_doi: true,
             include_url: true,
             include_extra_fields: true,
+            field_renames: BTreeMap::new(),
             field_selection: ExportFieldSelection::default(),
             excluded_fields: BTreeSet::new(),
             allow_unknown_work_type: true,
@@ -170,14 +200,14 @@ impl ExportProfile {
 
     pub fn acl() -> Self {
         Self::embedded(
-            include_str!("../../../config/export-profiles/acl.toml"),
+            include_str!("../../../config/export-profiles/acl-publications.toml"),
             "acl",
         )
     }
 
     pub fn aaai() -> Self {
         Self::embedded(
-            include_str!("../../../config/export-profiles/aaai.toml"),
+            include_str!("../../../config/export-profiles/aaai-conference.toml"),
             "aaai",
         )
     }
@@ -194,8 +224,41 @@ impl ExportProfile {
             "legacy-arxiv-article" | "article-journal" => {
                 include_str!("../../../config/export-profiles/legacy-arxiv-article.toml")
             }
-            "acl" => include_str!("../../../config/export-profiles/acl.toml"),
-            "aaai" => include_str!("../../../config/export-profiles/aaai.toml"),
+            "acl" => include_str!("../../../config/export-profiles/acl-publications.toml"),
+            "aaai" => include_str!("../../../config/export-profiles/aaai-conference.toml"),
+            "acm-publications" => {
+                include_str!("../../../config/export-profiles/acm-publications.toml")
+            }
+            "ieee-publications" => {
+                include_str!("../../../config/export-profiles/ieee-publications.toml")
+            }
+            "natbib-full-author-names" => include_str!(
+                "../../../config/export-profiles/natbib-full-author-names.toml"
+            ),
+            "springer-lncs" => {
+                include_str!("../../../config/export-profiles/springer-lncs.toml")
+            }
+            "ml-conferences" => include_str!(
+                "../../../config/export-profiles/machine-learning-conferences.toml"
+            ),
+            "lrec" => include_str!(
+                "../../../config/export-profiles/lrec-language-resources.toml"
+            ),
+            "eamt" => {
+                include_str!("../../../config/export-profiles/eamt-conference.toml")
+            }
+            "ipsj-japanese" => include_str!(
+                "../../../config/export-profiles/information-processing-society-of-japan-japanese.toml"
+            ),
+            "ipsj-english" => include_str!(
+                "../../../config/export-profiles/information-processing-society-of-japan-english.toml"
+            ),
+            "jnlp-japanese" => include_str!(
+                "../../../config/export-profiles/journal-of-natural-language-processing-japanese.toml"
+            ),
+            "jsai-journal" => include_str!(
+                "../../../config/export-profiles/japanese-society-for-artificial-intelligence-journal.toml"
+            ),
             other => return Err(ExportError::UnknownProfile(other.to_owned())),
         };
         Self::from_toml(input)
@@ -270,6 +333,7 @@ impl ExportProfile {
                 return Err(ExportError::DuplicateFieldOrder(field.clone()));
             }
         }
+        validate_field_set("supported_entry_types", &self.supported_entry_types)?;
         validate_field_set("excluded_fields", &self.excluded_fields)?;
         if let Some(allowed_fields) = &self.field_selection.allowed_fields {
             validate_field_set("field_selection.allowed_fields", allowed_fields)?;
@@ -291,6 +355,25 @@ impl ExportProfile {
             }) {
                 return Err(ExportError::InvalidProfile(format!(
                     "field `{conflict}` is both allowed and excluded"
+                )));
+            }
+        }
+        self.validate_field_renames()?;
+        Ok(())
+    }
+
+    fn validate_field_renames(&self) -> Result<(), ExportError> {
+        validate_field_set("field_renames sources", self.field_renames.keys())?;
+        validate_field_set("field_renames targets", self.field_renames.values())?;
+        for (source, target) in &self.field_renames {
+            if source.eq_ignore_ascii_case(target) {
+                return Err(ExportError::InvalidProfile(format!(
+                    "field rename `{source}` to `{target}` does not change the field name"
+                )));
+            }
+            if !field_is_selected(target, self) {
+                return Err(ExportError::InvalidProfile(format!(
+                    "renamed field `{target}` is not selected by the target field projection"
                 )));
             }
         }
@@ -331,6 +414,14 @@ pub enum ExportError {
     InvalidCitationKey { record_index: usize, key: String },
     #[error("record {record_index} has unknown work type")]
     UnknownWorkType { record_index: usize },
+    #[error(
+        "record {record_index} cannot be exported as entry type `{entry_type}` by profile `{profile}`"
+    )]
+    UnsupportedEntryType {
+        record_index: usize,
+        entry_type: String,
+        profile: String,
+    },
     #[error("record {record_index} contains duplicate field `{field}`")]
     DuplicateField { record_index: usize, field: String },
     #[error("record {record_index} field `{field}` has no resolved value")]
@@ -426,10 +517,16 @@ fn export_record(
             _ => unreachable!("first_uncertain_field only returns uncertain statuses"),
         };
     }
-    if record.work_type.value == WorkType::Unknown && !profile.allow_unknown_work_type {
+    let original_entry_type = record.entry_type.value.to_ascii_lowercase();
+    let preserves_original_entry_type = record.work_type.value != WorkType::Preprint
+        && explicitly_supports_entry_type(profile, &original_entry_type);
+    if record.work_type.value == WorkType::Unknown
+        && !preserves_original_entry_type
+        && !profile.allow_unknown_work_type
+    {
         return Err(ExportError::UnknownWorkType { record_index });
     }
-    if record.work_type.value == WorkType::Unknown {
+    if record.work_type.value == WorkType::Unknown && !preserves_original_entry_type {
         warnings.push(ExportWarning {
             record_index,
             message: String::from("unknown work type was exported as `misc`"),
@@ -437,6 +534,13 @@ fn export_record(
     }
 
     let entry_type = entry_type(record, profile);
+    if !target_accepts_entry_type(profile, &entry_type) {
+        return Err(ExportError::UnsupportedEntryType {
+            record_index,
+            entry_type,
+            profile: profile.profile.to_string(),
+        });
+    }
     let mut fields = Vec::<ExportField>::new();
     if let Some(title) = &record.title {
         push_field(&mut fields, "title", title.value.to_string(), record_index)?;
@@ -488,7 +592,11 @@ fn export_record(
             push_field(&mut fields, "date", date.value.raw.clone(), record_index)?;
         } else {
             if let Some(month) = date.value.month {
-                push_field(&mut fields, "month", month.to_string(), record_index)?;
+                let month = match profile.month_format {
+                    MonthFormat::Numeric => month.to_string(),
+                    MonthFormat::BibtexMacro => bibtex_month_macro(month).to_owned(),
+                };
+                push_field(&mut fields, "month", month, record_index)?;
             }
             if let Some(day) = date.value.day {
                 push_field(&mut fields, "day", day.to_string(), record_index)?;
@@ -520,13 +628,21 @@ fn export_record(
         }
     }
 
+    apply_field_renames(&mut fields, profile, record_index)?;
     project_fields(&mut fields, profile);
     sort_fields(&mut fields, &profile.field_order);
     let newline = profile.line_ending.as_str();
     let mut output = format!("@{entry_type}{{{citation_key},{newline}");
     for (index, field) in fields.iter().enumerate() {
         let name = field_spelling(&field.name, profile.field_case);
-        let value = format_value(&field.value, profile.value_delimiter);
+        let value = if field.name.eq_ignore_ascii_case("month")
+            && profile.month_format == MonthFormat::BibtexMacro
+            && is_bibtex_month_macro(&field.value)
+        {
+            field.value.clone()
+        } else {
+            format_field_value(&field.name, &field.value, profile.value_delimiter)
+        };
         output.push_str(&profile.indent);
         output.push_str(&name);
         output.push_str(" = ");
@@ -696,15 +812,31 @@ fn entry_type(record: &BibliographicRecord, profile: &ExportProfile) -> String {
         };
     }
     let original = record.entry_type.value.to_ascii_lowercase();
+    if explicitly_supports_entry_type(profile, &original) {
+        return original;
+    }
     match record.work_type.value {
         WorkType::JournalArticle => String::from("article"),
         WorkType::ConferencePaper => String::from("inproceedings"),
-        WorkType::Book if matches!(original.as_str(), "proceedings" | "mvproceedings") => original,
+        WorkType::Book
+            if original == "mvproceedings"
+                && !profile.supported_entry_types.is_empty()
+                && target_accepts_entry_type(profile, "proceedings") =>
+        {
+            String::from("proceedings")
+        }
+        WorkType::Book
+            if profile.supported_entry_types.is_empty()
+                && matches!(original.as_str(), "proceedings" | "mvproceedings") =>
+        {
+            original
+        }
         WorkType::Book => String::from("book"),
         WorkType::InBook => String::from("inbook"),
         WorkType::InCollection => String::from("incollection"),
         WorkType::Thesis
-            if matches!(original.as_str(), "mastersthesis" | "phdthesis" | "thesis") =>
+            if profile.supported_entry_types.is_empty()
+                && matches!(original.as_str(), "mastersthesis" | "phdthesis" | "thesis") =>
         {
             original
         }
@@ -717,6 +849,22 @@ fn entry_type(record: &BibliographicRecord, profile: &ExportProfile) -> String {
         | WorkType::Unknown
         | WorkType::Preprint => String::from("misc"),
     }
+}
+
+fn explicitly_supports_entry_type(profile: &ExportProfile, entry_type: &str) -> bool {
+    !profile.supported_entry_types.is_empty()
+        && profile
+            .supported_entry_types
+            .iter()
+            .any(|supported| supported.eq_ignore_ascii_case(entry_type))
+}
+
+fn target_accepts_entry_type(profile: &ExportProfile, entry_type: &str) -> bool {
+    profile.supported_entry_types.is_empty()
+        || profile
+            .supported_entry_types
+            .iter()
+            .any(|supported| supported.eq_ignore_ascii_case(entry_type))
 }
 
 fn append_preprint_fields(
@@ -817,6 +965,32 @@ fn append_extra_field(
         return Ok(());
     }
     push_field(fields, &field.name, value.clone(), record_index)
+}
+
+fn apply_field_renames(
+    fields: &mut [ExportField],
+    profile: &ExportProfile,
+    record_index: usize,
+) -> Result<(), ExportError> {
+    for field in &mut *fields {
+        if let Some((_, target)) = profile
+            .field_renames
+            .iter()
+            .find(|(source, _)| source.eq_ignore_ascii_case(&field.name))
+        {
+            field.name.clone_from(target);
+        }
+    }
+    let mut names = BTreeSet::new();
+    for field in fields {
+        if !names.insert(field.name.to_ascii_lowercase()) {
+            return Err(ExportError::DuplicateField {
+                record_index,
+                field: field.name.clone(),
+            });
+        }
+    }
+    Ok(())
 }
 
 fn merge_field_values(source_value: &str, generated_value: &str) -> String {
@@ -925,47 +1099,408 @@ fn format_person(person: &Person) -> String {
     }
 }
 
-fn format_value(value: &str, delimiter: ValueDelimiter) -> String {
-    let escaped = escape_bibtex(value, delimiter);
+fn format_field_value(field_name: &str, value: &str, delimiter: ValueDelimiter) -> String {
+    let escaped = if is_raw_identifier_field(field_name) {
+        escape_bibtex_with_options(value, delimiter, false)
+    } else {
+        escape_bibtex(value, delimiter)
+    };
     match delimiter {
         ValueDelimiter::Braces => format!("{{{escaped}}}"),
         ValueDelimiter::Quotes => format!("\"{escaped}\""),
     }
 }
 
+fn is_raw_identifier_field(field_name: &str) -> bool {
+    matches!(
+        field_name.to_ascii_lowercase().as_str(),
+        "url"
+            | "doi"
+            | "file"
+            | "eprint"
+            | "arxiv"
+            | "archiveprefix"
+            | "eprinttype"
+            | "primaryclass"
+            | "eprintclass"
+            | "isbn"
+            | "isbn-10"
+            | "isbn-13"
+            | "issn"
+            | "eissn"
+            | "coden"
+            | "lccn"
+            | "pmid"
+            | "pmcid"
+            | "pubmed"
+            | "eid"
+            | "pid"
+            | "islrn"
+            | "articleno"
+            | "crossref"
+            | "archived"
+    )
+}
+
+fn bibtex_month_macro(month: u8) -> &'static str {
+    match month {
+        1 => "jan",
+        2 => "feb",
+        3 => "mar",
+        4 => "apr",
+        5 => "may",
+        6 => "jun",
+        7 => "jul",
+        8 => "aug",
+        9 => "sep",
+        10 => "oct",
+        11 => "nov",
+        12 => "dec",
+        _ => unreachable!("semantic publication months are in the range 1..=12"),
+    }
+}
+
+fn is_bibtex_month_macro(value: &str) -> bool {
+    matches!(
+        value.to_ascii_lowercase().as_str(),
+        "jan"
+            | "feb"
+            | "mar"
+            | "apr"
+            | "may"
+            | "jun"
+            | "jul"
+            | "aug"
+            | "sep"
+            | "oct"
+            | "nov"
+            | "dec"
+    )
+}
+
 /// Deterministically escape TeX-sensitive bytes without rewriting Unicode.
+///
+/// URL-like braced command arguments (`\url`, `\nolinkurl`, and `\path`) and
+/// the delimiter arguments of `\verb`, `\verb*`, `\Verb`, and `\lstinline`
+/// retain their literal `%`, `&`, `#`, `_`, and `$` bytes. The latter two
+/// commands support their optional argument syntax, and all three command
+/// families support the same starred forms and delimiters as validation.
+/// Quote-delimited BibTeX values still escape unescaped quotes in every
+/// context.
 pub fn escape_bibtex(value: &str, delimiter: ValueDelimiter) -> String {
+    escape_bibtex_with_options(value, delimiter, true)
+}
+
+fn escape_bibtex_with_options(
+    value: &str,
+    delimiter: ValueDelimiter,
+    escape_tex_sensitive: bool,
+) -> String {
     let mut output = String::with_capacity(value.len());
-    let mut escaped = false;
-    for character in value.chars() {
-        match character {
-            '\r' => escaped = false,
-            '\n' | '\t' => {
-                if !output.ends_with(' ') {
-                    output.push(' ');
+    let bytes = value.as_bytes();
+    let mut cursor = 0;
+    let mut state = BibtexEscapeState::default();
+
+    while cursor < bytes.len() {
+        let character = value[cursor..]
+            .chars()
+            .next()
+            .expect("cursor remains on a UTF-8 boundary");
+        let character_len = character.len_utf8();
+
+        if consume_literal_command_character(
+            &mut output,
+            character,
+            delimiter,
+            escape_tex_sensitive,
+            &mut state,
+        ) {
+            cursor += character_len;
+            continue;
+        }
+
+        if character == '\\' && !state.escaped && cursor + 1 < bytes.len() {
+            let command_start = cursor + 1;
+            if is_tex_command_byte(bytes[command_start]) {
+                let mut command_end = command_start + 1;
+                while command_end < bytes.len() && is_tex_command_byte(bytes[command_end]) {
+                    command_end += 1;
                 }
-                escaped = false;
-            }
-            '"' if delimiter == ValueDelimiter::Quotes && !escaped => {
-                output.push_str("\\\"");
-                escaped = false;
-            }
-            '&' | '%' | '$' | '#' | '_' if !escaped => {
-                output.push('\\');
-                output.push(character);
-                escaped = false;
-            }
-            '\\' => {
-                output.push(character);
-                escaped = !escaped;
-            }
-            _ => {
-                output.push(character);
-                escaped = false;
+                let command = &bytes[command_start..command_end];
+                output.push_str(&value[cursor..command_end]);
+                state.pending_raw_brace_command = is_raw_brace_command(command);
+                state.pending_verbatim = pending_verbatim_command(command);
+                state.escaped = false;
+                cursor = command_end;
+                continue;
             }
         }
+
+        let was_escaped = state.escaped;
+        update_brace_context(
+            character,
+            was_escaped,
+            state.pending_raw_brace_command,
+            &mut state.brace_depth,
+            &mut state.raw_brace_argument_depth,
+        );
+        push_bibtex_character(
+            &mut output,
+            character,
+            delimiter,
+            escape_tex_sensitive && state.raw_brace_argument_depth.is_none(),
+            &mut state.escaped,
+        );
+        if !character.is_ascii_whitespace() || character == '{' {
+            state.pending_raw_brace_command = false;
+        }
+        cursor += character_len;
     }
     output
+}
+
+#[derive(Debug, Default)]
+struct BibtexEscapeState {
+    escaped: bool,
+    brace_depth: usize,
+    raw_brace_argument_depth: Option<usize>,
+    pending_raw_brace_command: bool,
+    pending_verbatim: Option<PendingVerbatim>,
+    verbatim_delimiter: Option<char>,
+}
+
+#[derive(Debug, Clone, Copy)]
+enum PendingVerbatim {
+    Delimiter {
+        star_allowed: bool,
+        options_allowed: bool,
+        skip_horizontal_whitespace: bool,
+    },
+    Options {
+        depth: usize,
+    },
+}
+
+fn consume_literal_command_character(
+    output: &mut String,
+    character: char,
+    delimiter: ValueDelimiter,
+    escape_tex_sensitive: bool,
+    state: &mut BibtexEscapeState,
+) -> bool {
+    if let Some(raw_delimiter) = state.verbatim_delimiter {
+        let closes_argument = character == raw_delimiter;
+        push_bibtex_character(output, character, delimiter, false, &mut state.escaped);
+        if closes_argument || matches!(character, '\r' | '\n') {
+            state.verbatim_delimiter = None;
+        }
+        return true;
+    }
+
+    let Some(pending) = state.pending_verbatim else {
+        return false;
+    };
+    match pending {
+        PendingVerbatim::Delimiter {
+            star_allowed: true,
+            options_allowed,
+            skip_horizontal_whitespace,
+        } if character == '*' => {
+            push_bibtex_character(
+                output,
+                character,
+                delimiter,
+                escape_tex_sensitive && state.raw_brace_argument_depth.is_none(),
+                &mut state.escaped,
+            );
+            state.pending_verbatim = Some(PendingVerbatim::Delimiter {
+                star_allowed: false,
+                options_allowed,
+                skip_horizontal_whitespace,
+            });
+        }
+        PendingVerbatim::Delimiter {
+            options_allowed: true,
+            ..
+        } if character == '[' => {
+            push_bibtex_character(
+                output,
+                character,
+                delimiter,
+                escape_tex_sensitive && state.raw_brace_argument_depth.is_none(),
+                &mut state.escaped,
+            );
+            state.pending_verbatim = Some(PendingVerbatim::Options { depth: 1 });
+        }
+        PendingVerbatim::Delimiter {
+            options_allowed,
+            skip_horizontal_whitespace: true,
+            ..
+        } if matches!(character, ' ' | '\t') => {
+            push_bibtex_character(
+                output,
+                character,
+                delimiter,
+                escape_tex_sensitive && state.raw_brace_argument_depth.is_none(),
+                &mut state.escaped,
+            );
+            state.pending_verbatim = Some(PendingVerbatim::Delimiter {
+                star_allowed: false,
+                options_allowed,
+                skip_horizontal_whitespace: true,
+            });
+        }
+        PendingVerbatim::Delimiter { .. } if is_verbatim_delimiter(character) => {
+            push_bibtex_character(output, character, delimiter, false, &mut state.escaped);
+            state.pending_verbatim = None;
+            state.verbatim_delimiter = Some(character);
+        }
+        PendingVerbatim::Options { depth } => {
+            consume_lstinline_option_character(
+                output,
+                character,
+                delimiter,
+                escape_tex_sensitive,
+                depth,
+                state,
+            );
+        }
+        PendingVerbatim::Delimiter { .. } => {
+            state.pending_verbatim = None;
+            return false;
+        }
+    }
+    state.pending_raw_brace_command = false;
+    true
+}
+
+fn consume_lstinline_option_character(
+    output: &mut String,
+    character: char,
+    delimiter: ValueDelimiter,
+    escape_tex_sensitive: bool,
+    depth: usize,
+    state: &mut BibtexEscapeState,
+) {
+    let was_escaped = state.escaped;
+    let next_depth = match character {
+        '[' if !was_escaped => depth.saturating_add(1),
+        ']' if !was_escaped => depth.saturating_sub(1),
+        _ => depth,
+    };
+    update_brace_context(
+        character,
+        was_escaped,
+        false,
+        &mut state.brace_depth,
+        &mut state.raw_brace_argument_depth,
+    );
+    push_bibtex_character(
+        output,
+        character,
+        delimiter,
+        escape_tex_sensitive && state.raw_brace_argument_depth.is_none(),
+        &mut state.escaped,
+    );
+    state.pending_verbatim = if next_depth == 0 {
+        Some(PendingVerbatim::Delimiter {
+            star_allowed: false,
+            options_allowed: false,
+            skip_horizontal_whitespace: true,
+        })
+    } else {
+        Some(PendingVerbatim::Options { depth: next_depth })
+    };
+}
+
+fn is_tex_command_byte(byte: u8) -> bool {
+    byte.is_ascii_alphabetic() || byte == b'@'
+}
+
+fn is_raw_brace_command(command: &[u8]) -> bool {
+    matches!(command, b"url" | b"nolinkurl" | b"path")
+}
+
+fn pending_verbatim_command(command: &[u8]) -> Option<PendingVerbatim> {
+    match command {
+        b"verb" => Some(PendingVerbatim::Delimiter {
+            star_allowed: true,
+            options_allowed: false,
+            skip_horizontal_whitespace: false,
+        }),
+        b"Verb" | b"lstinline" => Some(PendingVerbatim::Delimiter {
+            star_allowed: true,
+            options_allowed: true,
+            skip_horizontal_whitespace: true,
+        }),
+        _ => None,
+    }
+}
+
+fn is_verbatim_delimiter(character: char) -> bool {
+    !character.is_ascii_alphabetic() && !character.is_ascii_whitespace()
+}
+
+fn update_brace_context(
+    character: char,
+    escaped: bool,
+    begins_raw_argument: bool,
+    brace_depth: &mut usize,
+    raw_argument_depth: &mut Option<usize>,
+) {
+    if escaped {
+        return;
+    }
+    match character {
+        '{' => {
+            *brace_depth = brace_depth.saturating_add(1);
+            if begins_raw_argument && raw_argument_depth.is_none() {
+                *raw_argument_depth = Some(*brace_depth);
+            }
+        }
+        '}' => {
+            if *raw_argument_depth == Some(*brace_depth) {
+                *raw_argument_depth = None;
+            }
+            *brace_depth = brace_depth.saturating_sub(1);
+        }
+        _ => {}
+    }
+}
+
+fn push_bibtex_character(
+    output: &mut String,
+    character: char,
+    delimiter: ValueDelimiter,
+    escape_tex_sensitive: bool,
+    escaped: &mut bool,
+) {
+    match character {
+        '\r' => *escaped = false,
+        '\n' | '\t' => {
+            if !output.ends_with(' ') {
+                output.push(' ');
+            }
+            *escaped = false;
+        }
+        '"' if delimiter == ValueDelimiter::Quotes && !*escaped => {
+            output.push_str("\\\"");
+            *escaped = false;
+        }
+        '&' | '%' | '$' | '#' | '_' if escape_tex_sensitive && !*escaped => {
+            output.push('\\');
+            output.push(character);
+            *escaped = false;
+        }
+        '\\' => {
+            output.push(character);
+            *escaped = !*escaped;
+        }
+        _ => {
+            output.push(character);
+            *escaped = false;
+        }
+    }
 }
 
 fn with_version(identifier: &str, version: Option<&str>) -> String {
@@ -1072,9 +1607,10 @@ mod tests {
         analyze(&syntax)
     }
 
-    const RICH_SOURCE: &str = "@inproceedings{doe2024, author={Doe, Jane}, title={Parsing & Generation}, booktitle={Proceedings of Testing}, month={7}, year={2024}, address={Matsuyama}, publisher={Example Press}, pages={1--10}, volume={42}, number={3}, doi={10.1000/example}, url={https://example.test/paper}, eprint={2401.01234}, archivePrefix={arXiv}, primaryClass={cs.CL}, isbn={978-1-4028-9462-6}, issn={1234-567X}, pmid={12345}, pmcid={PMC67890}, note={Author note}, abstract={Private summary}, file={local.pdf}, custom={Modern only},}\n";
+    const RICH_SOURCE: &str = include_str!("../tests/fixtures/profile-rich-input.bib");
 
     #[test]
+    #[allow(clippy::match_same_arms)]
     fn builtin_profiles_match_complete_goldens() {
         let bibliography = bibliography(RICH_SOURCE);
         for profile in ExportProfile::builtins().unwrap() {
@@ -1084,6 +1620,25 @@ mod tests {
                 "laboratory" => include_str!("../tests/fixtures/laboratory.bib"),
                 "acl" => include_str!("../tests/fixtures/acl.bib"),
                 "aaai" => include_str!("../tests/fixtures/aaai.bib"),
+                "acm-publications" => {
+                    include_str!("../tests/fixtures/acm-publications.bib")
+                }
+                "ieee-publications" => {
+                    include_str!("../tests/fixtures/ieee-publications.bib")
+                }
+                "natbib-full-author-names" => {
+                    include_str!("../tests/fixtures/natbib-full-author-names.bib")
+                }
+                "springer-lncs" => include_str!("../tests/fixtures/springer-lncs.bib"),
+                "ml-conferences" => {
+                    include_str!("../tests/fixtures/machine-learning-conferences.bib")
+                }
+                "lrec" => include_str!("../tests/fixtures/lrec-language-resources.bib"),
+                "eamt" => include_str!("../tests/fixtures/eamt-conference.bib"),
+                "ipsj-japanese" => include_str!("../tests/fixtures/ipsj-japanese.bib"),
+                "ipsj-english" => include_str!("../tests/fixtures/ipsj-english.bib"),
+                "jnlp-japanese" => include_str!("../tests/fixtures/jnlp-japanese.bib"),
+                "jsai-journal" => include_str!("../tests/fixtures/jsai-journal.bib"),
                 "classical-bst" => include_str!("../tests/fixtures/classical-bst.bib"),
                 "legacy-arxiv-article" => {
                     include_str!("../tests/fixtures/legacy-arxiv-article.bib")
@@ -1108,9 +1663,13 @@ mod tests {
             !profile.display_name.trim().is_empty() && !profile.description.trim().is_empty()
         }));
         assert_eq!(ExportProfile::builtin("default").unwrap(), profiles[0]);
+        let legacy_arxiv = profiles
+            .iter()
+            .find(|profile| profile.profile.as_str() == "legacy-arxiv-article")
+            .unwrap();
         assert_eq!(
             ExportProfile::builtin("article-journal").unwrap(),
-            profiles[5]
+            legacy_arxiv.clone()
         );
     }
 
@@ -1121,6 +1680,181 @@ mod tests {
             let first = export(&records, &profile).unwrap().source;
             let second = export(&bibliography(&first), &profile).unwrap().source;
             assert_eq!(second, first, "profile `{}`", profile.profile);
+        }
+    }
+
+    #[test]
+    fn artifact_profiles_project_style_specific_fields() {
+        let records = bibliography(
+            "@misc{probe, title={Probe}, year={2026}, assignee={Unused Assignee}, nationality={Japanese}, distinctURL={true}, pmid={12345}, lastchecked={2026-07-22}, eid={A1}, islrn={42-123-456-789-0}, pid={lrec_123}, yomi={ぷろーぶ}, romaji={puroobu}, refdate={2026-07-22}, custom={drop me},}\n",
+        );
+        let cases = [
+            ("aaai", &["eid"][..], &["pubmed", "custom"][..]),
+            (
+                "acl",
+                &["eid", "pubmed", "lastchecked"][..],
+                &["islrn", "custom"][..],
+            ),
+            (
+                "acm-publications",
+                &["eid", "distincturl"][..],
+                &["pubmed", "custom"][..],
+            ),
+            (
+                "ieee-publications",
+                &["nationality"][..],
+                &["assignee", "eid", "custom"][..],
+            ),
+            ("ml-conferences", &["eid"][..], &["pubmed", "custom"][..]),
+            (
+                "lrec",
+                &["pubmed", "lastchecked", "islrn", "pid"][..],
+                &["eid", "custom"][..],
+            ),
+            (
+                "ipsj-japanese",
+                &["refdate", "yomi"][..],
+                &["romaji", "custom"][..],
+            ),
+            ("ipsj-english", &["refdate"][..], &["yomi", "custom"][..]),
+            (
+                "jnlp-japanese",
+                &["romaji", "yomi"][..],
+                &["refdate", "custom"][..],
+            ),
+            ("jsai-journal", &["yomi"][..], &["romaji", "custom"][..]),
+        ];
+
+        for (profile_id, retained, dropped) in cases {
+            let output = export(&records, &ExportProfile::builtin(profile_id).unwrap())
+                .unwrap()
+                .source;
+            for field in retained {
+                assert!(
+                    output.contains(&format!("  {field} =")),
+                    "profile `{profile_id}` should retain `{field}`:\n{output}"
+                );
+            }
+            for field in dropped {
+                assert!(
+                    !output.contains(&format!("  {field} =")),
+                    "profile `{profile_id}` should drop `{field}`:\n{output}"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn artifact_profiles_preserve_bst_native_entry_types() {
+        let cases = [
+            (
+                "acl",
+                "@presentation{probe, author={Doe, Jane}, title={Talk}, year={2026},}\n",
+                "presentation",
+                "title",
+            ),
+            (
+                "acm-publications",
+                "@artifactsoftware{probe, author={Doe, Jane}, title={Tool}, year={2026}, url={https://example.test/tool},}\n",
+                "artifactsoftware",
+                "url",
+            ),
+            (
+                "ieee-publications",
+                "@patent{probe, author={Doe, Jane}, nationality={Japanese}, number={12345}, title={Widget}, year={2026},}\n",
+                "patent",
+                "nationality",
+            ),
+            (
+                "lrec",
+                "@languageresource{probe, author={Doe, Jane}, title={Corpus}, year={2026}, islrn={42-123-456-789-0}, pid={lrec_123},}\n",
+                "languageresource",
+                "islrn",
+            ),
+            (
+                "ipsj-japanese",
+                "@webpage{probe, author={Doe, Jane}, title={Page}, organization={Example Organization}, year={2026}, url={https://example.test/page}, refdate={2026-07-22},}\n",
+                "webpage",
+                "refdate",
+            ),
+            (
+                "jnlp-japanese",
+                "@dbathesis{probe, author={Doe, Jane}, title={Thesis}, school={Example University}, year={2026}, yomi={ぷろーぶ},}\n",
+                "dbathesis",
+                "yomi",
+            ),
+        ];
+
+        for (profile_id, source, entry_type, field) in cases {
+            let output = export(
+                &bibliography(source),
+                &ExportProfile::builtin(profile_id).unwrap(),
+            )
+            .unwrap()
+            .source;
+            assert!(
+                output.starts_with(&format!("@{entry_type}{{probe,")),
+                "profile `{profile_id}` did not preserve `{entry_type}`:\n{output}"
+            );
+            assert!(
+                output.contains(&format!("  {field} =")),
+                "profile `{profile_id}` did not retain `{field}`:\n{output}"
+            );
+        }
+
+        for (source, expected_entry_type) in [
+            (
+                "@mvproceedings{probe, title={Proceedings}, year={2026},}\n",
+                "proceedings",
+            ),
+            (
+                "@thesis{probe, author={Doe, Jane}, title={Thesis}, school={Example University}, year={2026},}\n",
+                "phdthesis",
+            ),
+        ] {
+            let output = export(
+                &bibliography(source),
+                &ExportProfile::builtin("aaai").unwrap(),
+            )
+            .unwrap()
+            .source;
+            assert!(
+                output.starts_with(&format!("@{expected_entry_type}{{probe,")),
+                "unsupported source alias was not mapped to `{expected_entry_type}`:\n{output}"
+            );
+        }
+    }
+
+    #[test]
+    fn ieee_profile_preserves_bst_control_entries() {
+        let output = export(
+            &bibliography(
+                "@IEEEtranBSTCTL{IEEEexample:BSTcontrol, CTLuse_article_number={yes}, CTLuse_forced_etal={no},}\n",
+            ),
+            &ExportProfile::builtin("ieee-publications").unwrap(),
+        )
+        .unwrap()
+        .source;
+        assert!(output.starts_with("@ieeetranbstctl{IEEEexample:BSTcontrol,"));
+        assert!(output.contains("ctluse_article_number = {yes}"));
+        assert!(output.contains("ctluse_forced_etal = {no}"));
+    }
+
+    #[test]
+    fn artifact_profiles_use_target_field_names_and_month_macros() {
+        for profile_id in ["acl", "lrec"] {
+            let output = export(
+                &bibliography(RICH_SOURCE),
+                &ExportProfile::builtin(profile_id).unwrap(),
+            )
+            .unwrap()
+            .source;
+            assert!(output.contains("month = jul"), "profile `{profile_id}`");
+            assert!(
+                output.contains("pubmed = {12345}"),
+                "profile `{profile_id}`"
+            );
+            assert!(!output.contains("pmid ="), "profile `{profile_id}`");
         }
     }
 
@@ -1216,6 +1950,49 @@ mod tests {
         assert!(matches!(
             conflict.validate(),
             Err(ExportError::InvalidProfile(ref message)) if message.contains("both allowed and excluded")
+        ));
+    }
+
+    #[test]
+    fn entry_type_and_field_rename_configuration_is_validated() {
+        let mut duplicate_entry_type = ExportProfile::modern();
+        duplicate_entry_type.supported_entry_types =
+            vec![String::from("webpage"), String::from("WebPage")];
+        assert!(matches!(
+            duplicate_entry_type.validate(),
+            Err(ExportError::InvalidProfile(ref message)) if message.contains("duplicate field")
+        ));
+
+        let mut duplicate_target = ExportProfile::modern();
+        duplicate_target
+            .field_renames
+            .insert(String::from("pmid"), String::from("pubmed"));
+        duplicate_target
+            .field_renames
+            .insert(String::from("pmcid"), String::from("PUBMED"));
+        assert!(matches!(
+            duplicate_target.validate(),
+            Err(ExportError::InvalidProfile(ref message)) if message.contains("duplicate field")
+        ));
+
+        let mut unselected_target = ExportProfile::modern();
+        unselected_target.field_selection.allowed_fields = Some(vec![String::from("title")]);
+        unselected_target
+            .field_renames
+            .insert(String::from("pmid"), String::from("pubmed"));
+        assert!(matches!(
+            unselected_target.validate(),
+            Err(ExportError::InvalidProfile(ref message)) if message.contains("not selected")
+        ));
+
+        let records = bibliography("@misc{probe, title={Probe}, pmid={12345}, pubmed={67890},}\n");
+        let mut conflicting_fields = ExportProfile::modern();
+        conflicting_fields
+            .field_renames
+            .insert(String::from("pmid"), String::from("pubmed"));
+        assert!(matches!(
+            export(&records, &conflicting_fields),
+            Err(ExportError::DuplicateField { ref field, .. }) if field == "pubmed"
         ));
     }
 
@@ -1319,6 +2096,186 @@ validation_profile = "modern"
             escape_bibtex("line\r\nbreak", ValueDelimiter::Braces),
             "line break"
         );
+    }
+
+    #[test]
+    fn prose_url_and_verbatim_commands_preserve_only_their_literal_arguments() {
+        let records = bibliography(
+            r"@misc{k,
+  title={Outside 50% & C_1 # $5 \url{https://example.test/{part_1}/a%20_b?x=1&cost=$5#frag_1} after 60% \textbf{Bold 70% & C_2 # $6}},
+  note={Note 20% \nolinkurl{https://example.test/b%20_c?x=2&cost=$6#frag_2} \verb|100% & C_3 # $7| \verb*+90% & C_4 # $8+ \Verb!80% & C_5 # $9!},
+  howpublished={Path 30% \path{paper%20&draft_2#$} \lstinline[language=TeX]|70% & C_6 # $0|},
+}
+",
+        );
+        let profile = ExportProfile::modern();
+
+        let first = export(&records, &profile).unwrap().source;
+        assert!(first.contains(
+            r"title = {Outside 50\% \& C\_1 \# \$5 \url{https://example.test/{part_1}/a%20_b?x=1&cost=$5#frag_1} after 60\% \textbf{Bold 70\% \& C\_2 \# \$6}}"
+        ));
+        assert!(first.contains(
+            r"note = {Note 20\% \nolinkurl{https://example.test/b%20_c?x=2&cost=$6#frag_2} \verb|100% & C_3 # $7| \verb*+90% & C_4 # $8+ \Verb!80% & C_5 # $9!}"
+        ));
+        assert!(first.contains(
+            r"howpublished = {Path 30\% \path{paper%20&draft_2#$} \lstinline[language=TeX]|70% & C_6 # $0|}"
+        ));
+
+        let second = export(&bibliography(&first), &profile).unwrap().source;
+        assert_eq!(second, first);
+    }
+
+    #[test]
+    fn verbatim_command_syntax_matches_validation_scanner() {
+        let source = r"\Verb [formatcom=\small] /40% & C_1 # $5/ \lstinline* [language=TeX] 9numeric% & C_2 # $six9 \verb8digit% & C_3 # $seven8 \unknown|10% & C_4 # $2|";
+
+        assert_eq!(
+            escape_bibtex(source, ValueDelimiter::Braces),
+            r"\Verb [formatcom=\small] /40% & C_1 # $5/ \lstinline* [language=TeX] 9numeric% & C_2 # $six9 \verb8digit% & C_3 # $seven8 \unknown|10\% \& C\_4 \# \$2|"
+        );
+    }
+
+    #[test]
+    fn prose_literal_commands_still_escape_quote_delimiters() {
+        let records = bibliography(
+            r#"@misc{k, title={Say "outside" 50% \url{https://example.test/a%20_b?label="inside"&cost=$5#frag_1} \verb|"literal" 20% & C_1 # $5| after 30%},}
+"#,
+        );
+        let mut profile = ExportProfile::modern();
+        profile.value_delimiter = ValueDelimiter::Quotes;
+
+        let first = export(&records, &profile).unwrap().source;
+        assert!(first.contains(
+            r#"title = "Say \"outside\" 50\% \url{https://example.test/a%20_b?label=\"inside\"&cost=$5#frag_1} \verb|\"literal\" 20% & C_1 # $5| after 30\%""#
+        ));
+
+        let second = export(&bibliography(&first), &profile).unwrap().source;
+        assert_eq!(second, first);
+    }
+
+    #[test]
+    fn acm_archived_url_round_trips_without_identifier_escaping() {
+        const ARCHIVED: &str = "https://archive.example.test/a%20b?left=a_b&price=$5#part_2";
+        let records = bibliography(&format!(
+            "@online{{k, title={{Archived}}, year={{2026}}, archived={{{ARCHIVED}}},}}\n"
+        ));
+        let profile = ExportProfile::builtin("acm-publications").unwrap();
+
+        let first = export(&records, &profile).unwrap().source;
+        assert!(first.contains(&format!("archived = {{{ARCHIVED}}}")));
+
+        let reparsed = bibliography(&first);
+        assert_eq!(
+            reparsed.records[0]
+                .extra_fields
+                .iter()
+                .find(|field| field.name.eq_ignore_ascii_case("archived"))
+                .and_then(|field| field.value.resolved.as_deref()),
+            Some(ARCHIVED)
+        );
+        assert_eq!(export(&reparsed, &profile).unwrap().source, first);
+    }
+
+    #[test]
+    fn identifier_fields_preserve_tex_sensitive_characters() {
+        let value = "part%20&query#fragment_$5";
+        for field in [
+            "url",
+            "doi",
+            "file",
+            "eprint",
+            "archivePrefix",
+            "primaryClass",
+            "isbn",
+            "issn",
+            "pmid",
+            "pmcid",
+            "pubmed",
+        ] {
+            assert_eq!(
+                format_field_value(field, value, ValueDelimiter::Braces),
+                format!("{{{value}}}"),
+                "field `{field}`"
+            );
+        }
+        assert_eq!(
+            format_field_value("title", value, ValueDelimiter::Braces),
+            "{part\\%20\\&query\\#fragment\\_\\$5}"
+        );
+        assert_eq!(
+            format_field_value(
+                "url",
+                "https://example.test/a%20b?label=\"quoted\"\r\nnext",
+                ValueDelimiter::Quotes,
+            ),
+            "\"https://example.test/a%20b?label=\\\"quoted\\\" next\""
+        );
+    }
+
+    #[test]
+    fn url_doi_and_file_values_round_trip_without_identifier_changes() {
+        const DOI: &str = "10.1000/example_name";
+        const URL: &str = "https://example.test/a%20b?left=a_b&price=$5#part_2";
+        const FILE: &str = "paper%20draft_1&copy#part$.pdf";
+        let records = bibliography(&format!(
+            "@article{{k, title={{50% ready & C_1 # $5}}, journal={{J}}, year={{2024}}, doi={{{DOI}}}, url={{{URL}}}, file={{{FILE}}},}}\n"
+        ));
+        let original_doi = records.records[0]
+            .identifiers
+            .primary_doi()
+            .unwrap()
+            .value
+            .as_str()
+            .to_owned();
+        let original_url = records.records[0].urls[0].value.as_str().to_owned();
+        let original_file = records.records[0]
+            .extra_fields
+            .iter()
+            .find(|field| field.name.eq_ignore_ascii_case("file"))
+            .and_then(|field| field.value.resolved.clone())
+            .unwrap();
+
+        let output = export(&records, &ExportProfile::modern()).unwrap().source;
+        assert!(output.contains("title = {50\\% ready \\& C\\_1 \\# \\$5}"));
+        assert!(output.contains(&format!("doi = {{{DOI}}}")));
+        assert!(output.contains(&format!("url = {{{URL}}}")));
+        assert!(output.contains(&format!("file = {{{FILE}}}")));
+
+        let reparsed = bibliography(&output);
+        assert_eq!(
+            reparsed.records[0]
+                .identifiers
+                .primary_doi()
+                .unwrap()
+                .value
+                .as_str(),
+            original_doi
+        );
+        assert_eq!(reparsed.records[0].urls[0].value.as_str(), original_url);
+        assert_eq!(
+            reparsed.records[0]
+                .extra_fields
+                .iter()
+                .find(|field| field.name.eq_ignore_ascii_case("file"))
+                .and_then(|field| field.value.resolved.as_deref()),
+            Some(original_file.as_str())
+        );
+    }
+
+    #[test]
+    fn renamed_identifier_field_uses_its_target_name_for_formatting() {
+        const PUBMED: &str = "123_45%67&copy#part$";
+        let records = bibliography(&format!(
+            "@misc{{k, title={{T}}, year={{2024}}, pmid={{{PUBMED}}},}}\n"
+        ));
+        let profile = ExportProfile::acl();
+
+        let first = export(&records, &profile).unwrap().source;
+        assert!(first.contains(&format!("pubmed = {{{PUBMED}}}")));
+        assert!(!first.contains("pmid ="));
+
+        let second = export(&bibliography(&first), &profile).unwrap().source;
+        assert_eq!(second, first);
     }
 
     #[test]

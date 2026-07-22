@@ -697,17 +697,7 @@ mod tests {
             .collect::<Vec<_>>();
 
         assert_eq!(catalog.schema_version, SCHEMA_VERSION);
-        assert_eq!(
-            ids,
-            [
-                "modern",
-                "laboratory",
-                "acl",
-                "aaai",
-                "classical-bst",
-                "legacy-arxiv-article",
-            ]
-        );
+        assert_eq!(ids, bibmgr_export::BUILTIN_EXPORT_PROFILE_IDS);
         assert!(!ids.contains(&"default"));
         assert!(!ids.contains(&"article-journal"));
 
@@ -738,6 +728,34 @@ mod tests {
             .is_some_and(|description| !description.is_empty()));
         assert_eq!(first["validation_profile"], "modern");
         assert_eq!(first["preprint_representation"], "misc-eprint");
+    }
+
+    #[test]
+    fn artifact_profiles_export_bst_native_entry_types_through_target_validation() {
+        let cases = [
+            (
+                "lrec",
+                "@languageresource{probe, author={Doe, Jane}, title={Corpus}, year={2026}, islrn={42-123-456-789-0}, pid={lrec_123},}\n",
+                "@languageresource{probe,",
+                "islrn = {42-123-456-789-0}",
+            ),
+            (
+                "ieee-publications",
+                "@patent{probe, author={Doe, Jane}, nationality={Japanese}, number={12345}, title={Widget}, year={2026},}\n",
+                "@patent{probe,",
+                "nationality = {Japanese}",
+            ),
+        ];
+
+        for (profile_id, source, entry, field) in cases {
+            let profile = ExportProfile::builtin(profile_id).unwrap();
+            let output = export_source(source, &profile).unwrap().source;
+            assert!(
+                output.starts_with(entry),
+                "profile `{profile_id}`: {output}"
+            );
+            assert!(output.contains(field), "profile `{profile_id}`: {output}");
+        }
     }
 
     #[test]

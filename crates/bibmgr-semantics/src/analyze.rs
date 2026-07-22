@@ -1535,12 +1535,14 @@ fn work_type_from_entry_type(entry_type: &str) -> WorkType {
         | "mvproceedings" => WorkType::Book,
         "inbook" | "bookinbook" | "suppbook" => WorkType::InBook,
         "incollection" | "suppcollection" | "inreference" => WorkType::InCollection,
-        "mastersthesis" | "phdthesis" | "thesis" => WorkType::Thesis,
-        "techreport" | "report" => WorkType::TechnicalReport,
-        "dataset" => WorkType::Dataset,
-        "software" => WorkType::Software,
-        "online" => WorkType::WebResource,
-        "misc" | "unpublished" | "manual" => WorkType::Miscellaneous,
+        "mastersthesis" | "phdthesis" | "thesis" | "dbathesis" | "eddthesis" => WorkType::Thesis,
+        "techreport" | "report" | "mastersreport" => WorkType::TechnicalReport,
+        "dataset" | "languageresource" | "artifactdataset" => WorkType::Dataset,
+        "software" | "artifactsoftware" => WorkType::Software,
+        "online" | "webpage" | "electronic" | "internet" | "www" => WorkType::WebResource,
+        "preprint" => WorkType::Preprint,
+        "misc" | "unpublished" | "manual" | "presentation" | "patent" | "standard"
+        | "underreview" | "game" | "video" | "ieeetranbstctl" => WorkType::Miscellaneous,
         _ => WorkType::Unknown,
     }
 }

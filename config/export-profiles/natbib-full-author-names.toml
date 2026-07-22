@@ -1,0 +1,89 @@
+schema_version = "1"
+profile = "natbib-full-author-names"
+display_name = "Natbib Author-Year (Full Names)"
+description = "Field-compatible author-year natbib output for full author-name rendering with identifier fields suppressed."
+validation_profile = "classical-bst"
+preprint_representation = "misc-howpublished"
+venue_style = "as-recorded"
+month_format = "bibtex-macro"
+supported_entry_types = [
+  "article",
+  "book",
+  "booklet",
+  "inbook",
+  "incollection",
+  "inproceedings",
+  "conference",
+  "manual",
+  "mastersthesis",
+  "misc",
+  "phdthesis",
+  "proceedings",
+  "techreport",
+  "unpublished",
+]
+field_order = [
+  "author",
+  "editor",
+  "title",
+  "journal",
+  "booktitle",
+  "series",
+  "volume",
+  "number",
+  "eid",
+  "chapter",
+  "pages",
+  "edition",
+  "organization",
+  "publisher",
+  "institution",
+  "school",
+  "address",
+  "type",
+  "month",
+  "year",
+  "howpublished",
+  "note",
+  "key",
+  "crossref",
+]
+field_case = "lowercase"
+value_delimiter = "braces"
+line_ending = "lf"
+indent = "  "
+trailing_comma = true
+include_doi = false
+include_url = false
+include_extra_fields = true
+excluded_fields = []
+allow_unknown_work_type = false
+
+[field_selection]
+allowed_fields = [
+  "author",
+  "editor",
+  "title",
+  "journal",
+  "booktitle",
+  "series",
+  "volume",
+  "number",
+  "eid",
+  "chapter",
+  "pages",
+  "edition",
+  "organization",
+  "publisher",
+  "institution",
+  "school",
+  "address",
+  "type",
+  "month",
+  "year",
+  "howpublished",
+  "note",
+  "key",
+  "crossref",
+]
+excluded_fields = []

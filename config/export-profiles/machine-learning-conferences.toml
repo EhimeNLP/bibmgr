@@ -1,0 +1,97 @@
+schema_version = "1"
+profile = "ml-conferences"
+display_name = "ICLR / ICML / COLM"
+description = "Shared machine-learning conference output with DOI, URL, ISBN, ISSN, and electronic article identifiers supported by the target bibliography styles."
+validation_profile = "modern"
+preprint_representation = "misc-howpublished"
+venue_style = "full"
+month_format = "bibtex-macro"
+supported_entry_types = [
+  "article",
+  "book",
+  "booklet",
+  "inbook",
+  "incollection",
+  "inproceedings",
+  "conference",
+  "manual",
+  "mastersthesis",
+  "misc",
+  "phdthesis",
+  "proceedings",
+  "techreport",
+  "unpublished",
+]
+field_order = [
+  "author",
+  "title",
+  "editor",
+  "booktitle",
+  "journal",
+  "edition",
+  "volume",
+  "number",
+  "series",
+  "chapter",
+  "pages",
+  "eid",
+  "month",
+  "year",
+  "address",
+  "organization",
+  "publisher",
+  "institution",
+  "school",
+  "isbn",
+  "issn",
+  "doi",
+  "url",
+  "howpublished",
+  "type",
+  "note",
+  "key",
+  "crossref",
+]
+field_case = "lowercase"
+value_delimiter = "braces"
+line_ending = "lf"
+indent = "  "
+trailing_comma = true
+include_doi = true
+include_url = true
+include_extra_fields = true
+excluded_fields = []
+allow_unknown_work_type = false
+
+[field_selection]
+allowed_fields = [
+  "author",
+  "title",
+  "editor",
+  "booktitle",
+  "journal",
+  "edition",
+  "volume",
+  "number",
+  "series",
+  "chapter",
+  "pages",
+  "eid",
+  "month",
+  "year",
+  "address",
+  "organization",
+  "publisher",
+  "institution",
+  "school",
+  "isbn",
+  "issn",
+  "doi",
+  "url",
+  "howpublished",
+  "type",
+  "note",
+  "key",
+  "crossref",
+]
+excluded_fields = []
