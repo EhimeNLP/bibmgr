@@ -20,7 +20,7 @@ The example backend exposes schema-v1 JSON:
 | `GET /bibtex/export/profiles` | Server-owned output profile catalog |
 | `POST /bibtex/export` | Profile-driven semantic export preview |
 
-Every request carries `source`; relevant requests also carry `profile`, `policy`, `mode`, `fix_ids`, or `source_revision`. An explicit fix request must send the revision returned by the analysis that exposed its IDs. Every success carries `schema_version`. Errors use a stable code/message DTO and do not masquerade as diagnostics.
+Every request carries `source`; relevant requests also carry `profile`, `policy`, `mode`, `fix_ids`, or `source_revision`. An explicit fix request must send the revision returned by the analysis that exposed its IDs. Every success carries `schema_version`. Errors use a stable code/message DTO and do not masquerade as diagnostics. Transport-level request validation uses `invalid_request` without copying framework-owned input values into the response.
 
 ## Editor lifecycle
 

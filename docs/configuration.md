@@ -5,12 +5,23 @@ Versioned TOML files define validation policy. Registration and semantic export 
 ```text
 config/
 |- export-profiles/
-|  |- modern.toml
-|  |- laboratory.toml
-|  |- acl.toml
-|  |- aaai.toml
+|  |- aaai-conference.toml
+|  |- acl-publications.toml
+|  |- acm-publications.toml
 |  |- classical-bst.toml
-|  `- legacy-arxiv-article.toml
+|  |- eamt-conference.toml
+|  |- ieee-publications.toml
+|  |- information-processing-society-of-japan-english.toml
+|  |- information-processing-society-of-japan-japanese.toml
+|  |- japanese-society-for-artificial-intelligence-journal.toml
+|  |- journal-of-natural-language-processing-japanese.toml
+|  |- laboratory.toml
+|  |- legacy-arxiv-article.toml
+|  |- lrec-language-resources.toml
+|  |- machine-learning-conferences.toml
+|  |- modern.toml
+|  |- natbib-full-author-names.toml
+|  `- springer-lncs.toml
 |- policies/
 |  |- laboratory.toml
 |  |- modern.toml
@@ -52,9 +63,9 @@ blocking = true
 
 `field_case` is `lowercase`, `canonical`, or `preserve`. `url_policy` is `allow`, `discourage`, or `forbid`. Rule entries may override enabled state, severity, and blocking independently. Omitted registered rules use embedded defaults; an unknown code is an error.
 
-The syntax style catalog includes `BIB-SYNTAX-006`, which normalizes each simple horizontal whitespace gap adjacent to a field's `=` to one space, and `BIB-SYNTAX-007`, which reports percent comments located inside an entry. The whitespace fix never rewrites a gap containing a line break or comment. Inline percent comments are diagnostic only and should be moved between entries manually.
+The syntax style catalog includes `BIB-SYNTAX-006`, which normalizes each simple horizontal whitespace gap adjacent to a field's `=` to one space, `BIB-SYNTAX-007`, which reports percent comments located inside an entry, and `BIB-SYNTAX-008`, which reports an unescaped `%` in a field value that can be emitted as TeX text. The whitespace fix never rewrites a gap containing a line break or comment. Inline percent comments are diagnostic only and should be moved between entries manually. The percent-value rule offers a safe `\%` fix only for plain text in conventional prose fields, requires confirmation inside other TeX command arguments or custom fields, and excludes URL-, DOI-, and file-like fields such as `archived` plus raw percent signs inside `\url{...}`, `\nolinkurl{...}`, and `\path{...}`. Complete delimiter forms of `\verb`, `\verb*`, `\Verb`, and `\lstinline` are treated as verbatim and are not diagnosed, while ambiguous delimiter forms require confirmation. Referenced `@string` definitions are followed recursively in the context of every consuming field; simple aliases retain the leaf applicability, command context that crosses a macro or concatenation boundary requires confirmation, a definition used only by excluded fields is not diagnosed, and a definition shared by prose and excluded fields is diagnosed without an automatic fix. Macro traversal is bounded by global visit and expansion-depth limits; if either limit is reached before traversal completes, an incomplete-analysis diagnostic is emitted and automatic fixes for all referenced `@string` values are disabled.
 
-The `laboratory` profile treats field spelling, field order, trailing commas, value delimiters, whitespace around `=`, and discouraged retention of a valid URL as non-blocking presentation guidance. Correctness, identity, required-data, malformed URLs, entry-internal percent comments that require parser recovery, and explicit laboratory-convention rules remain blocking.
+The `laboratory` profile treats field spelling, field order, trailing commas, value delimiters, whitespace around `=`, and discouraged retention of a valid URL as non-blocking presentation guidance. Correctness, identity, required-data, malformed URLs, entry-internal percent comments that require parser recovery, unescaped percent signs in TeX text values, and explicit laboratory-convention rules remain blocking.
 
 The duplicate semantic analyzer codes `BIB-SEMANTIC-103`, `BIB-SEMANTIC-104`, and `BIB-SEMANTIC-105` are retired in favor of the canonical DOI, arXiv, and date codes `BIB-SEMANTIC-001`, `BIB-SEMANTIC-002`, and `BIB-SEMANTIC-007`. TOML loaders migrate the retired codes to their canonical replacements and reject conflicting settings.
 
@@ -89,7 +100,9 @@ Export profiles are typed separately and include serialization-only fields such 
 - `misc-howpublished`: `@misc` and `howpublished`;
 - `article-journal`: legacy `@article` and `journal`.
 
-Venue styles are `full`, `short`, and `as-recorded`. The built-in validation and export profiles share IDs (`modern`, `laboratory`, `acl`, and `classical-bst`) but remain separate values. `aaai` and `legacy-arxiv-article` use `modern` as their target validation profile.
+Venue styles are `full`, `short`, and `as-recorded`. The validation catalog contains `modern`, `laboratory`, `acl`, and `classical-bst`; export profiles with one of those IDs still resolve to a separate typed value. Artifact-derived export profiles explicitly reuse the closest validation policy: `aaai`, `acm-publications`, `ieee-publications`, `ml-conferences`, and `springer-lncs` use `modern`; `lrec` uses `acl`; `eamt`, both IPSJ profiles, `jnlp-japanese`, `jsai-journal`, and `natbib-full-author-names` use `classical-bst`. `legacy-arxiv-article` also uses `modern`.
+
+These reused validation policies are general readiness baselines rather than complete validators for each referenced BST; target-specific field and entry-type compatibility is enforced by the export profile, while the selected validation policy checks the generated document's shared syntax and semantic requirements.
 
 Each checked-in output profile is a complete TOML document and includes user-facing catalog metadata. Field selection is configured separately from presentation order:
 
@@ -112,16 +125,37 @@ excluded_fields = ["url"]
 
 `field_order` controls only serialization order and never implicitly deletes a field. `field_selection.allowed_fields` is a case-insensitive allowlist applied to every generated candidate field, including structured identifiers and extra fields; omitting it allows every candidate. `field_selection.excluded_fields` is a case-insensitive denylist applied after the allowlist. Invalid names, duplicates, and fields present in both lists are rejected while loading.
 
-The older top-level `include_doi`, `include_url`, `include_extra_fields`, and `excluded_fields` keys remain accepted for API compatibility, but new profiles should express the final field projection with `[field_selection]`. After compatibility include switches are applied, profile optimization projects all enabled structured and extra candidate fields, normalizes field names, sorts the survivors, and serializes them.
+`month_format` is either `numeric` or `bibtex-macro`. `numeric` serializes a parsed month as a delimited number, while `bibtex-macro` emits a standard BibTeX month macro such as `jan` without braces or quotes; every artifact-derived profile uses `bibtex-macro` for compatibility with its target BST family.
 
-| Export profile | Intended optimization |
-| --- | --- |
-| `modern` | General modern BibTeX with `eprint` metadata and preserved supported extras |
-| `laboratory` | Full venue names, lowercase laboratory order, `misc-eprint`, and no discouraged URL or private metadata |
-| `acl` | ACL-oriented field allowlist and ordering |
-| `aaai` | AAAI-oriented field allowlist and ordering without URL |
-| `classical-bst` | Classical BibTeX fields with preprints represented through `howpublished` |
-| `legacy-arxiv-article` | Legacy preprints represented as `@article` with an arXiv `journal` value |
+`supported_entry_types` is a case-insensitive target entry-type allowlist. When the original non-preprint entry type appears in this list, export preserves that BST-native type instead of replacing it with the general semantic mapping; otherwise the mapped target type must itself appear in the allowlist. An empty list leaves the general mapping unrestricted.
+
+`[field_renames]` defines case-insensitive source-to-target field names and is applied after candidate generation but before field projection. The ACL and LREC profiles use `pmid = "pubmed"`, allowing semantic PMID data to reach the `pubmed` field spelling expected by those BST families.
+
+The older top-level `include_doi`, `include_url`, `include_extra_fields`, and `excluded_fields` keys remain accepted for API compatibility, but new profiles should express the final field projection with `[field_selection]`. After compatibility include switches are applied, profile optimization generates structured and extra candidate fields, applies `[field_renames]`, projects the enabled fields, normalizes field names, sorts the survivors, and serializes them.
+
+| Export profile | Configuration file | BST reference or role | Intended optimization |
+| --- | --- | --- | --- |
+| `modern` | `modern.toml` | General-purpose built-in | Modern BibTeX with structured identifiers, `eprint` metadata, and preserved supported extras |
+| `laboratory` | `laboratory.toml` | Laboratory convention | Full venue names, lowercase laboratory order, `misc-eprint`, and no discouraged URL or private metadata |
+| `acl` | `acl-publications.toml` | `acl_natbib.bst` | ACL publication fields, including DOI, renamed `pubmed`, eprint, and web metadata |
+| `aaai` | `aaai-conference.toml` | `aaai2026.bst` | AAAI publication, ISBN, EID, and eprint fields without DOI or URL |
+| `acm-publications` | `acm-publications.toml` | `ACM-Reference-Format.bst` | ACM identifiers, eprints, and ACM-specific publication metadata |
+| `ieee-publications` | `ieee-publications.toml` | `IEEEtran.bst` and `IEEEtranS.bst` | Shared IEEE field projection; the bibliography-order difference between the two BST files is intentionally consolidated |
+| `natbib-full-author-names` | `natbib-full-author-names.toml` | `ieeenat_fullname.bst` | Author-year natbib fields with identifier fields suppressed; full-name rendering remains the BST's responsibility |
+| `springer-lncs` | `springer-lncs.toml` | `splncs04.bst` | Traditional LNCS publication fields with DOI and URL metadata retained |
+| `ml-conferences` | `machine-learning-conferences.toml` | `iclr2026_conference.bst`, `icml2026.bst`, and `colm2026_conference.bst` | Shared compatible projection for ICLR, ICML, and COLM fields, including DOI, URL, ISBN, ISSN, and EID |
+| `lrec` | `lrec-language-resources.toml` | `lrec2026-natbib.bst` | LREC publication fields, renamed `pubmed`, and language-resource identifiers such as ISLRN and PID |
+| `eamt` | `eamt-conference.toml` | `eamt26.bst` | Conservative classical publication fields supported by the EAMT style |
+| `ipsj-japanese` | `information-processing-society-of-japan-japanese.toml` | `ipsjsort.bst` and `ipsjunsrt.bst` | Japanese IPSJ fields with yomi and web metadata; sorted and unsorted BST variants share one projection |
+| `ipsj-english` | `information-processing-society-of-japan-english.toml` | `ipsjsort-e.bst` and `ipsjunsrt-e.bst` | English IPSJ fields with DOI and web metadata; sorted and unsorted BST variants share one projection |
+| `jnlp-japanese` | `journal-of-natural-language-processing-japanese.toml` | `jnlpbbl_1.7.bst` | Japanese natural-language-processing fields with yomi, romaji, and web metadata |
+| `jsai-journal` | `japanese-society-for-artificial-intelligence-journal.toml` | `jsai.bst` | JSAI journal fields with yomi metadata and identifiers suppressed to match style support |
+| `classical-bst` | `classical-bst.toml` | Conservative built-in | Classical BibTeX fields with preprints represented through `howpublished` |
+| `legacy-arxiv-article` | `legacy-arxiv-article.toml` | Legacy compatibility built-in | Legacy preprints represented as `@article` with an arXiv `journal` value |
+
+The artifact-derived profiles are field-compatible optimizations informed by the referenced BST files, not executions or complete reproductions of those styles. They preserve an original BST-native entry type when it is explicitly supported, but do not reproduce bibliography sorting, citation-label construction, author-name formatting, punctuation, or entry-type-specific conditional field formatting and suppression; those remain responsibilities of a BST processor or the target publication toolchain.
+
+Every artifact-derived profile sets `allow_unknown_work_type = false`. An unrecognized semantic work type is exported only when its original entry type is explicitly listed in `supported_entry_types`; an unsupported original type fails export instead of being silently converted to `@misc`. The general-purpose `modern` and compatibility-focused `legacy-arxiv-article` profiles retain their existing unrestricted fallback behavior and are not artifact-derived profiles.
 
 `default` remains an API alias for `modern`, and `article-journal` remains an API alias for `legacy-arxiv-article`; aliases are not duplicated in the profile catalog.
 

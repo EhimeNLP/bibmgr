@@ -111,4 +111,3 @@ User input does not cause a panic. Parser recovery becomes a diagnostic in toler
 - [Rule authoring](adding-rules.md)
 - [Venue registry](venues.md)
 - [GUI integration](gui-integration.md)
-- [Architecture decisions](adr/README.md)
