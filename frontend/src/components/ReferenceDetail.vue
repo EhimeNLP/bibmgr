@@ -1,17 +1,27 @@
 <script setup lang="ts">
-import { onBeforeUnmount, ref, watch } from "vue";
+import { nextTick, onBeforeUnmount, ref, watch } from "vue";
 import type { Reference } from "../types/reference";
+import BibtexCodeBlock from "./BibtexCodeBlock.vue";
+import BibtexExportPanel from "./BibtexExportPanel.vue";
+
+type BibtexView = "stored" | "export";
 
 const props = defineProps<{
   reference: Reference | null;
 }>();
 
 const copyState = ref<"idle" | "copied" | "error">("idle");
+const activeBibtexView = ref<BibtexView>("stored");
+const hasOpenedExport = ref(false);
 let copyResetTimer: ReturnType<typeof setTimeout> | undefined;
 
 watch(
   () => props.reference?.id,
-  () => resetCopyState(),
+  () => {
+    activeBibtexView.value = "stored";
+    hasOpenedExport.value = false;
+    resetCopyState();
+  },
 );
 
 onBeforeUnmount(() => {
@@ -83,6 +93,41 @@ function resetCopyState() {
     copyResetTimer = undefined;
   }
 }
+
+function selectBibtexView(view: BibtexView, moveFocus = false) {
+  if (view === "export") hasOpenedExport.value = true;
+  activeBibtexView.value = view;
+
+  if (moveFocus) {
+    void nextTick(() => {
+      document.getElementById(`bibtex-tab-${view}`)?.focus();
+    });
+  }
+}
+
+function onBibtexTabsKeydown(event: KeyboardEvent) {
+  const target = event.target;
+  if (!(target instanceof HTMLElement) || target.getAttribute("role") !== "tab") {
+    return;
+  }
+
+  const view = target.dataset.bibtexView as BibtexView | undefined;
+  let nextView: BibtexView | undefined;
+
+  if (event.key === "ArrowRight") {
+    nextView = view === "stored" ? "export" : "stored";
+  } else if (event.key === "ArrowLeft") {
+    nextView = view === "export" ? "stored" : "export";
+  } else if (event.key === "Home") {
+    nextView = "stored";
+  } else if (event.key === "End") {
+    nextView = "export";
+  }
+
+  if (!nextView) return;
+  event.preventDefault();
+  selectBibtexView(nextView, true);
+}
 </script>
 
 <template>
@@ -148,11 +193,11 @@ function resetCopyState() {
         </dl>
       </div>
 
-      <div class="detail-section">
+      <div class="detail-section bibtex-detail">
         <div class="section-header">
           <h3>BibTeX</h3>
           <button
-            v-if="reference.bibtex"
+            v-if="reference.bibtex && activeBibtexView === 'stored'"
             type="button"
             class="button-secondary copy-button"
             :class="{ success: copyState === 'copied', error: copyState === 'error' }"
@@ -175,10 +220,69 @@ function resetCopyState() {
           {{ copyState === "copied" ? "BibTeX copied to clipboard." : copyState === "error" ? "BibTeX could not be copied." : "" }}
         </p>
 
-        <pre v-if="reference.bibtex" tabindex="0"><code>{{ reference.bibtex }}</code></pre>
+        <template v-if="reference.bibtex">
+          <div
+            class="bibtex-view-tabs"
+            role="tablist"
+            aria-label="BibTeX views"
+            @keydown="onBibtexTabsKeydown"
+          >
+            <button
+              id="bibtex-tab-stored"
+              type="button"
+              role="tab"
+              data-bibtex-view="stored"
+              :aria-selected="activeBibtexView === 'stored'"
+              aria-controls="bibtex-panel-stored"
+              :tabindex="activeBibtexView === 'stored' ? 0 : -1"
+              @click="selectBibtexView('stored')"
+            >
+              Stored source
+            </button>
+            <button
+              id="bibtex-tab-export"
+              type="button"
+              role="tab"
+              data-bibtex-view="export"
+              :aria-selected="activeBibtexView === 'export'"
+              aria-controls="bibtex-panel-export"
+              :tabindex="activeBibtexView === 'export' ? 0 : -1"
+              @click="selectBibtexView('export')"
+            >
+              Export preview
+            </button>
+          </div>
+
+          <div
+            v-show="activeBibtexView === 'stored'"
+            id="bibtex-panel-stored"
+            class="bibtex-tabpanel"
+            role="tabpanel"
+            aria-labelledby="bibtex-tab-stored"
+          >
+            <BibtexCodeBlock
+              :source="reference.bibtex"
+              accessible-label="Stored BibTeX source"
+              test-id="bibtex-stored-source"
+            />
+          </div>
+
+          <div
+            v-show="activeBibtexView === 'export'"
+            id="bibtex-panel-export"
+            class="bibtex-tabpanel"
+            role="tabpanel"
+            aria-labelledby="bibtex-tab-export"
+          >
+            <BibtexExportPanel
+              v-if="hasOpenedExport"
+              :source="reference.bibtex"
+              :citation-key="reference.bibtexKey"
+            />
+          </div>
+        </template>
         <p v-else class="muted">BibTeX has not been reconstructed yet.</p>
       </div>
-
     </template>
   </section>
 </template>

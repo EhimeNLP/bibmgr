@@ -3,6 +3,11 @@
 import { mount } from "@vue/test-utils";
 import { describe, expect, it } from "vitest";
 import BibtexEditor from "../src/components/BibtexEditor.vue";
+import type { BibtexDiagnostic } from "../src/types/bibtex";
+import {
+  utf8ByteOffsetToUtf16Index,
+  utf8ByteRangeToUtf16Range,
+} from "../src/utils/bibtexDiagnostics";
 import {
   countBibliographicEntries,
   extractBibliographicEntries,
@@ -10,6 +15,18 @@ import {
 } from "../src/utils/bibtexHighlight";
 
 describe("BibTeX highlighting", () => {
+  it("converts UTF-8 byte ranges to JavaScript UTF-16 indices", () => {
+    const unicode = "A日本😀Z";
+
+    expect(utf8ByteOffsetToUtf16Index(unicode, 0)).toBe(0);
+    expect(utf8ByteOffsetToUtf16Index(unicode, 7)).toBe(3);
+    expect(utf8ByteOffsetToUtf16Index(unicode, 11)).toBe(5);
+    expect(utf8ByteOffsetToUtf16Index(unicode, 999)).toBe(unicode.length);
+    expect(
+      utf8ByteRangeToUtf16Range(unicode, { start: 4, end: 11 }),
+    ).toEqual({ start: 2, end: 5 });
+  });
+
   it("tokenizes syntax without changing the source text", () => {
     const bibtex = `% a comment
 @article{demo2025,
@@ -84,5 +101,44 @@ ${second}`;
     expect(wrapper.emitted("update:modelValue")?.at(-1)).toEqual([
       "@book{next, title={Next}}",
     ]);
+  });
+
+  it("underlines the exact Unicode diagnostic range without changing source text", () => {
+    const source = "@article{key, title={日本😀語}}";
+    const emojiUtf16Start = source.indexOf("😀");
+    const emojiByteStart = new TextEncoder().encode(
+      source.slice(0, emojiUtf16Start),
+    ).length;
+    const diagnostic: BibtexDiagnostic = {
+      id: "BIB-UNICODE:0",
+      code: "BIB-UNICODE",
+      severity: "error",
+      blocking: true,
+      message: "Emoji is not allowed in this field.",
+      primary_location: {
+        source_id: "source:0",
+        range: { start: emojiByteStart, end: emojiByteStart + 4 },
+      },
+      related_locations: [],
+      notes: [],
+      fixes: [],
+    };
+    const wrapper = mount(BibtexEditor, {
+      props: {
+        id: "unicode-bibtex",
+        modelValue: source,
+        accessibleLabel: "Unicode BibTeX entry",
+        diagnostics: [diagnostic],
+      },
+    });
+
+    const marked = wrapper.get(".bibtex-diagnostic-range");
+    expect(marked.text()).toBe("😀");
+    expect(marked.classes()).toContain("bibtex-diagnostic-range--error");
+    expect(marked.attributes("data-diagnostic-ids")).toBe(diagnostic.id);
+    expect(marked.attributes("title")).toBe(diagnostic.message);
+    expect(wrapper.get(".bibtex-editor__highlight").element.textContent).toContain(
+      source,
+    );
   });
 });

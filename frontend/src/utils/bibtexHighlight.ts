@@ -13,7 +13,15 @@ export type BibtexToken = {
   value: string;
 };
 
+export const MAX_BIBTEX_HIGHLIGHT_LENGTH = 200_000;
+
 const SPECIAL_ENTRY_TYPES = new Set(["comment", "preamble", "string"]);
+
+export function tokenizeBibtexForHighlight(source: string): BibtexToken[] {
+  return source.length > MAX_BIBTEX_HIGHLIGHT_LENGTH
+    ? [{ kind: "plain", value: source }]
+    : tokenizeBibtex(source);
+}
 
 export function tokenizeBibtex(source: string): BibtexToken[] {
   const tokens: BibtexToken[] = [];
