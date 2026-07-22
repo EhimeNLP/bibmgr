@@ -1,1 +1,11 @@
 push.sh
+target/
+**/target/
+dist/
+*.whl
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+docs/adr/
