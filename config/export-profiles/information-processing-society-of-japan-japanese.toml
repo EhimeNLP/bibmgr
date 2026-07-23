@@ -1,0 +1,96 @@
+schema_version = "1"
+profile = "ipsj-japanese"
+display_name = "IPSJ (Japanese)"
+description = "Classical BibTeX output for the Japanese IPSJ bibliography styles, retaining yomi and web reference metadata."
+validation_profile = "classical-bst"
+preprint_representation = "misc-howpublished"
+venue_style = "as-recorded"
+month_format = "bibtex-macro"
+supported_entry_types = [
+  "article",
+  "book",
+  "booklet",
+  "inbook",
+  "incollection",
+  "inproceedings",
+  "conference",
+  "manual",
+  "mastersthesis",
+  "misc",
+  "phdthesis",
+  "proceedings",
+  "techreport",
+  "unpublished",
+  "webpage",
+]
+field_order = [
+  "author",
+  "editor",
+  "title",
+  "booktitle",
+  "journal",
+  "volume",
+  "number",
+  "series",
+  "pages",
+  "publisher",
+  "institution",
+  "school",
+  "address",
+  "edition",
+  "month",
+  "year",
+  "howpublished",
+  "note",
+  "chapter",
+  "crossref",
+  "doi",
+  "key",
+  "organization",
+  "refdate",
+  "type",
+  "url",
+  "yomi",
+]
+field_case = "lowercase"
+value_delimiter = "braces"
+line_ending = "lf"
+indent = "  "
+trailing_comma = true
+include_doi = true
+include_url = true
+include_extra_fields = true
+excluded_fields = []
+allow_unknown_work_type = false
+
+[field_selection]
+allowed_fields = [
+  "author",
+  "editor",
+  "title",
+  "booktitle",
+  "journal",
+  "volume",
+  "number",
+  "series",
+  "pages",
+  "publisher",
+  "institution",
+  "school",
+  "address",
+  "edition",
+  "month",
+  "year",
+  "howpublished",
+  "note",
+  "chapter",
+  "crossref",
+  "doi",
+  "key",
+  "organization",
+  "refdate",
+  "type",
+  "url",
+  "yomi",
+]
+excluded_fields = []

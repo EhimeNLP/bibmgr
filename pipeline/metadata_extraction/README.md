@@ -1,7 +1,6 @@
 # PaddleOCR-VL Paper Extraction
 
-This package extracts paper metadata and bibliography references from an input
-PDF.
+This package extracts paper metadata and bibliography references from an input PDF.
 
 ## Sync
 
@@ -115,8 +114,7 @@ The parser keeps:
 
 ## Runner Contract
 
-If `--paddleocr-vl-command` or `PADDLEOCR_VL_COMMAND` is used, the runner must
-accept:
+If `--paddleocr-vl-command` or `PADDLEOCR_VL_COMMAND` is used, the runner must accept:
 
 ```bash
 <command> <pdf-path> --output <json-path>

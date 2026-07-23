@@ -3,6 +3,11 @@
 import { mount } from "@vue/test-utils";
 import { describe, expect, it } from "vitest";
 import BibtexEditor from "../src/components/BibtexEditor.vue";
+import type { BibtexDiagnostic } from "../src/types/bibtex";
+import {
+  utf8ByteOffsetToUtf16Index,
+  utf8ByteRangeToUtf16Range,
+} from "../src/utils/bibtexDiagnostics";
 import {
   countBibliographicEntries,
   extractBibliographicEntries,
@@ -10,6 +15,18 @@ import {
 } from "../src/utils/bibtexHighlight";
 
 describe("BibTeX highlighting", () => {
+  it("converts UTF-8 byte ranges to JavaScript UTF-16 indices", () => {
+    const unicode = "A日本😀Z";
+
+    expect(utf8ByteOffsetToUtf16Index(unicode, 0)).toBe(0);
+    expect(utf8ByteOffsetToUtf16Index(unicode, 7)).toBe(3);
+    expect(utf8ByteOffsetToUtf16Index(unicode, 11)).toBe(5);
+    expect(utf8ByteOffsetToUtf16Index(unicode, 999)).toBe(unicode.length);
+    expect(
+      utf8ByteRangeToUtf16Range(unicode, { start: 4, end: 11 }),
+    ).toEqual({ start: 2, end: 5 });
+  });
+
   it("tokenizes syntax without changing the source text", () => {
     const bibtex = `% a comment
 @article{demo2025,
@@ -43,6 +60,67 @@ describe("BibTeX highlighting", () => {
         "@article{one, title={One}}\n@book{two, title={Two}}",
       ),
     ).toBe(2);
+  });
+
+  it("keeps raw percent signs inside braced and quoted values", () => {
+    const braced = "@misc{key, title = {100% Effective}, }";
+    const quoted = '@misc{key, title = "100% Effective", }';
+
+    expect(countBibliographicEntries(braced)).toBe(1);
+    expect(
+      countBibliographicEntries("@misc(key, title = {100% Effective}, )"),
+    ).toBe(1);
+    expect(countBibliographicEntries(quoted)).toBe(1);
+    expect(tokenizeBibtex(braced)).toContainEqual({
+      kind: "value",
+      value: "{100% Effective}",
+    });
+    expect(tokenizeBibtex(quoted)).toContainEqual({
+      kind: "value",
+      value: '"100% Effective"',
+    });
+  });
+
+  it("ignores entry delimiters inside body-level percent comments", () => {
+    const source = `@misc{one,
+  title = {100% Effective}, % ignored } and @book{fake,
+  year = {2026},
+}
+@misc(two,
+  title = "50% Effective", % ignored ) and @book(fake,
+  year = {2026},
+)`;
+
+    expect(countBibliographicEntries(source)).toBe(2);
+  });
+
+  it("tracks escaped entry syntax and resets escaping after comments", () => {
+    const source =
+      '@misc{one,\n  title = "A \\"quoted\\" title",\n' +
+      "  note = {A \\} literal brace},\n" +
+      "  howpublished = macro\\%value,\n" +
+      "  % ignored } and trailing \\\n" +
+      "  year = {2026},\n}\n" +
+      "@book{two, title={Two}}";
+
+    expect(countBibliographicEntries(source)).toBe(2);
+  });
+
+  it("counts long escaped values in linear time", () => {
+    const backslashes = "\\".repeat(100_000);
+    const first = "@misc{one, note={" + backslashes + "}}";
+    const second = "@book{two, title={Two}}";
+
+    expect(extractBibliographicEntries(`${first}\n${second}`)).toEqual([
+      first,
+      second,
+    ]);
+  });
+
+  it("stops after an unterminated entry has already been scanned to the end", () => {
+    const source = "@misc{broken,\n" + "@x{".repeat(20_000);
+
+    expect(extractBibliographicEntries(source)).toEqual([]);
   });
 
   it("extracts multiple complete entries without changing their contents", () => {
@@ -84,5 +162,44 @@ ${second}`;
     expect(wrapper.emitted("update:modelValue")?.at(-1)).toEqual([
       "@book{next, title={Next}}",
     ]);
+  });
+
+  it("underlines the exact Unicode diagnostic range without changing source text", () => {
+    const source = "@article{key, title={日本😀語}}";
+    const emojiUtf16Start = source.indexOf("😀");
+    const emojiByteStart = new TextEncoder().encode(
+      source.slice(0, emojiUtf16Start),
+    ).length;
+    const diagnostic: BibtexDiagnostic = {
+      id: "BIB-UNICODE:0",
+      code: "BIB-UNICODE",
+      severity: "error",
+      blocking: true,
+      message: "Emoji is not allowed in this field.",
+      primary_location: {
+        source_id: "source:0",
+        range: { start: emojiByteStart, end: emojiByteStart + 4 },
+      },
+      related_locations: [],
+      notes: [],
+      fixes: [],
+    };
+    const wrapper = mount(BibtexEditor, {
+      props: {
+        id: "unicode-bibtex",
+        modelValue: source,
+        accessibleLabel: "Unicode BibTeX entry",
+        diagnostics: [diagnostic],
+      },
+    });
+
+    const marked = wrapper.get(".bibtex-diagnostic-range");
+    expect(marked.text()).toBe("😀");
+    expect(marked.classes()).toContain("bibtex-diagnostic-range--error");
+    expect(marked.attributes("data-diagnostic-ids")).toBe(diagnostic.id);
+    expect(marked.attributes("title")).toBe(diagnostic.message);
+    expect(wrapper.get(".bibtex-editor__highlight").element.textContent).toContain(
+      source,
+    );
   });
 });

@@ -1,0 +1,21 @@
+[package]
+name = "bibmgr-syntax"
+description = "Lossless, parser-independent BibTeX concrete syntax for bibmgr"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+publish.workspace = true
+
+[dependencies]
+bibmgr-model.workspace = true
+bibtex-parser.workspace = true
+serde.workspace = true
+
+[dev-dependencies]
+proptest = "1.11"
+serde_json.workspace = true
+
+[lints]
+workspace = true

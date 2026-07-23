@@ -1,0 +1,106 @@
+schema_version = "1"
+profile = "lrec"
+display_name = "LREC Language Resources"
+description = "LREC output with language-resource identifiers, publication metadata, DOI, PubMed, and web fields supported by the target bibliography style."
+validation_profile = "acl"
+preprint_representation = "misc-eprint"
+venue_style = "full"
+month_format = "bibtex-macro"
+supported_entry_types = [
+  "webpage",
+  "languageresource",
+  "article",
+  "book",
+  "booklet",
+  "inbook",
+  "incollection",
+  "inproceedings",
+  "conference",
+  "manual",
+  "mastersthesis",
+  "misc",
+  "phdthesis",
+  "proceedings",
+  "techreport",
+  "unpublished",
+]
+field_order = [
+  "author",
+  "title",
+  "editor",
+  "booktitle",
+  "journal",
+  "edition",
+  "volume",
+  "number",
+  "series",
+  "chapter",
+  "pages",
+  "month",
+  "year",
+  "address",
+  "organization",
+  "publisher",
+  "institution",
+  "school",
+  "doi",
+  "pubmed",
+  "eprint",
+  "url",
+  "lastchecked",
+  "islrn",
+  "pid",
+  "howpublished",
+  "type",
+  "note",
+  "key",
+  "crossref",
+]
+field_case = "lowercase"
+value_delimiter = "braces"
+line_ending = "lf"
+indent = "  "
+trailing_comma = true
+include_doi = true
+include_url = true
+include_extra_fields = true
+excluded_fields = []
+allow_unknown_work_type = false
+
+[field_renames]
+pmid = "pubmed"
+
+[field_selection]
+allowed_fields = [
+  "author",
+  "title",
+  "editor",
+  "booktitle",
+  "journal",
+  "edition",
+  "volume",
+  "number",
+  "series",
+  "chapter",
+  "pages",
+  "month",
+  "year",
+  "address",
+  "organization",
+  "publisher",
+  "institution",
+  "school",
+  "doi",
+  "pubmed",
+  "eprint",
+  "url",
+  "lastchecked",
+  "islrn",
+  "pid",
+  "howpublished",
+  "type",
+  "note",
+  "key",
+  "crossref",
+]
+excluded_fields = []

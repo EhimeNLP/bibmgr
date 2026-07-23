@@ -1,0 +1,50 @@
+schema_version = "1"
+profile = "legacy-arxiv-article"
+display_name = "Legacy arXiv Article"
+description = "Legacy preprint output represented as an article with an arXiv journal value."
+validation_profile = "modern"
+preprint_representation = "article-journal"
+venue_style = "as-recorded"
+field_order = [
+  "author",
+  "editor",
+  "title",
+  "booktitle",
+  "journal",
+  "series",
+  "volume",
+  "number",
+  "pages",
+  "publisher",
+  "address",
+  "school",
+  "institution",
+  "month",
+  "day",
+  "year",
+  "date",
+  "isbn",
+  "issn",
+  "doi",
+  "pmid",
+  "pmcid",
+  "eprint",
+  "archivePrefix",
+  "primaryClass",
+  "howpublished",
+  "url",
+  "note",
+]
+field_case = "canonical"
+value_delimiter = "braces"
+line_ending = "lf"
+indent = "  "
+trailing_comma = true
+include_doi = true
+include_url = true
+include_extra_fields = true
+excluded_fields = []
+allow_unknown_work_type = true
+
+[field_selection]
+excluded_fields = []

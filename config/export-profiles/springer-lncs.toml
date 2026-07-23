@@ -1,0 +1,93 @@
+schema_version = "1"
+profile = "springer-lncs"
+display_name = "Springer Lecture Notes in Computer Science"
+description = "Field-compatible Springer LNCS output retaining DOI and URL metadata while using traditional preprint fields."
+validation_profile = "modern"
+preprint_representation = "misc-howpublished"
+venue_style = "full"
+month_format = "bibtex-macro"
+supported_entry_types = [
+  "article",
+  "book",
+  "booklet",
+  "inbook",
+  "incollection",
+  "inproceedings",
+  "conference",
+  "manual",
+  "mastersthesis",
+  "misc",
+  "phdthesis",
+  "proceedings",
+  "techreport",
+  "unpublished",
+]
+field_order = [
+  "author",
+  "editor",
+  "title",
+  "journal",
+  "booktitle",
+  "series",
+  "volume",
+  "number",
+  "eid",
+  "chapter",
+  "pages",
+  "edition",
+  "organization",
+  "publisher",
+  "institution",
+  "school",
+  "address",
+  "type",
+  "month",
+  "year",
+  "howpublished",
+  "doi",
+  "url",
+  "note",
+  "key",
+  "crossref",
+]
+field_case = "lowercase"
+value_delimiter = "braces"
+line_ending = "lf"
+indent = "  "
+trailing_comma = true
+include_doi = true
+include_url = true
+include_extra_fields = true
+excluded_fields = []
+allow_unknown_work_type = false
+
+[field_selection]
+allowed_fields = [
+  "author",
+  "editor",
+  "title",
+  "journal",
+  "booktitle",
+  "series",
+  "volume",
+  "number",
+  "eid",
+  "chapter",
+  "pages",
+  "edition",
+  "organization",
+  "publisher",
+  "institution",
+  "school",
+  "address",
+  "type",
+  "month",
+  "year",
+  "howpublished",
+  "doi",
+  "url",
+  "note",
+  "key",
+  "crossref",
+]
+excluded_fields = []

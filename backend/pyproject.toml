@@ -1,0 +1,31 @@
+[build-system]
+requires = ["hatchling>=1.27"]
+build-backend = "hatchling.build"
+
+[project]
+name = "bibmgr-backend-example"
+version = "0.1.0"
+description = "Thin FastAPI adapter for the bibmgr_native Rust extension"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+  "fastapi>=0.116,<1",
+  "pydantic>=2.11,<3",
+  "uvicorn[standard]>=0.35,<1",
+]
+
+[project.optional-dependencies]
+test = [
+  "httpx>=0.28,<1",
+  "pytest>=8.4,<9",
+]
+
+[project.scripts]
+bibmgr-backend = "bibmgr_backend.__main__:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/bibmgr_backend"]
+
+[tool.pytest.ini_options]
+addopts = "-q"
+testpaths = ["tests"]

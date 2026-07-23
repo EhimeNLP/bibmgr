@@ -1,0 +1,136 @@
+schema_version = "1"
+profile = "ieee-publications"
+display_name = "IEEE Journals and Conferences"
+description = "Shared field-compatible IEEE publication output for citation-order and alphabetically sorted bibliography variants."
+validation_profile = "modern"
+preprint_representation = "misc-howpublished"
+venue_style = "short"
+month_format = "bibtex-macro"
+supported_entry_types = [
+  "article",
+  "book",
+  "booklet",
+  "electronic",
+  "inbook",
+  "incollection",
+  "inproceedings",
+  "manual",
+  "mastersthesis",
+  "misc",
+  "patent",
+  "periodical",
+  "phdthesis",
+  "proceedings",
+  "standard",
+  "techreport",
+  "unpublished",
+  "ieeetranbstctl",
+  "conference",
+  "online",
+  "internet",
+  "webpage",
+  "www",
+]
+field_order = [
+  "author",
+  "editor",
+  "title",
+  "language",
+  "journal",
+  "booktitle",
+  "intype",
+  "series",
+  "volume",
+  "number",
+  "chapter",
+  "paper",
+  "pages",
+  "edition",
+  "organization",
+  "publisher",
+  "institution",
+  "school",
+  "address",
+  "nationality",
+  "type",
+  "revision",
+  "month",
+  "day",
+  "year",
+  "monthfiled",
+  "dayfiled",
+  "yearfiled",
+  "howpublished",
+  "note",
+  "url",
+  "key",
+  "ctluse_article_number",
+  "ctluse_paper",
+  "ctluse_forced_etal",
+  "ctlmax_names_forced_etal",
+  "ctlnames_show_etal",
+  "ctluse_alt_spacing",
+  "ctlalt_stretch_factor",
+  "ctldash_repeated_names",
+  "ctlname_format_string",
+  "ctlname_latex_cmd",
+  "ctlname_url_prefix",
+]
+field_case = "lowercase"
+value_delimiter = "braces"
+line_ending = "lf"
+indent = "  "
+trailing_comma = true
+include_doi = false
+include_url = true
+include_extra_fields = true
+excluded_fields = []
+allow_unknown_work_type = false
+
+[field_selection]
+allowed_fields = [
+  "author",
+  "editor",
+  "title",
+  "language",
+  "journal",
+  "booktitle",
+  "intype",
+  "series",
+  "volume",
+  "number",
+  "chapter",
+  "paper",
+  "pages",
+  "edition",
+  "organization",
+  "publisher",
+  "institution",
+  "school",
+  "address",
+  "nationality",
+  "type",
+  "revision",
+  "month",
+  "day",
+  "year",
+  "monthfiled",
+  "dayfiled",
+  "yearfiled",
+  "howpublished",
+  "note",
+  "url",
+  "key",
+  "ctluse_article_number",
+  "ctluse_paper",
+  "ctluse_forced_etal",
+  "ctlmax_names_forced_etal",
+  "ctlnames_show_etal",
+  "ctluse_alt_spacing",
+  "ctlalt_stretch_factor",
+  "ctldash_repeated_names",
+  "ctlname_format_string",
+  "ctlname_latex_cmd",
+  "ctlname_url_prefix",
+]
+excluded_fields = []

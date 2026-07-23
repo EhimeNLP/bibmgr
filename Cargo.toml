@@ -1,0 +1,57 @@
+[workspace]
+resolver = "2"
+members = [
+  "crates/bibmgr-model",
+  "crates/bibmgr-syntax",
+  "crates/bibmgr-semantics",
+  "crates/bibmgr-validation",
+  "crates/bibmgr-edit",
+  "crates/bibmgr-export",
+  "crates/bibmgr-core",
+  "crates/bibmgr-cli",
+  "crates/bibmgr-python",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.83"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/EhimeNLP/bibmgr"
+publish = false
+
+[workspace.dependencies]
+bibmgr-model = { path = "crates/bibmgr-model" }
+bibmgr-syntax = { path = "crates/bibmgr-syntax" }
+bibmgr-semantics = { path = "crates/bibmgr-semantics" }
+bibmgr-validation = { path = "crates/bibmgr-validation" }
+bibmgr-edit = { path = "crates/bibmgr-edit" }
+bibmgr-export = { path = "crates/bibmgr-export" }
+bibmgr-core = { path = "crates/bibmgr-core" }
+bibtex-parser = "0.4.0"
+clap = { version = "4.5", features = ["derive"] }
+pyo3 = { version = "0.29", features = ["abi3-py38"] }
+rayon = "1.10"
+regex = "1.11"
+serde = { version = "1.0", features = ["derive", "rc"] }
+serde_json = "1.0"
+sha2 = "0.10"
+thiserror = "2.0"
+toml = "0.9"
+url = { version = "2.5", features = ["serde"] }
+
+[workspace.lints.rust]
+unsafe_code = "forbid"
+missing_debug_implementations = "warn"
+
+[workspace.lints.clippy]
+all = { level = "warn", priority = -1 }
+pedantic = { level = "warn", priority = -1 }
+module_name_repetitions = "allow"
+must_use_candidate = "allow"
+missing_errors_doc = "allow"
+
+[profile.release]
+lto = "thin"
+codegen-units = 1
+strip = "symbols"

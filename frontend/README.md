@@ -79,13 +79,11 @@ frontend/
 
 ### `src/main.ts`
 
-Vueアプリケーションのエントリーポイントである。
-`App.vue` を読み込み，`index.html` 内の `#app` にVueアプリをマウントする。
+Vueアプリケーションのエントリーポイントである。`App.vue` を読み込み，`index.html` 内の `#app` にVueアプリをマウントする。
 
 ### `src/App.vue`
 
-アプリケーション全体のメイン画面である。
-検索欄，文献一覧，文献詳細表示を配置し，以下の状態を管理する。
+アプリケーション全体のメイン画面である。検索欄，文献一覧，文献詳細表示を配置し，以下の状態を管理する。
 
 * 検索クエリ
 * 文献一覧
@@ -98,8 +96,7 @@ Vueアプリケーションのエントリーポイントである。
 
 ### `src/style.css`
 
-アプリケーション全体のスタイルを定義する。
-ヘッダー，検索欄，2カラムレイアウト，文献カード，詳細表示，Empty表示，Loading表示，Error表示などの見た目を管理する。
+アプリケーション全体のスタイルを定義する。ヘッダー，検索欄，2カラムレイアウト，文献カード，詳細表示，Empty表示，Loading表示，Error表示などの見た目を管理する。
 
 ### `src/types/reference.ts`
 
@@ -157,15 +154,13 @@ export async function searchReferences(query: string): Promise<Reference[]> {
 
 ### `src/components/SearchBar.vue`
 
-検索入力欄のコンポーネントである。
-検索文字列の入力と，検索ボタンまたはEnterキーによる検索イベントの発火を担当する。
+検索入力欄のコンポーネントである。検索文字列の入力と，検索ボタンまたはEnterキーによる検索イベントの発火を担当する。
 
 実際の検索処理はこのコンポーネントでは行わず，親コンポーネントである `App.vue` に通知する。
 
 ### `src/components/ReferenceList.vue`
 
-文献一覧を表示するコンポーネントである。
-複数の文献データを受け取り，各文献を `ReferenceCard.vue` として表示する。
+文献一覧を表示するコンポーネントである。複数の文献データを受け取り，各文献を `ReferenceCard.vue` として表示する。
 
 文献カードがクリックされた場合，選択された文献を親コンポーネントへ通知する。
 
@@ -197,55 +192,18 @@ BibTeXが存在する場合は，Copyボタンでクリップボードにコピ�
 
 データが存在しない場合の表示用コンポーネントである。
 
-初期状態でテストデータを読み込めなかった場合は，テストデータが空であることを表示する。
-検索後に結果が存在しない場合は，一致する文献が見つからなかったことを表示する。
+初期状態でテストデータを読み込めなかった場合は，テストデータが空であることを表示する。検索後に結果が存在しない場合は，一致する文献が見つからなかったことを表示する。
 
 ### `src/components/LoadingState.vue`
 
-読み込み中の表示用コンポーネントである。
-バックエンドAPI接続後，検索処理中の状態表示として使用する。
+読み込み中の表示用コンポーネントである。バックエンドAPI接続後，検索処理中の状態表示として使用する。
 
 ## セットアップ方法
 
-### 1. リポジトリをcloneする
+project rootで、lockfileに固定された依存パッケージをインストールする。
 
 ```bash
-git clone https://github.com/EhimeNLP/bibmgr.git
-cd bibmgr
-```
-
-### 2. 使用するブランチに移動する
-
-フロントエンド実装ブランチを確認・実行する場合は，以下を実行する。
-
-```bash
-git fetch origin
-git checkout feat/vue-frontend-base
-```
-
-もしローカルに `feat/vue-frontend-base` が存在しない場合は，以下を実行する。
-
-```bash
-git checkout -b feat/vue-frontend-base origin/feat/vue-frontend-base
-```
-
-`feat/vue-frontend-base` が `dev` にマージ済みの場合は，以下のように `dev` ブランチを使用する。
-
-```bash
-git checkout dev
-git pull origin dev
-```
-
-### 3. `frontend` ディレクトリに移動する
-
-```bash
-cd frontend
-```
-
-### 4. 依存パッケージをインストールする
-
-```bash
-npm install
+uv run poe setup-frontend
 ```
 
 ## 起動方法
@@ -253,7 +211,7 @@ npm install
 開発用サーバーを起動する。
 
 ```bash
-npm run dev
+uv run poe dev-frontend
 ```
 
 起動後，以下のようなURLが表示される。
@@ -269,10 +227,10 @@ http://localhost:5173/
 本番用のビルドを作成する場合は，以下を実行する。
 
 ```bash
-npm run build
+uv run poe build-frontend
 ```
 
-ビルドが成功すると，`dist/` ディレクトリに本番用ファイルが生成される。ただし，`dist/` はビルド成果物であり，通常はGit管理に含めない。
+ビルドが成功すると，`frontend/dist/` ディレクトリに本番用ファイルが生成される。ただし，`frontend/dist/` はビルド成果物であり，通常はGit管理に含めない。
 
 ## 現在の表示仕様
 
@@ -403,7 +361,6 @@ npm install pinia
 
 ## 注意事項
 
-現時点では，フロントエンドはバックエンド未接続である。
-そのため，検索処理，データベース接続，文献登録，BibTeX復元，引用文脈抽出はまだ実行されない。
+現時点では，フロントエンドはバックエンド未接続である。そのため，検索処理，データベース接続，文献登録，BibTeX復元，引用文脈抽出はまだ実行されない。
 
 現在の実装は，後からバックエンドと接続するためのUI基盤である。

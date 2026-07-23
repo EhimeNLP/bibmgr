@@ -1,0 +1,87 @@
+schema_version = "1"
+profile = "eamt"
+display_name = "EAMT Conference"
+description = "Conservative EAMT conference output limited to the classical publication fields supported by the target bibliography style."
+validation_profile = "classical-bst"
+preprint_representation = "misc-howpublished"
+venue_style = "full"
+month_format = "bibtex-macro"
+supported_entry_types = [
+  "article",
+  "book",
+  "booklet",
+  "inbook",
+  "incollection",
+  "inproceedings",
+  "conference",
+  "manual",
+  "mastersthesis",
+  "misc",
+  "phdthesis",
+  "proceedings",
+  "techreport",
+  "unpublished",
+]
+field_order = [
+  "author",
+  "title",
+  "editor",
+  "booktitle",
+  "journal",
+  "edition",
+  "volume",
+  "number",
+  "series",
+  "chapter",
+  "pages",
+  "month",
+  "year",
+  "address",
+  "organization",
+  "publisher",
+  "institution",
+  "school",
+  "howpublished",
+  "type",
+  "note",
+  "key",
+  "crossref",
+]
+field_case = "lowercase"
+value_delimiter = "braces"
+line_ending = "lf"
+indent = "  "
+trailing_comma = true
+include_doi = false
+include_url = false
+include_extra_fields = true
+excluded_fields = []
+allow_unknown_work_type = false
+
+[field_selection]
+allowed_fields = [
+  "author",
+  "title",
+  "editor",
+  "booktitle",
+  "journal",
+  "edition",
+  "volume",
+  "number",
+  "series",
+  "chapter",
+  "pages",
+  "month",
+  "year",
+  "address",
+  "organization",
+  "publisher",
+  "institution",
+  "school",
+  "howpublished",
+  "type",
+  "note",
+  "key",
+  "crossref",
+]
+excluded_fields = []

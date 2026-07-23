@@ -1,9 +1,12 @@
 <script setup lang="ts">
-import { computed, nextTick, onBeforeUnmount, ref } from "vue";
+import { computed, nextTick, onBeforeUnmount, reactive, ref } from "vue";
+import { validateBibtexForRegistration } from "../api/bibtex";
 import { registerBibtexToDatabase } from "../api/registration";
+import type { BibtexDiagnostic } from "../types/bibtex";
 import type { Reference } from "../types/reference";
 import { countBibliographicEntries } from "../utils/bibtexHighlight";
 import BibtexEditor from "./BibtexEditor.vue";
+import BibtexValidationPanel from "./BibtexValidationPanel.vue";
 
 type RegistrationMode = "manual" | "file";
 
@@ -23,6 +26,7 @@ const manualBibtex = ref("");
 const isManualRegistering = ref(false);
 const manualError = ref<string | null>(null);
 const manualMessage = ref<string | null>(null);
+const manualDiagnostics = reactive<BibtexDiagnostic[]>([]);
 
 const selectedBibFile = ref<File | null>(null);
 const fileBibtex = ref("");
@@ -30,6 +34,7 @@ const isFileReading = ref(false);
 const isFileRegistering = ref(false);
 const fileError = ref<string | null>(null);
 const fileMessage = ref<string | null>(null);
+const fileDiagnostics = reactive<BibtexDiagnostic[]>([]);
 
 const canRegisterManual = computed(
   () => manualBibtex.value.trim().length > 0 && !isManualRegistering.value,
@@ -38,7 +43,7 @@ const fileEntryCount = computed(() => countBibliographicEntries(fileBibtex.value
 const canRegisterFile = computed(
   () =>
     Boolean(selectedBibFile.value) &&
-    fileEntryCount.value > 0 &&
+    fileBibtex.value.trim().length > 0 &&
     !isFileReading.value &&
     !isFileRegistering.value,
 );
@@ -126,11 +131,20 @@ async function registerManualBibtex() {
   manualMessage.value = null;
 
   try {
+    const validation = await validateBibtexForRegistration({
+      source: bibtex,
+      policy: "laboratory",
+    });
+    if (!validation.accepted) {
+      manualError.value = registrationBlockedMessage(validation.diagnostics);
+      return;
+    }
     const result = await registerBibtexToDatabase({
-      bibtex,
+      bibtex: validation.source,
       source: "manual",
     });
     manualBibtex.value = "";
+    replaceDiagnostics(manualDiagnostics, []);
     manualMessage.value = "Registered.";
     emit("registered", result.reference);
   } catch (error) {
@@ -147,6 +161,7 @@ async function onBibFileChange(event: Event) {
 
   selectedBibFile.value = null;
   fileBibtex.value = "";
+  replaceDiagnostics(fileDiagnostics, []);
   fileError.value = null;
   fileMessage.value = null;
 
@@ -173,11 +188,6 @@ async function onBibFileChange(event: Event) {
       return;
     }
 
-    const entryCount = countBibliographicEntries(bibtex);
-    if (entryCount === 0) {
-      failFileSelection("No BibTeX entry was found in this file.", input);
-      return;
-    }
     fileBibtex.value = bibtex;
     fileMessage.value = `${file.name} is ready.`;
   } catch (error) {
@@ -202,12 +212,21 @@ async function registerFileBibtex() {
   fileMessage.value = null;
 
   try {
+    const validation = await validateBibtexForRegistration({
+      source: bibtex,
+      policy: "laboratory",
+    });
+    if (!validation.accepted) {
+      fileError.value = registrationBlockedMessage(validation.diagnostics);
+      return;
+    }
     const result = await registerBibtexToDatabase({
-      bibtex,
+      bibtex: validation.source,
       source: "file",
     });
     selectedBibFile.value = null;
     fileBibtex.value = "";
+    replaceDiagnostics(fileDiagnostics, []);
     resetFileInput();
     fileMessage.value = `${fileName} was registered.`;
     emit("registered", result.reference);
@@ -222,6 +241,7 @@ async function registerFileBibtex() {
 function failFileSelection(message: string, input: HTMLInputElement) {
   selectedBibFile.value = null;
   fileBibtex.value = "";
+  replaceDiagnostics(fileDiagnostics, []);
   fileMessage.value = null;
   fileError.value = message;
   input.value = "";
@@ -229,6 +249,44 @@ function failFileSelection(message: string, input: HTMLInputElement) {
 
 function resetFileInput() {
   if (fileInput.value) fileInput.value.value = "";
+}
+
+function replaceDiagnostics(
+  target: BibtexDiagnostic[],
+  diagnostics: BibtexDiagnostic[],
+) {
+  target.splice(0, target.length, ...diagnostics);
+}
+
+function onManualDiagnostics(diagnostics: BibtexDiagnostic[]) {
+  replaceDiagnostics(manualDiagnostics, diagnostics);
+}
+
+function onFileDiagnostics(diagnostics: BibtexDiagnostic[]) {
+  replaceDiagnostics(fileDiagnostics, diagnostics);
+}
+
+function registrationBlockedMessage(
+  diagnostics: Array<{ blocking: boolean }>,
+): string {
+  const blockingCount = diagnostics.filter((diagnostic) => diagnostic.blocking).length;
+  if (blockingCount === 0) {
+    return "Registration is blocked by the active policy. Run Check BibTeX to review the source.";
+  }
+  if (blockingCount === 1) {
+    return "Registration is blocked by 1 diagnostic. Run Check BibTeX to review it.";
+  }
+  return `Registration is blocked by ${blockingCount} diagnostics. Run Check BibTeX to review them.`;
+}
+
+function onManualFixApplied() {
+  manualError.value = null;
+  manualMessage.value = "Fix applied. Check BibTeX again to confirm the result.";
+}
+
+function onFileFixApplied() {
+  fileError.value = null;
+  fileMessage.value = "Fix applied. Check BibTeX again to confirm the result.";
 }
 </script>
 
@@ -335,6 +393,14 @@ function resetFileInput() {
               accessible-label="BibTeX entry"
               placeholder="@article{...}"
               :disabled="isManualRegistering"
+              :diagnostics="manualDiagnostics"
+            />
+            <BibtexValidationPanel
+              :source="manualBibtex"
+              :disabled="isManualRegistering"
+              @update:source="manualBibtex = $event"
+              @update:diagnostics="onManualDiagnostics"
+              @fixed="onManualFixApplied"
             />
 
             <div class="registration-actions">
@@ -427,6 +493,14 @@ function resetFileInput() {
                 v-model="fileBibtex"
                 accessible-label="BibTeX file contents"
                 :disabled="isFileRegistering"
+                :diagnostics="fileDiagnostics"
+              />
+              <BibtexValidationPanel
+                :source="fileBibtex"
+                :disabled="isFileRegistering"
+                @update:source="fileBibtex = $event"
+                @update:diagnostics="onFileDiagnostics"
+                @fixed="onFileFixApplied"
               />
             </template>
 

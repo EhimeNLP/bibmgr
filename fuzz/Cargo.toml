@@ -1,0 +1,43 @@
+[package]
+name = "bibmgr-fuzz"
+version = "0.0.0"
+publish = false
+edition = "2021"
+
+[package.metadata]
+cargo-fuzz = true
+
+[dependencies]
+libfuzzer-sys = "0.4"
+serde_json = "1"
+bibmgr-core = { path = "../crates/bibmgr-core" }
+bibmgr-edit = { path = "../crates/bibmgr-edit" }
+bibmgr-model = { path = "../crates/bibmgr-model" }
+bibmgr-syntax = { path = "../crates/bibmgr-syntax" }
+
+[[bin]]
+name = "parser_roundtrip"
+path = "fuzz_targets/parser_roundtrip.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "malformed_analysis"
+path = "fuzz_targets/malformed_analysis.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "text_edits"
+path = "fuzz_targets/text_edits.rs"
+test = false
+doc = false
+bench = false
+
+[workspace]
+members = ["."]
+
+[profile.release]
+debug = 1

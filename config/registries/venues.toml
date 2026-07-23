@@ -1,0 +1,81 @@
+schema_version = "1"
+
+[[venues]]
+id = "acl-annual-meeting"
+full_name = "Annual Meeting of the Association for Computational Linguistics"
+short_name = "ACL"
+aliases = [
+  "Proceedings of ACL",
+  "Annual Meeting of ACL",
+  "Association for Computational Linguistics Annual Meeting",
+]
+kind = "conference"
+
+[[venues]]
+id = "emnlp"
+full_name = "Conference on Empirical Methods in Natural Language Processing"
+short_name = "EMNLP"
+aliases = [
+  "Empirical Methods in Natural Language Processing",
+  "Proceedings of EMNLP",
+]
+kind = "conference"
+
+[[venues]]
+id = "naacl"
+full_name = "Annual Conference of the Nations of the Americas Chapter of the Association for Computational Linguistics"
+short_name = "NAACL"
+aliases = [
+  "NAACL-HLT",
+  "North American Chapter of the Association for Computational Linguistics",
+]
+kind = "conference"
+
+[[venues]]
+id = "coling"
+full_name = "International Conference on Computational Linguistics"
+short_name = "COLING"
+aliases = ["Proceedings of COLING"]
+kind = "conference"
+
+[[venues]]
+id = "lrec"
+full_name = "International Conference on Language Resources and Evaluation"
+short_name = "LREC"
+aliases = ["Language Resources and Evaluation Conference"]
+kind = "conference"
+
+[[venues]]
+id = "aaai-conference"
+full_name = "AAAI Conference on Artificial Intelligence"
+short_name = "AAAI"
+aliases = ["Proceedings of the AAAI Conference on Artificial Intelligence"]
+kind = "conference"
+
+[[venues]]
+id = "tacl"
+full_name = "Transactions of the Association for Computational Linguistics"
+short_name = "TACL"
+aliases = ["Transactions of ACL"]
+kind = "journal"
+
+[[venues]]
+id = "cl-journal"
+full_name = "Computational Linguistics"
+short_name = "CL"
+aliases = ["Computational Linguistics Journal"]
+kind = "journal"
+
+[[venues]]
+id = "natural-language-engineering"
+full_name = "Natural Language Engineering"
+short_name = "NLE"
+aliases = []
+kind = "journal"
+
+[[venues]]
+id = "jair"
+full_name = "Journal of Artificial Intelligence Research"
+short_name = "JAIR"
+aliases = []
+kind = "journal"

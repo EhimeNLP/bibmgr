@@ -1,7 +1,16 @@
 // @vitest-environment jsdom
 
 import { flushPromises, mount } from "@vue/test-utils";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import type {
+  AnalyzeBibtexRequest,
+  ApplyBibtexFixesRequest,
+  ApplyBibtexFixesResult,
+  BibtexAnalysisResult,
+  BibtexDiagnostic,
+  RegistrationValidationResult,
+  ValidateRegistrationRequest,
+} from "../src/types/bibtex";
 import type {
   RegisterBibtexPayload,
   RegisterBibtexResult,
@@ -14,7 +23,20 @@ const apiMocks = vi.hoisted(() => ({
   >(),
 }));
 
+const bibtexApiMocks = vi.hoisted(() => ({
+  analyzeBibtex: vi.fn<
+    (request: AnalyzeBibtexRequest) => Promise<BibtexAnalysisResult>
+  >(),
+  applyBibtexFixes: vi.fn<
+    (request: ApplyBibtexFixesRequest) => Promise<ApplyBibtexFixesResult>
+  >(),
+  validateBibtexForRegistration: vi.fn<
+    (request: ValidateRegistrationRequest) => Promise<RegistrationValidationResult>
+  >(),
+}));
+
 vi.mock("../src/api/registration", () => apiMocks);
+vi.mock("../src/api/bibtex", () => bibtexApiMocks);
 
 const wrappers: Array<ReturnType<typeof mount>> = [];
 
@@ -62,6 +84,45 @@ async function chooseFile(wrapper: ReturnType<typeof mount>, file: File) {
   await input.trigger("change");
   await flushPromises();
 }
+
+const sourceRevision = `sha256:${"0".repeat(64)}`;
+
+function analysisResult(
+  diagnostics: BibtexDiagnostic[] = [],
+  availableFixes: BibtexAnalysisResult["available_fixes"] = [],
+): BibtexAnalysisResult {
+  return {
+    schema_version: "1",
+    source_revision: sourceRevision,
+    syntax: { status: "ok", entries: 1 },
+    bibliography: { records: [], diagnostics: [] },
+    diagnostics,
+    available_fixes: availableFixes,
+  };
+}
+
+beforeEach(() => {
+  bibtexApiMocks.analyzeBibtex.mockResolvedValue(analysisResult());
+  bibtexApiMocks.applyBibtexFixes.mockImplementation(async (request) => ({
+    schema_version: "1",
+    source: request.source,
+    source_revision: sourceRevision,
+    applied_fix_ids: request.fix_ids,
+    analysis: analysisResult(),
+  }));
+  bibtexApiMocks.validateBibtexForRegistration.mockImplementation(
+    async (request) => ({
+      schema_version: "1",
+      accepted: true,
+      source: request.source,
+      source_revision: sourceRevision,
+      diagnostics: [],
+      bibliography: { records: [], diagnostics: [] },
+      applied_fix_ids: [],
+      unresolved_semantics: false,
+    }),
+  );
+});
 
 afterEach(() => {
   for (const wrapper of wrappers) wrapper.unmount();
@@ -182,6 +243,164 @@ describe("RegistrationPanel", () => {
     expect(wrapper.emitted("registered")).toBeUndefined();
   });
 
+  it("shows shared lint diagnostics and applies a safe quick fix", async () => {
+    const source = "@article{demo, Title={A useful paper}}";
+    const fixedSource = "@article{demo, title={A useful paper}}";
+    const diagnostic: BibtexDiagnostic = {
+      id: "BIB-SYNTAX-002:0",
+      code: "BIB-SYNTAX-002",
+      severity: "hint",
+      blocking: false,
+      message: "field `Title` should be spelled `title`",
+      primary_location: {
+        source_id: "source:0",
+        range: { start: 15, end: 20 },
+      },
+      related_locations: [],
+      notes: [],
+      fixes: ["BIB-SYNTAX-002:0"],
+    };
+    const fix = {
+      id: "BIB-SYNTAX-002:0",
+      title: "Rename field to `title`",
+      applicability: "safe" as const,
+      source_revision: sourceRevision,
+      edits: [{ range: { start: 15, end: 20 }, replacement: "title" }],
+    };
+    bibtexApiMocks.analyzeBibtex.mockResolvedValueOnce(
+      analysisResult([diagnostic], [fix]),
+    );
+    bibtexApiMocks.applyBibtexFixes.mockResolvedValueOnce({
+      schema_version: "1",
+      source: fixedSource,
+      source_revision: sourceRevision,
+      applied_fix_ids: [fix.id],
+      analysis: analysisResult(),
+    });
+    const wrapper = renderPanel();
+    await openRegistration(wrapper);
+    await wrapper.get("#manual-bibtex").setValue(source);
+
+    const checkButton = wrapper.get(
+      "#registration-panel-manual .bibtex-lint__check",
+    );
+    expect(checkButton.attributes("disabled")).toBeUndefined();
+    await checkButton.trigger("click");
+    await flushPromises();
+
+    expect(bibtexApiMocks.analyzeBibtex).toHaveBeenCalledWith(
+      { source, profile: "laboratory", mode: "tolerant" },
+      { signal: expect.any(AbortSignal) },
+    );
+
+    const lint = wrapper.get("#registration-panel-manual .bibtex-lint");
+    await vi.waitFor(() => {
+      expect(lint.text()).toContain("BIB-SYNTAX-002");
+    });
+    expect(lint.text()).toContain("none are blocking");
+    expect(lint.text()).toContain("Rename field to `title`");
+    expect(
+      wrapper.get("#registration-panel-manual .bibtex-diagnostic-range").text(),
+    ).toBe("Title");
+
+    await lint.get(".bibtex-fixes button").trigger("click");
+    await flushPromises();
+
+    expect(bibtexApiMocks.applyBibtexFixes).toHaveBeenCalledWith({
+      source,
+      source_revision: sourceRevision,
+      fix_ids: [fix.id],
+      profile: "laboratory",
+    });
+    await vi.waitFor(() => {
+      expect(wrapper.get<HTMLTextAreaElement>("#manual-bibtex").element.value).toBe(
+        fixedSource,
+      );
+    });
+    await wrapper
+      .get("#registration-panel-manual .bibtex-lint__check")
+      .trigger("click");
+    await flushPromises();
+    expect(wrapper.get("#registration-panel-manual .bibtex-lint").text()).toContain(
+      "No diagnostics",
+    );
+  });
+
+  it("connects file lint diagnostics to the file editor", async () => {
+    const source = "@article{demo, Title={From a file}}";
+    const diagnostic: BibtexDiagnostic = {
+      id: "BIB-SYNTAX-002:file",
+      code: "BIB-SYNTAX-002",
+      severity: "warning",
+      blocking: false,
+      message: "field `Title` should be spelled `title`",
+      primary_location: {
+        source_id: "source:0",
+        range: { start: 15, end: 20 },
+      },
+      related_locations: [],
+      notes: [],
+      fixes: [],
+    };
+    bibtexApiMocks.analyzeBibtex.mockResolvedValueOnce(
+      analysisResult([diagnostic]),
+    );
+    const wrapper = renderPanel();
+    await openFilePanel(wrapper);
+    await chooseFile(wrapper, createFile("diagnostic.bib", source));
+
+    await wrapper
+      .get("#registration-panel-file .bibtex-lint__check")
+      .trigger("click");
+    await flushPromises();
+
+    expect(
+      wrapper.get("#registration-panel-file .bibtex-diagnostic-range").text(),
+    ).toBe("Title");
+  });
+
+  it("uses the native registration decision and preserves blocked input", async () => {
+    const source = "@article{demo, title={Missing required data}}";
+    const diagnostic: BibtexDiagnostic = {
+      id: "LAB-ENTRY-003:0",
+      code: "LAB-ENTRY-003",
+      severity: "error",
+      blocking: true,
+      message: "required field `author` is missing",
+      primary_location: null,
+      related_locations: [],
+      notes: [],
+      fixes: [],
+    };
+    bibtexApiMocks.validateBibtexForRegistration.mockResolvedValueOnce({
+      schema_version: "1",
+      accepted: false,
+      source,
+      source_revision: sourceRevision,
+      diagnostics: [diagnostic],
+      bibliography: { records: [], diagnostics: [] },
+      applied_fix_ids: [],
+      unresolved_semantics: false,
+    });
+    bibtexApiMocks.analyzeBibtex.mockResolvedValueOnce(analysisResult([diagnostic]));
+    const wrapper = renderPanel();
+    await openRegistration(wrapper);
+    await wrapper.get("#manual-bibtex").setValue(source);
+
+    await wrapper
+      .get("#registration-panel-manual button.button-primary")
+      .trigger("click");
+    await flushPromises();
+
+    expect(apiMocks.registerBibtexToDatabase).not.toHaveBeenCalled();
+    expect(wrapper.get('#registration-panel-manual [role="alert"]').text()).toContain(
+      "Registration is blocked by 1 diagnostic",
+    );
+    expect(wrapper.get<HTMLTextAreaElement>("#manual-bibtex").element.value).toBe(
+      source,
+    );
+  });
+
   it("reads, previews, edits, and registers one .bib file", async () => {
     const originalBibtex = "@article{demo,\n  title = {From a file}\n}";
     const editedBibtex = originalBibtex.replace("From a file", "Reviewed title");
@@ -254,6 +473,90 @@ describe("RegistrationPanel", () => {
       bibtex,
       source: "file",
     });
+  });
+
+  it("sends a braced raw percent value unchanged to native validation", async () => {
+    const bibtex = "@misc{key, title = {100% Effective}, }";
+    const percentOffset = bibtex.indexOf("%");
+    bibtexApiMocks.validateBibtexForRegistration.mockResolvedValueOnce({
+      schema_version: "1",
+      accepted: false,
+      source: bibtex,
+      source_revision: sourceRevision,
+      diagnostics: [
+        {
+          id: "BIB-SYNTAX-008:0",
+          code: "BIB-SYNTAX-008",
+          severity: "error",
+          blocking: true,
+          message: "field `title` contains an unescaped `%`",
+          primary_location: {
+            source_id: "source:0",
+            range: { start: percentOffset, end: percentOffset + 1 },
+          },
+          related_locations: [],
+          notes: [],
+          fixes: ["BIB-SYNTAX-008:0"],
+        },
+      ],
+      bibliography: { records: [], diagnostics: [] },
+      applied_fix_ids: [],
+      unresolved_semantics: false,
+    });
+    const wrapper = renderPanel();
+    await openFilePanel(wrapper);
+
+    await chooseFile(wrapper, createFile("percent.bib", bibtex));
+
+    expect(wrapper.get('#registration-panel-file [role="status"]').text()).toBe(
+      "percent.bib is ready. 1 entry detected.",
+    );
+    await wrapper
+      .get("#registration-panel-file button.button-primary")
+      .trigger("click");
+    await flushPromises();
+
+    expect(bibtexApiMocks.validateBibtexForRegistration).toHaveBeenCalledWith({
+      source: bibtex,
+      policy: "laboratory",
+    });
+    expect(apiMocks.registerBibtexToDatabase).not.toHaveBeenCalled();
+  });
+
+  it("uses native validation rather than the estimated entry count as authority", async () => {
+    const source = "% metadata without a detected entry\n";
+    bibtexApiMocks.validateBibtexForRegistration.mockResolvedValueOnce({
+      schema_version: "1",
+      accepted: false,
+      source,
+      source_revision: sourceRevision,
+      diagnostics: [],
+      bibliography: { records: [], diagnostics: [] },
+      applied_fix_ids: [],
+      unresolved_semantics: false,
+    });
+    const wrapper = renderPanel();
+    await openFilePanel(wrapper);
+
+    await chooseFile(wrapper, createFile("metadata.bib", source));
+
+    expect(wrapper.get('#registration-panel-file [role="status"]').text()).toBe(
+      "metadata.bib is ready. 0 entries detected.",
+    );
+    expect(wrapper.get("#file-bibtex-preview").exists()).toBe(true);
+    const registerButton = wrapper.get(
+      "#registration-panel-file button.button-primary",
+    );
+    expect(registerButton.attributes("disabled")).toBeUndefined();
+
+    await registerButton.trigger("click");
+    await flushPromises();
+
+    expect(bibtexApiMocks.validateBibtexForRegistration).toHaveBeenCalledWith({
+      source,
+      policy: "laboratory",
+    });
+    expect(apiMocks.registerBibtexToDatabase).not.toHaveBeenCalled();
   });
 
   it("rejects invalid and empty files without stale content", async () => {
