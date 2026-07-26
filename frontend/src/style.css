@@ -208,39 +208,34 @@ svg {
 }
 
 .brand-mark {
-  display: grid;
   width: 34px;
   height: 34px;
   flex: 0 0 auto;
-  place-items: center;
-  border: 0.5px solid rgb(255 255 255 / 50%);
-  border-radius: 10px;
-  background: linear-gradient(145deg, #2997ff, #0066d6 72%);
-  box-shadow:
-    inset 0 1px 0 rgb(255 255 255 / 34%),
-    0 2px 7px rgb(0 102 214 / 24%);
+  filter: drop-shadow(0 2px 4px rgb(0 83 179 / 24%));
 }
 
-.brand-mark svg {
-  width: 20px;
-  height: 20px;
-  stroke: #ffffff;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-  stroke-width: 1.65;
+.brand-mark img {
+  width: 100%;
+  height: 100%;
 }
 
-.brand-copy h1 {
+.brand-wordmark {
   margin: 0;
   color: var(--color-text);
-  font-size: 18px;
-  font-weight: 650;
-  letter-spacing: -0.025em;
-  line-height: 1.1;
+  line-height: 0;
+}
+
+.brand-wordmark__glyph {
+  display: block;
+  width: 78px;
+  aspect-ratio: 35.503057 / 10.026257;
+  background: currentColor;
+  -webkit-mask: url("./assets/bibmgr-wordmark.svg") center / contain no-repeat;
+  mask: url("./assets/bibmgr-wordmark.svg") center / contain no-repeat;
 }
 
 .brand-copy p {
-  margin: 3px 0 0;
+  margin: 4px 0 0;
   color: var(--color-text-secondary);
   font-size: 11.5px;
   font-weight: 450;

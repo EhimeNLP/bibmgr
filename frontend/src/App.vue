@@ -90,14 +90,12 @@ function handleReferenceRegistered(reference: Reference) {
     <header class="app-header">
       <div class="app-shell app-header__inner">
         <div class="brand-mark" aria-hidden="true">
-          <svg viewBox="0 0 24 24" fill="none">
-            <path d="M6.75 4.75h8.5a2 2 0 0 1 2 2v12.5h-8.5a2 2 0 0 0-2 2V4.75Z" />
-            <path d="M6.75 4.75H5.5a2 2 0 0 0-2 2v10.5a2 2 0 0 0 2 2h1.25" />
-            <path d="M10.25 8.25h3.5M10.25 11.25h3.5" />
-          </svg>
+          <img src="/favicon.svg" alt="" width="34" height="34" />
         </div>
         <div class="brand-copy">
-          <h1>BibMgr</h1>
+          <h1 class="brand-wordmark" aria-label="BibMgR">
+            <span class="brand-wordmark__glyph" aria-hidden="true"></span>
+          </h1>
           <p>Laboratory Bibliography Manager</p>
         </div>
         <ThemeSwitcher />
