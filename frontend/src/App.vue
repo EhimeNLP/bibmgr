@@ -8,6 +8,7 @@ import ReferenceDetail from "./components/ReferenceDetail.vue";
 import EmptyState from "./components/EmptyState.vue";
 import LoadingState from "./components/LoadingState.vue";
 import RegistrationPanel from "./components/RegistrationPanel.vue";
+import ThemeSwitcher from "./components/ThemeSwitcher.vue";
 
 const query = ref("");
 const references = ref<Reference[]>([]);
@@ -99,6 +100,7 @@ function handleReferenceRegistered(reference: Reference) {
           <h1>BibMgr</h1>
           <p>Laboratory Bibliography Manager</p>
         </div>
+        <ThemeSwitcher />
       </div>
     </header>
 

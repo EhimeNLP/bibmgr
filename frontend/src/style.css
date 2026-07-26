@@ -51,6 +51,44 @@
   --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
 }
 
+:root[data-theme="light"] {
+  color-scheme: light;
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --color-canvas: #0b0b0c;
+  --color-surface: #1c1c1e;
+  --color-toolbar: rgb(28 28 30 / 74%);
+  --color-sidebar: rgb(35 35 37 / 78%);
+  --color-sheet: rgb(35 35 37 / 90%);
+  --color-fill: rgb(118 118 128 / 19%);
+  --color-fill-hover: rgb(118 118 128 / 27%);
+  --color-fill-strong: rgb(118 118 128 / 34%);
+  --color-text: #f5f5f7;
+  --color-text-secondary: #aeaeb2;
+  --color-text-muted: #8e8e93;
+  --color-border: rgb(84 84 88 / 52%);
+  --color-border-strong: rgb(99 99 102 / 72%);
+  --color-primary: #0a84ff;
+  --color-primary-hover: #409cff;
+  --color-primary-soft: rgb(10 132 255 / 20%);
+  --color-selection: #0a70d8;
+  --color-success: #30d158;
+  --color-warning: #ffd60a;
+  --color-danger: #ff453a;
+  --color-code: rgb(0 0 0 / 25%);
+  --color-syntax-entry: #d2a8ff;
+  --color-syntax-key: #ffa657;
+  --color-syntax-field: #79c0ff;
+  --color-syntax-value: #7ee787;
+  --color-syntax-number: #d2a8ff;
+  --color-syntax-punctuation: #aeaeb2;
+  --color-syntax-comment: #8e8e93;
+  --shadow-window: 0 24px 70px rgb(0 0 0 / 42%);
+  --shadow-sheet: 0 32px 100px rgb(0 0 0 / 58%);
+}
+
 * {
   box-sizing: border-box;
 }
@@ -71,6 +109,13 @@ body {
   color: var(--color-text);
   font-size: 16px;
   line-height: 1.5;
+}
+
+:root[data-theme="dark"] body {
+  background:
+    radial-gradient(circle at 18% -10%, rgb(10 132 255 / 12%), transparent 28rem),
+    radial-gradient(circle at 92% 12%, rgb(191 90 242 / 8%), transparent 30rem),
+    var(--color-canvas);
 }
 
 body.registration-open {
@@ -201,6 +246,77 @@ svg {
   font-weight: 450;
   letter-spacing: 0.005em;
   line-height: 1.2;
+}
+
+.theme-switcher {
+  display: inline-flex;
+  min-width: 0;
+  margin: 0 0 0 auto;
+  padding: 3px;
+  border: 0;
+  border-radius: 12px;
+  background: var(--color-fill);
+}
+
+.theme-switcher label {
+  position: relative;
+  display: inline-flex;
+  min-width: 34px;
+  min-height: 30px;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 0 9px;
+  border-radius: 9px;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1;
+  transition:
+    background-color 120ms ease,
+    box-shadow 120ms ease,
+    color 120ms ease,
+    transform 120ms var(--ease-out);
+  user-select: none;
+}
+
+.theme-switcher label.active {
+  background: var(--color-surface);
+  box-shadow: 0 1px 4px rgb(0 0 0 / 10%);
+  color: var(--color-text);
+}
+
+.theme-switcher input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.theme-switcher label:has(input:focus-visible) {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+}
+
+.theme-switcher svg {
+  width: 14px;
+  height: 14px;
+  flex: 0 0 auto;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.35;
+}
+
+.theme-switcher label:active {
+  transform: scale(0.97);
+  transition-duration: 100ms;
+}
+
+:root[data-theme="dark"] :where(.mode-tabs button.active, .theme-switcher label.active) {
+  box-shadow: 0 1px 5px rgb(0 0 0 / 32%);
 }
 
 .app-main {
@@ -1643,6 +1759,10 @@ pre {
     color: var(--color-text);
   }
 
+  .theme-switcher label:hover:not(.active) {
+    color: var(--color-text);
+  }
+
   .reference-card:hover:not(.selected) {
     background: var(--color-fill);
   }
@@ -1847,6 +1967,16 @@ pre {
   }
 }
 
+@media (max-width: 540px) {
+  .theme-switcher label {
+    padding-inline: 8px;
+  }
+
+  .theme-switcher label span {
+    display: none;
+  }
+}
+
 @media (max-width: 420px) {
   .app-shell {
     padding-inline: 10px;
@@ -1879,56 +2009,6 @@ pre {
   pre {
     padding: 14px;
     font-size: 11px;
-  }
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --color-canvas: #0b0b0c;
-    --color-surface: #1c1c1e;
-    --color-toolbar: rgb(28 28 30 / 74%);
-    --color-sidebar: rgb(35 35 37 / 78%);
-    --color-sheet: rgb(35 35 37 / 90%);
-    --color-fill: rgb(118 118 128 / 19%);
-    --color-fill-hover: rgb(118 118 128 / 27%);
-    --color-fill-strong: rgb(118 118 128 / 34%);
-    --color-text: #f5f5f7;
-    --color-text-secondary: #aeaeb2;
-    --color-text-muted: #8e8e93;
-    --color-border: rgb(84 84 88 / 52%);
-    --color-border-strong: rgb(99 99 102 / 72%);
-    --color-primary: #0a84ff;
-    --color-primary-hover: #409cff;
-    --color-primary-soft: rgb(10 132 255 / 20%);
-    --color-selection: #0a70d8;
-    --color-success: #30d158;
-    --color-warning: #ffd60a;
-    --color-danger: #ff453a;
-    --color-code: rgb(0 0 0 / 25%);
-    --color-syntax-entry: #d2a8ff;
-    --color-syntax-key: #ffa657;
-    --color-syntax-field: #79c0ff;
-    --color-syntax-value: #7ee787;
-    --color-syntax-number: #d2a8ff;
-    --color-syntax-punctuation: #aeaeb2;
-    --color-syntax-comment: #8e8e93;
-    --shadow-window: 0 24px 70px rgb(0 0 0 / 42%);
-    --shadow-sheet: 0 32px 100px rgb(0 0 0 / 58%);
-  }
-
-  body {
-    background:
-      radial-gradient(circle at 18% -10%, rgb(10 132 255 / 12%), transparent 28rem),
-      radial-gradient(circle at 92% 12%, rgb(191 90 242 / 8%), transparent 30rem),
-      var(--color-canvas);
-  }
-
-  .brand-mark {
-    border-color: rgb(255 255 255 / 18%);
-  }
-
-  .mode-tabs button.active {
-    box-shadow: 0 1px 5px rgb(0 0 0 / 32%);
   }
 }
 
@@ -1969,6 +2049,7 @@ pre {
 @media (prefers-reduced-motion: reduce) {
   button,
   .source-link,
+  .theme-switcher label,
   .registration-backdrop,
   .registration-sheet {
     transition:
@@ -1979,6 +2060,10 @@ pre {
   }
 
   :where(.button-primary, .button-secondary, .source-link, .registration-trigger, .registration-close, .mode-tabs button, .mobile-back):active:not(:focus-visible):not(:disabled) {
+    transform: none;
+  }
+
+  .theme-switcher label:active {
     transform: none;
   }
 
