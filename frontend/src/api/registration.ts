@@ -8,6 +8,7 @@ import {
   authenticatedWriteHeaders,
   handleAuthenticationFailure,
 } from "./auth";
+import { bibtexTitleForDisplay } from "../utils/bibtexDisplay";
 
 type ApiRecord = Record<string, unknown>;
 
@@ -111,7 +112,9 @@ function normalizeReferenceRecord(
       stringValue(referenceRecord.reference_id) ??
       stringValue(referenceRecord.referenceId) ??
       createClientId("reference"),
-    title: stringValue(referenceRecord.title) ?? fallbackReference.title,
+    title: bibtexTitleForDisplay(
+      stringValue(referenceRecord.title) ?? fallbackReference.title,
+    ),
     authors: authorsValue(referenceRecord.authors) ?? fallbackReference.authors,
     year: numberValue(referenceRecord.year) ?? fallbackReference.year,
     venue: stringValue(referenceRecord.venue) ?? fallbackReference.venue,
@@ -161,7 +164,9 @@ function normalizeCitationContext(value: unknown) {
 function referenceFromBibtex(bibtex: string): Reference {
   return {
     id: createClientId("reference"),
-    title: extractBibtexField(bibtex, "title") ?? "Untitled reference",
+    title: bibtexTitleForDisplay(
+      extractBibtexField(bibtex, "title") ?? "Untitled reference",
+    ),
     authors: authorsValue(extractBibtexField(bibtex, "author")) ?? [],
     year: numberValue(extractBibtexField(bibtex, "year")),
     venue:
@@ -182,8 +187,68 @@ function extractBibtexField(
   bibtex: string,
   fieldName: string,
 ): string | undefined {
-  const pattern = new RegExp(`${fieldName}\\s*=\\s*[{\"]([^}\"]+)`, "i");
-  return stringValue(bibtex.match(pattern)?.[1]);
+  const assignment = new RegExp(`\\b${fieldName}\\s*=\\s*`, "i").exec(bibtex);
+  if (!assignment) return undefined;
+
+  const valueStart = assignment.index + assignment[0].length;
+  const delimiter = bibtex[valueStart];
+  if (delimiter === "{") {
+    return stringValue(
+      extractDelimitedBibtexValue(bibtex, valueStart, "{", "}"),
+    );
+  }
+  if (delimiter === '"') {
+    return stringValue(
+      extractDelimitedBibtexValue(bibtex, valueStart, '"', '"'),
+    );
+  }
+
+  const valueEnd = bibtex.slice(valueStart).search(/[,\r\n}]/);
+  const rawValue =
+    valueEnd < 0
+      ? bibtex.slice(valueStart)
+      : bibtex.slice(valueStart, valueStart + valueEnd);
+  return stringValue(rawValue);
+}
+
+function extractDelimitedBibtexValue(
+  bibtex: string,
+  delimiterIndex: number,
+  openingDelimiter: "{" | '"',
+  closingDelimiter: "}" | '"',
+): string | undefined {
+  const contentStart = delimiterIndex + 1;
+  let braceDepth = openingDelimiter === "{" ? 1 : 0;
+  for (let index = contentStart; index < bibtex.length; index += 1) {
+    const character = bibtex[index];
+    if (character === "\\") {
+      index += 1;
+      continue;
+    }
+    if (character === "{") {
+      braceDepth += 1;
+      continue;
+    }
+    if (character === "}") {
+      if (openingDelimiter === "{") {
+        braceDepth -= 1;
+        if (braceDepth === 0) {
+          return bibtex.slice(contentStart, index);
+        }
+      } else if (braceDepth > 0) {
+        braceDepth -= 1;
+      }
+      continue;
+    }
+    if (
+      character === closingDelimiter &&
+      openingDelimiter === '"' &&
+      braceDepth === 0
+    ) {
+      return bibtex.slice(contentStart, index);
+    }
+  }
+  return undefined;
 }
 
 function errorMessage(payload: unknown, fallback: string): string {

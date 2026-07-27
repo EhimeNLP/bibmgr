@@ -137,4 +137,30 @@ describe("reference registration API", () => {
     expect(url).toBe("/api/references/pipeline-import");
     expect(JSON.parse(String(init.body))).toEqual({ items });
   });
+
+  it("uses a brace-free display title while preserving fallback BibTeX", async () => {
+    const bibtex = concatBibtex(
+      "@inproceedings{gong-etal-2023-diffuseq,",
+      "  title = {{D}iffu{S}eq-v2: Bridging Text Spaces},",
+      "}",
+    );
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(jsonResponse({ id: "diffuseq", bibtex }, 201)),
+    );
+
+    const result = await registerBibtexToDatabase({
+      bibtex,
+      source: "manual",
+    });
+
+    expect(result.reference.title).toBe(
+      "DiffuSeq-v2: Bridging Text Spaces",
+    );
+    expect(result.reference.bibtex).toBe(bibtex);
+  });
 });
+
+function concatBibtex(...lines: string[]): string {
+  return `${lines.join("\n")}\n`;
+}

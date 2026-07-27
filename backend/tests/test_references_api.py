@@ -259,6 +259,41 @@ def build_test_client() -> tuple[
     return client, registration_engine, sessions
 
 
+def test_registration_separates_display_title_from_stored_bibtex() -> None:
+    client, engine, sessions = build_test_client()
+    source = (
+        "@inproceedings{gong-etal-2023-diffuseq,\n"
+        "  title = {{D}iffu{S}eq-v2: Bridging Text Spaces},\n"
+        "}\n"
+    )
+    engine.add(
+        source,
+        [
+            semantic_record(
+                key="gong-etal-2023-diffuseq",
+                title="{D}iffu{S}eq-v2: Bridging Text Spaces",
+                authors=[],
+            )
+        ],
+    )
+
+    response = client.post(
+        "/references",
+        json={"bibtex": source, "source": "manual"},
+    )
+
+    assert response.status_code == 201
+    assert response.json()["reference"]["title"] == (
+        "DiffuSeq-v2: Bridging Text Spaces"
+    )
+    assert response.json()["reference"]["bibtex"] == source
+    with sessions() as session:
+        record = session.scalar(select(ReferenceRecord))
+        assert record is not None
+        assert record.title == "DiffuSeq-v2: Bridging Text Spaces"
+        assert record.canonical_bibtex == source
+
+
 def test_register_search_edit_and_delete_reference() -> None:
     client, engine, sessions = build_test_client()
     original = (

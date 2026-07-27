@@ -796,7 +796,7 @@ def reference_response(record: ReferenceRecord) -> ReferenceResponse:
     ]
     return ReferenceResponse(
         id=str(record.id),
-        title=record.title or record.citation_key,
+        title=normalize_title_for_display(record.title) or record.citation_key,
         authors=authors,
         year=record.publication_year,
         venue=record.venue_raw or record.venue_name,
@@ -1073,7 +1073,9 @@ def _restore_snapshot(
     )
     record.entry_type = _required_snapshot_string(snapshot, "entry_type")
     record.work_type = _required_snapshot_string(snapshot, "work_type")
-    record.title = _optional_snapshot_string(snapshot, "title")
+    record.title = normalize_title_for_display(
+        _optional_snapshot_string(snapshot, "title")
+    )
     record.publication_year = _optional_snapshot_integer(
         snapshot, "publication_year"
     )
@@ -1336,7 +1338,9 @@ def _apply_semantic_record(
     record.citation_key = citation_key
     record.entry_type = entry_type
     record.work_type = work_type
-    record.title = _string(_sourced_value(semantic_record, "title"))
+    record.title = normalize_title_for_display(
+        _string(_sourced_value(semantic_record, "title"))
+    )
     record.publication_year = _integer(date.get("year"))
     record.publication_date_raw = _string(date.get("raw"))
     record.venue_raw = _string(venue.get("raw"))
@@ -1428,6 +1432,30 @@ def _apply_semantic_record(
                         semantic_data=sourced_url,
                     )
                 )
+
+
+def normalize_title_for_display(value: str | None) -> str | None:
+    """Return plain display text without changing stored BibTeX semantics."""
+
+    if value is None:
+        return None
+    output: list[str] = []
+    index = 0
+    while index < len(value):
+        character = value[index]
+        if (
+            character == "\\"
+            and index + 1 < len(value)
+            and value[index + 1] in "{}"
+        ):
+            output.append(value[index + 1])
+            index += 2
+            continue
+        if character not in "{}":
+            output.append(character)
+        index += 1
+    normalized = " ".join("".join(output).split())
+    return normalized or None
 
 
 def _append_identifier(

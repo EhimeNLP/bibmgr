@@ -10,6 +10,7 @@ import {
   handleAuthenticationFailure,
 } from "./auth";
 import { BibtexApiError } from "./bibtex";
+import { bibtexTitleForDisplay } from "../utils/bibtexDisplay";
 
 const API_BASE_URL = (
   (import.meta.env.VITE_API_BASE_URL as string | undefined) ?? "/api"
@@ -173,7 +174,9 @@ function normalizeReference(value: unknown): Reference {
     record.citationContexts ?? record.citation_contexts;
   return {
     id: stringValue(record.id) ?? "",
-    title: stringValue(record.title) ?? "Untitled reference",
+    title: bibtexTitleForDisplay(
+      stringValue(record.title) ?? "Untitled reference",
+    ),
     authors: Array.isArray(record.authors)
       ? record.authors.filter((author): author is string => typeof author === "string")
       : [],

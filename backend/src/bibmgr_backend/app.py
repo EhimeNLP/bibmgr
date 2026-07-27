@@ -31,7 +31,12 @@ from .auth import (
 )
 from .database import SessionFactory
 from .db_models import ReferenceAuditEvent
-from .library import LibraryError, ReferenceLibrary, reference_response
+from .library import (
+    LibraryError,
+    ReferenceLibrary,
+    normalize_title_for_display,
+    reference_response,
+)
 from .models import (
     AnalyzeRequest,
     AddCitationContextsRequest,
@@ -380,7 +385,9 @@ def create_app(
             ),
             occurred_at=event.occurred_at,
             restored_from_revision=event.restored_from_revision,
-            title=title if isinstance(title, str) else None,
+            title=normalize_title_for_display(title)
+            if isinstance(title, str)
+            else None,
             source_revision=(
                 source_revision
                 if isinstance(source_revision, str)
@@ -635,7 +642,9 @@ def create_app(
                     reference_id=str(head.reference_id),
                     head_revision=head.latest_revision,
                     exists=live_reference_id is not None,
-                    title=title if isinstance(title, str) else None,
+                    title=normalize_title_for_display(title)
+                    if isinstance(title, str)
+                    else None,
                     latest_action=event.action,
                     updated_at=head.updated_at,
                 )

@@ -55,6 +55,26 @@ describe("reference library API", () => {
     expect(init.method).toBe("GET");
   });
 
+  it("removes BibTeX case-protection braces from display titles", async () => {
+    const protectedTitle = {
+      ...reference,
+      title:
+        "{D}iffu{S}eq-v2: Bridging Discrete and Continuous Text Spaces",
+    };
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(jsonResponse([protectedTitle])),
+    );
+
+    await expect(searchReferences("diffuseq")).resolves.toEqual([
+      expect.objectContaining({
+        title:
+          "DiffuSeq-v2: Bridging Discrete and Continuous Text Spaces",
+        bibtex: reference.bibtex,
+      }),
+    ]);
+  });
+
   it("loads one reference by ID", async () => {
     const fetchMock = vi.fn().mockResolvedValue(jsonResponse(reference));
     vi.stubGlobal("fetch", fetchMock);
