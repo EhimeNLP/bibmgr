@@ -1,4 +1,5 @@
 push.sh
+.DS_Store
 target/
 **/target/
 dist/
