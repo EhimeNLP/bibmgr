@@ -1,10 +1,7 @@
 // @vitest-environment jsdom
 
 import { afterEach, describe, expect, it, vi } from "vitest";
-import {
-  importPipelineReferences,
-  registerBibtexToDatabase,
-} from "../src/api/registration";
+import { registerBibtexToDatabase } from "../src/api/registration";
 
 function jsonResponse(payload: unknown, status = 200): Response {
   return new Response(JSON.stringify(payload), {
@@ -90,52 +87,6 @@ describe("reference registration API", () => {
         source: "manual",
       }),
     ).rejects.toThrow("A matching DOI already exists.");
-  });
-
-  it("imports reviewed pipeline items and preserves citation contexts", async () => {
-    const bibtex = "@article{pipeline, title={Pipeline result}}";
-    const citationContext = {
-      id: "context-1",
-      sourcePaperTitle: "Source paper",
-      sourceFileName: "source.json",
-      context: "Pipeline result is cited here.",
-    };
-    const fetchMock = vi.fn().mockResolvedValue(
-      jsonResponse(
-        {
-          reference: {
-            id: "pipeline",
-            title: "Pipeline result",
-            authors: [],
-            bibtex,
-            sourceRevision: `sha256:${"3".repeat(64)}`,
-            citationContexts: [citationContext],
-          },
-          references: [],
-        },
-        201,
-      ),
-    );
-    vi.stubGlobal("fetch", fetchMock);
-
-    const items = [
-      {
-        bibtex,
-        citation_contexts: [
-          {
-            source_paper_title: "Source paper",
-            source_file_name: "source.json",
-            context: "Pipeline result is cited here.",
-          },
-        ],
-      },
-    ];
-    const result = await importPipelineReferences(items);
-
-    expect(result.reference.citationContexts).toEqual([citationContext]);
-    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
-    expect(url).toBe("/api/references/pipeline-import");
-    expect(JSON.parse(String(init.body))).toEqual({ items });
   });
 
   it("uses a brace-free display title while preserving fallback BibTeX", async () => {

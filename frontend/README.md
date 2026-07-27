@@ -10,7 +10,6 @@ The interface currently supports:
 - canonical laboratory BibTeX as the default single preview, with another export profile rendered into the same preview when selected;
 - citation-context display;
 - manual and `.bib` batch registration with information-preserving canonicalization review;
-- reviewed pipeline JSON import with candidate selection and citation contexts;
 - revision-checked edit and delete actions;
 - paginated append-only history and confirmation-based restore;
 - login through the laboratory domain or an exact operator-approved external address;
@@ -28,7 +27,7 @@ Protected requests send the HttpOnly session cookie with `credentials: "include"
 - `src/App.vue`: search/page/session state and responsive master-detail navigation.
 - `src/components/SearchBar.vue`: free-text and structured filters.
 - `src/components/ReferenceDetail.vue`: metadata, citation contexts, and one profile-controlled BibTeX preview.
-- `src/components/RegistrationPanel.vue`: manual, file, and reviewed pipeline registration.
+- `src/components/RegistrationPanel.vue`: manual and `.bib` file registration.
 - `src/components/ReferenceActions.vue`: Apple-style More menu, edit sheet, and destructive confirmation.
 - `src/components/HistoryPanel.vue`: active/deleted histories and append-only restore.
 - `src/components/AuthMenu.vue`: email-code login and sign-out confirmation.
@@ -68,4 +67,4 @@ npm run test:e2e
 
 `VITE_API_BASE_URL` changes the API base URL at build time. It defaults to `/api`, which is the recommended same-origin configuration for session cookies and CSRF.
 
-The registration/import contract is documented in [`fe-registration.md`](fe-registration.md), and the pipeline JSON contract is documented in [`../docs/pipeline-integration.md`](../docs/pipeline-integration.md).
+The registration contract is documented in [`fe-registration.md`](fe-registration.md).

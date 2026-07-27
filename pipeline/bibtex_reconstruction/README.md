@@ -67,4 +67,4 @@ uv run uvicorn main:app --reload
 
 `config.yml`の`api.localdb.enabled`を`true`にすると、外部APIより先にBibMgRの公開検索APIを参照します。開発時のendpointは`http://127.0.0.1:8000/references/page`、本番は`https://HOST/api/references/page`を指定します。loopback以外の平文HTTPは拒否され、検索にlogin credentialは使用しません。
 
-再構築結果はBibMgRフロントエンドの`Pipeline result`タブで読み込み、採用候補と登録対象を人が確認してから認証済みのatomic importへ送ります。引用文脈とreview JSONの契約は[`../../docs/pipeline-integration.md`](../../docs/pipeline-integration.md)を参照してください。
+このパイプラインはBibMgRアプリとは独立した初期化処理です。BibMgRのフロントエンドは再構築JSONの読み込みを行わず、バックエンドもパイプライン専用の登録APIを公開しません。再構築結果の確認と永続化はパイプライン側の運用として管理します。

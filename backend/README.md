@@ -41,7 +41,6 @@ Production startup must run `bibmgr-db upgrade` before starting the application.
 | `GET /references/page` | Paginated structured search with total count |
 | `GET /references/{id}` | Fetch one reference |
 | `POST /references` | Validate and atomically register all BibTeX entries |
-| `POST /references/pipeline-import` | Atomically import reviewed pipeline candidates and contexts |
 | `PUT /references/{id}` | Replace one reference after revision checking |
 | `POST /references/{id}/citation-contexts` | Append citation contexts as a new history revision |
 | `DELETE /references/{id}` | Revision-checked delete of a reference and dependent rows |

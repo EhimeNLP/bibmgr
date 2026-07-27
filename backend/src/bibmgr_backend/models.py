@@ -45,7 +45,7 @@ class CitationContextInput(StrictRequest):
 
 class RegisterReferencesRequest(StrictRequest):
     bibtex: str = Field(min_length=1)
-    source: Literal["manual", "file", "pipeline"]
+    source: Literal["manual", "file"]
     citation_contexts: list[CitationContextInput] = Field(
         default_factory=list, max_length=1000
     )
@@ -65,17 +65,6 @@ class RestoreReferenceRevisionRequest(StrictRequest):
 
 class AddCitationContextsRequest(StrictRequest):
     contexts: list[CitationContextInput] = Field(min_length=1, max_length=1000)
-
-
-class PipelineImportItem(StrictRequest):
-    bibtex: str = Field(min_length=1)
-    citation_contexts: list[CitationContextInput] = Field(
-        default_factory=list, max_length=1000
-    )
-
-
-class PipelineImportRequest(StrictRequest):
-    items: list[PipelineImportItem] = Field(min_length=1, max_length=100)
 
 
 class EmailLoginStartRequest(StrictRequest):

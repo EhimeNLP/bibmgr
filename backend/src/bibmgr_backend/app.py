@@ -47,7 +47,6 @@ from .models import (
     EmailLoginStartResponse,
     EmailLoginVerifyRequest,
     ExportRequest,
-    PipelineImportRequest,
     ReferenceHistoryResponse,
     ReferenceHistoryPageResponse,
     ReferenceHistorySummaryResponse,
@@ -824,39 +823,6 @@ def create_app(
                 actor_user_id=authenticated.user.id,
                 citation_contexts=request.citation_contexts,
             )
-        responses = [reference_response(record) for record in records]
-        return RegisterReferencesResponse(
-            reference=responses[0], references=responses
-        )
-
-    @application.post(
-        "/references/pipeline-import",
-        status_code=201,
-        response_model=RegisterReferencesResponse,
-        responses={
-            **REQUEST_VALIDATION_RESPONSES,
-            **AUTHENTICATED_WRITE_RESPONSES,
-            409: {"model": ErrorResponse},
-        },
-    )
-    def import_pipeline_references(
-        request: PipelineImportRequest,
-        session: SessionDependency,
-        authenticated: WriteSessionDependency,
-    ) -> RegisterReferencesResponse:
-        records = []
-        with write_transaction(session):
-            for item in request.items:
-                records.extend(
-                    library.register(
-                        session,
-                        bibtex=item.bibtex,
-                        source="pipeline",
-                        policy=selected_registration_policy,
-                        actor_user_id=authenticated.user.id,
-                        citation_contexts=item.citation_contexts,
-                    )
-                )
         responses = [reference_response(record) for record in records]
         return RegisterReferencesResponse(
             reference=responses[0], references=responses

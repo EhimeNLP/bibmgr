@@ -2,7 +2,7 @@
 
 ## Scope
 
-The runtime accepts a complete BibTeX document and exposes the same behavior to the CLI, Python backend, and Vue application. `pipeline/` remains outside the Rust dependency graph, but it can read the public library search API and hand reviewed reconstruction JSON to the authenticated import API.
+The runtime accepts a complete BibTeX document and exposes the same behavior to the CLI, Python backend, and Vue application. `pipeline/` is an independent initialization workflow outside the application and Rust dependency graph. It may read the public library search API, but the application does not accept pipeline JSON or expose a pipeline-specific write endpoint.
 
 ## Dependency direction
 
@@ -38,7 +38,7 @@ flowchart TD
 
 Arrows mean “is used by.” Crates do not form dependency cycles. Parser backend types never cross the `bibmgr-syntax` boundary, and no adapter depends on `pipeline/`.
 
-The pipeline integration is an HTTP/data-contract boundary: local-library lookup uses the public paginated search endpoint, while the browser presents reconstructed candidates for human selection before an authenticated atomic import. Citation contexts travel as additive metadata and are included in restorable history snapshots.
+The only application boundary available to the independent reconstruction pipeline is the public paginated search endpoint. Pipeline initialization, review, and persistence are operated separately from the browser and application write API.
 
 ## Processing model
 
@@ -112,7 +112,6 @@ User input does not cause a panic. Parser recovery becomes a diagnostic in toler
 - [Configuration](configuration.md)
 - [Database and reference API](database.md)
 - [Authentication and audit](authentication.md)
-- [Pipeline integration](pipeline-integration.md)
 - [Production operations](operations.md)
 - [Rule authoring](adding-rules.md)
 - [Venue registry](venues.md)

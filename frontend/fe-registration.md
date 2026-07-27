@@ -2,17 +2,16 @@
 
 ## Scope
 
-文献登録UIは、次の3つの入力方法を提供する。
+文献登録UIは、次の2つの入力方法を提供する。
 
 - BibTeX entryをエディタへ直接入力する。
 - `.bib` ファイルをブラウザ内で読み込み、内容を確認・編集して登録する。
-- reconstruction pipelineのJSONを読み込み、候補と対象文献を確認して登録する。
 
 PDFアップロードとPDFからの候補抽出は対象外とする。登録後にバックエンドから文献データが返った場合は、画面上の文献一覧へ追加し、その文献を選択状態にする。
 
 ## Frontend Placement
 
-文献一覧の「Add reference」ボタンからモーダルを開く。モーダル内の `Manual entry`、`BibTeX file`、`Pipeline result` はタブとして切り替える。
+文献一覧の「Add reference」ボタンからモーダルを開く。モーダル内の `Manual entry` と `BibTeX file` はタブとして切り替える。
 
 `.bib` ファイルはバックエンドへファイルとしてアップロードしない。ブラウザの `File.text()` で読み込み、既存のBibTeX文字列登録APIへ渡す。
 
@@ -22,8 +21,6 @@ PDFアップロードとPDFからの候補抽出は対象外とする。登録�
 - 最大サイズは2 MB
 - 1ファイルに1つ以上の文献entry
 - UTF-8 BOMは読み込み時に除去
-
-Pipeline JSONは`.json`拡張子かつ最大10 MBとする。UIは文献ごとのinclude/excludeと複数候補の選択を提供し、選択済みBibTeXと引用文脈だけを`POST /references/pipeline-import`へ送る。
 
 複数entryを含むファイルは全文を保持したまま一度に登録処理へ渡す。entryの分割や部分失敗時の扱いはバックエンド実装時に定義する。
 
@@ -96,7 +93,6 @@ Response:
 - 編集は`PUT /references/{id}`で行い, 保存済み`sourceRevision`を`source_revision`として要求する.
 - 削除は`DELETE /references/{id}`で行い, 関連する著者, 識別子, URL, 引用文脈も削除する.
 - 削除は読み込み時の`sourceRevision`をquoted `If-Match` headerとして送り, staleな削除をHTTP 409で拒否する.
-- Pipeline importは最大100件を1 transactionで処理し, 1件でも失敗した場合は全件rollbackする. 引用文脈は初回snapshotに含め, 後から追加する場合も`context` revisionを記録する.
 - 編集・削除は完全な関係データを連番revisionとして保持する. `GET /reference-history`は削除済み文献も返し, `GET /references/{id}/history`は入力原文と研究室標準BibTeXを返し, `POST /references/{id}/revert`は選択した過去状態を新しいrevisionとして復元する.
 - 検索, 詳細取得, BibTeX検査・出力は未ログインでも利用できる.
 - 登録, 編集, 削除はメール認証済みセッションを要求する. フロントエンドはHttpOnly Cookieを`credentials: "include"`で送信し, セッションAPIから取得したCSRFトークンを`X-CSRF-Token`へ設定する.

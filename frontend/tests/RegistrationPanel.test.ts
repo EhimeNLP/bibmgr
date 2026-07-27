@@ -196,6 +196,8 @@ describe("RegistrationPanel", () => {
     expect(document.activeElement).toBe(fileTab.element);
     expect(wrapper.get("#registration-panel-file").isVisible()).toBe(true);
     expect(wrapper.find("#registration-panel-manual").exists()).toBe(false);
+    expect(wrapper.find("#registration-tab-pipeline").exists()).toBe(false);
+    expect(wrapper.text()).not.toContain("Pipeline result");
     expect(wrapper.text()).not.toContain("PDF");
   });
 

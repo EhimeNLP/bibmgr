@@ -4,14 +4,10 @@ import {
   canonicalizeBibtexForStorage,
   validateBibtexForRegistration,
 } from "../api/bibtex";
-import {
-  importPipelineReferences,
-  registerBibtexToDatabase,
-} from "../api/registration";
+import { registerBibtexToDatabase } from "../api/registration";
 import type { BibtexDiagnostic } from "../types/bibtex";
 import type {
   Reference,
-  PipelineImportItem,
   RegisterBibtexResult,
 } from "../types/reference";
 import { countBibliographicEntries } from "../utils/bibtexHighlight";
@@ -19,26 +15,13 @@ import BibtexEditor from "./BibtexEditor.vue";
 import BibtexCodeBlock from "./BibtexCodeBlock.vue";
 import BibtexValidationPanel from "./BibtexValidationPanel.vue";
 
-type RegistrationMode = "manual" | "file" | "pipeline";
+type RegistrationMode = "manual" | "file";
 type CanonicalPreview = {
   submittedSource: string;
   canonicalSource: string;
 };
-type PipelineBibtexOption = {
-  label: string;
-  bibtex: string;
-};
-type PipelineReviewItem = {
-  id: string;
-  title: string;
-  selected: boolean;
-  selectedBibtex: string;
-  bibtexOptions: PipelineBibtexOption[];
-  contexts: PipelineImportItem["citation_contexts"];
-};
 
 const MAX_BIB_FILE_SIZE = 2 * 1024 * 1024;
-const MAX_PIPELINE_FILE_SIZE = 10 * 1024 * 1024;
 
 const props = defineProps<{
   authenticated: boolean;
@@ -70,13 +53,6 @@ const fileError = ref<string | null>(null);
 const fileMessage = ref<string | null>(null);
 const fileDiagnostics = reactive<BibtexDiagnostic[]>([]);
 const fileCanonicalPreview = ref<CanonicalPreview | null>(null);
-const pipelineInput = ref<HTMLInputElement | null>(null);
-const selectedPipelineFile = ref<File | null>(null);
-const pipelineItems = ref<PipelineReviewItem[]>([]);
-const isPipelineReading = ref(false);
-const isPipelineImporting = ref(false);
-const pipelineError = ref<string | null>(null);
-const pipelineMessage = ref<string | null>(null);
 
 const canRegisterManual = computed(
   () => manualBibtex.value.trim().length > 0 && !isManualRegistering.value,
@@ -117,18 +93,6 @@ const manualRegistrationLabel = computed(() => {
     ? "Register normalized BibTeX"
     : "Register BibTeX";
 });
-const selectedPipelineItems = computed(() =>
-  pipelineItems.value.filter(
-    (item) => item.selected && item.selectedBibtex.trim(),
-  ),
-);
-const canImportPipeline = computed(
-  () =>
-    selectedPipelineItems.value.length > 0 &&
-    !isPipelineReading.value &&
-    !isPipelineImporting.value,
-);
-
 watch(manualBibtex, (source) => {
   if (
     manualCanonicalPreview.value &&
@@ -313,215 +277,6 @@ async function onBibFileChange(event: Event) {
   }
 }
 
-async function onPipelineFileChange(event: Event) {
-  const input = event.target as HTMLInputElement;
-  const file = input.files?.[0];
-  selectedPipelineFile.value = null;
-  pipelineItems.value = [];
-  pipelineError.value = null;
-  pipelineMessage.value = null;
-  if (!file) return;
-  if (!file.name.toLowerCase().endsWith(".json")) {
-    pipelineError.value = "Choose a pipeline result with the .json extension.";
-    input.value = "";
-    return;
-  }
-  if (file.size > MAX_PIPELINE_FILE_SIZE) {
-    pipelineError.value = "The pipeline result must be 10 MB or smaller.";
-    input.value = "";
-    return;
-  }
-  isPipelineReading.value = true;
-  try {
-    const payload: unknown = JSON.parse(
-      (await file.text()).replace(/^\uFEFF/, ""),
-    );
-    const items = parsePipelineResult(payload, file.name);
-    if (items.length === 0) {
-      throw new Error(
-        "No candidate containing BibTeX was found in this pipeline result.",
-      );
-    }
-    selectedPipelineFile.value = file;
-    pipelineItems.value = items;
-    pipelineMessage.value =
-      `${items.length} reconstructed ${items.length === 1 ? "reference is" : "references are"} ready for review.`;
-  } catch (error) {
-    pipelineError.value =
-      error instanceof Error
-        ? `Could not read ${file.name}: ${error.message}`
-        : `Could not read ${file.name}.`;
-    input.value = "";
-  } finally {
-    isPipelineReading.value = false;
-  }
-}
-
-async function importReviewedPipeline() {
-  if (!canImportPipeline.value) return;
-  isPipelineImporting.value = true;
-  pipelineError.value = null;
-  pipelineMessage.value = null;
-  try {
-    const result = await importPipelineReferences(
-      selectedPipelineItems.value.map((item) => ({
-        bibtex: item.selectedBibtex,
-        citation_contexts: item.contexts,
-      })),
-    );
-    const count = result.references?.length ?? 1;
-    pipelineMessage.value = `Imported ${count} reviewed ${count === 1 ? "reference" : "references"}.`;
-    pipelineItems.value = [];
-    selectedPipelineFile.value = null;
-    if (pipelineInput.value) pipelineInput.value.value = "";
-    emitRegisteredReferences(result);
-  } catch (error) {
-    pipelineError.value =
-      error instanceof Error
-        ? error.message
-        : "Failed to import pipeline results.";
-  } finally {
-    isPipelineImporting.value = false;
-  }
-}
-
-function parsePipelineResult(
-  payload: unknown,
-  sourceFileName: string,
-): PipelineReviewItem[] {
-  const root = objectValue(payload);
-  const sourcePaperTitle =
-    textValue(root?.title) ?? textValue(objectValue(root?.metadata)?.title);
-  const explicitItems = Array.isArray(root?.items) ? root.items : null;
-  if (explicitItems) {
-    return explicitItems
-      .map((value, index) =>
-        parseGenericPipelineItem(
-          value,
-          index,
-          sourcePaperTitle,
-          sourceFileName,
-        ),
-      )
-      .filter((item): item is PipelineReviewItem => item !== null);
-  }
-
-  const processed = Array.isArray(root?.processed_references)
-    ? root.processed_references
-    : [];
-  return processed
-    .map((value, index) => {
-      const item = objectValue(value);
-      const original = objectValue(item?.original_data);
-      const candidates = Array.isArray(item?.candidates)
-        ? item.candidates
-        : [];
-      const options = candidates
-        .map((candidate, candidateIndex) => {
-          const record = objectValue(candidate);
-          const bibtex = textValue(record?.bibtex);
-          if (!bibtex) return null;
-          return {
-            label:
-              textValue(record?.source_api) ??
-              `Candidate ${candidateIndex + 1}`,
-            bibtex,
-          };
-        })
-        .filter((option): option is PipelineBibtexOption => option !== null);
-      if (options.length === 0) return null;
-      return {
-        id:
-          textValue(item?.ref_id) ??
-          textValue(original?.id) ??
-          `reference-${index + 1}`,
-        title:
-          textValue(original?.title) ??
-          `Reconstructed reference ${index + 1}`,
-        selected: true,
-        selectedBibtex: options[0].bibtex,
-        bibtexOptions: options,
-        contexts: normalizePipelineContexts(
-          original?.citation_contexts ?? item?.citation_contexts,
-          sourcePaperTitle,
-          sourceFileName,
-        ),
-      };
-    })
-    .filter((item): item is PipelineReviewItem => item !== null);
-}
-
-function parseGenericPipelineItem(
-  value: unknown,
-  index: number,
-  sourcePaperTitle: string | undefined,
-  sourceFileName: string,
-): PipelineReviewItem | null {
-  const item = objectValue(value);
-  const bibtex = textValue(item?.bibtex);
-  if (!bibtex) return null;
-  const option = { label: "Pipeline result", bibtex };
-  return {
-    id: textValue(item?.id) ?? `reference-${index + 1}`,
-    title: textValue(item?.title) ?? `Reconstructed reference ${index + 1}`,
-    selected: true,
-    selectedBibtex: bibtex,
-    bibtexOptions: [option],
-    contexts: normalizePipelineContexts(
-      item?.citation_contexts,
-      textValue(item?.source_paper_title) ?? sourcePaperTitle,
-      textValue(item?.source_file_name) ?? sourceFileName,
-    ),
-  };
-}
-
-function normalizePipelineContexts(
-  value: unknown,
-  sourcePaperTitle: string | undefined,
-  sourceFileName: string,
-): PipelineImportItem["citation_contexts"] {
-  if (!Array.isArray(value)) return [];
-  const normalized: PipelineImportItem["citation_contexts"] = [];
-  for (const raw of value) {
-    if (typeof raw === "string" && raw.trim()) {
-      normalized.push({
-        source_paper_title: sourcePaperTitle,
-        source_file_name: sourceFileName,
-        context: raw.trim(),
-      });
-      continue;
-    }
-    const context = objectValue(raw);
-    const text =
-      textValue(context?.context) ??
-      textValue(context?.context_text) ??
-      textValue(context?.text);
-    if (!text) continue;
-    normalized.push({
-      source_paper_title:
-        textValue(context?.source_paper_title) ?? sourcePaperTitle,
-      source_file_name:
-        textValue(context?.source_file_name) ?? sourceFileName,
-      before: textValue(context?.before) ?? textValue(context?.before_text),
-      context: text,
-      after: textValue(context?.after) ?? textValue(context?.after_text),
-    });
-  }
-  return normalized;
-}
-
-function objectValue(value: unknown): Record<string, unknown> | undefined {
-  return typeof value === "object" && value !== null && !Array.isArray(value)
-    ? (value as Record<string, unknown>)
-    : undefined;
-}
-
-function textValue(value: unknown): string | undefined {
-  return typeof value === "string" && value.trim()
-    ? value.trim()
-    : undefined;
-}
-
 async function registerFileBibtex() {
   if (!selectedBibFile.value || !fileBibtex.value.trim()) return;
 
@@ -702,9 +457,9 @@ function onFileFixApplied() {
                 :tabindex="mode === 'manual' ? 0 : -1"
                 @click="selectMode('manual')"
                 @keydown.right.prevent="selectMode('file', true)"
-                @keydown.left.prevent="selectMode('pipeline', true)"
+                @keydown.left.prevent="selectMode('file', true)"
                 @keydown.home.prevent="selectMode('manual', true)"
-                @keydown.end.prevent="selectMode('pipeline', true)"
+                @keydown.end.prevent="selectMode('file', true)"
               >
                 Manual entry
               </button>
@@ -718,27 +473,11 @@ function onFileFixApplied() {
                 :tabindex="mode === 'file' ? 0 : -1"
                 @click="selectMode('file')"
                 @keydown.left.prevent="selectMode('manual', true)"
-                @keydown.right.prevent="selectMode('pipeline', true)"
-                @keydown.home.prevent="selectMode('manual', true)"
-                @keydown.end.prevent="selectMode('pipeline', true)"
-              >
-                BibTeX file
-              </button>
-              <button
-                id="registration-tab-pipeline"
-                type="button"
-                role="tab"
-                :class="{ active: mode === 'pipeline' }"
-                :aria-selected="mode === 'pipeline'"
-                aria-controls="registration-panel-pipeline"
-                :tabindex="mode === 'pipeline' ? 0 : -1"
-                @click="selectMode('pipeline')"
-                @keydown.left.prevent="selectMode('file', true)"
                 @keydown.right.prevent="selectMode('manual', true)"
                 @keydown.home.prevent="selectMode('manual', true)"
-                @keydown.end.prevent="selectMode('pipeline', true)"
+                @keydown.end.prevent="selectMode('file', true)"
               >
-                Pipeline result
+                BibTeX file
               </button>
             </div>
           </div>
@@ -922,137 +661,6 @@ function onFileFixApplied() {
             </div>
           </div>
 
-          <div
-            v-if="mode === 'pipeline'"
-            id="registration-panel-pipeline"
-            class="registration-body"
-            role="tabpanel"
-            aria-labelledby="registration-tab-pipeline"
-          >
-            <label class="file-picker">
-              <input
-                id="pipeline-file"
-                ref="pipelineInput"
-                type="file"
-                accept=".json,application/json"
-                :disabled="isPipelineReading || isPipelineImporting"
-                @change="onPipelineFileChange"
-              />
-              <span class="file-picker__icon" aria-hidden="true">
-                <svg viewBox="0 0 20 20" fill="none">
-                  <path d="M4 3.5h12v13H4zM7 7h6M7 10h6M7 13h4" />
-                </svg>
-              </span>
-              <span class="file-picker__copy">
-                <strong>
-                  {{
-                    selectedPipelineFile
-                      ? "Pipeline result selected"
-                      : "Choose a pipeline JSON result"
-                  }}
-                </strong>
-                <span>
-                  {{
-                    selectedPipelineFile?.name ??
-                    "Reconstruction output, up to 10 MB"
-                  }}
-                </span>
-              </span>
-              <span class="file-picker__action">Browse</span>
-            </label>
-
-            <p
-              v-if="pipelineError"
-              class="registration-error status-message"
-              role="alert"
-            >
-              {{ pipelineError }}
-            </p>
-            <p
-              v-else-if="pipelineMessage"
-              class="registration-message status-message"
-              role="status"
-            >
-              {{ pipelineMessage }}
-            </p>
-
-            <div
-              v-if="pipelineItems.length"
-              class="pipeline-review-list"
-              aria-label="Reconstructed references to review"
-            >
-              <article
-                v-for="item in pipelineItems"
-                :key="item.id"
-                class="pipeline-review-item"
-              >
-                <label class="pipeline-review-item__select">
-                  <input
-                    v-model="item.selected"
-                    type="checkbox"
-                    :disabled="isPipelineImporting"
-                  />
-                  <span>
-                    <strong>{{ item.title }}</strong>
-                    <small>
-                      {{ item.contexts.length }}
-                      citation
-                      {{ item.contexts.length === 1 ? "context" : "contexts" }}
-                    </small>
-                  </span>
-                </label>
-                <label
-                  v-if="item.bibtexOptions.length > 1"
-                  class="field-label"
-                >
-                  Candidate source
-                  <select
-                    v-model="item.selectedBibtex"
-                    :disabled="!item.selected || isPipelineImporting"
-                  >
-                    <option
-                      v-for="option in item.bibtexOptions"
-                      :key="option.label"
-                      :value="option.bibtex"
-                    >
-                      {{ option.label }}
-                    </option>
-                  </select>
-                </label>
-                <details>
-                  <summary>Review BibTeX</summary>
-                  <BibtexCodeBlock
-                    :source="item.selectedBibtex"
-                    :accessible-label="`Reconstructed BibTeX for ${item.title}`"
-                  />
-                </details>
-              </article>
-            </div>
-
-            <div class="registration-actions registration-actions--file">
-              <span v-if="pipelineItems.length">
-                {{ selectedPipelineItems.length }} selected
-              </span>
-              <button
-                type="button"
-                class="button-primary"
-                :disabled="!canImportPipeline"
-                :aria-busy="isPipelineImporting"
-                @click="importReviewedPipeline"
-              >
-                <span
-                  v-if="isPipelineImporting"
-                  class="button-spinner"
-                  aria-hidden="true"
-                />
-                {{
-                  isPipelineImporting
-                    ? "Importing…"
-                    : "Import reviewed references"
-                }}
-              </button>
-            </div>
-          </div>
         </section>
       </div>
     </Teleport>

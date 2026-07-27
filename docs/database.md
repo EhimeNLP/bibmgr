@@ -75,7 +75,7 @@ The compatibility list endpoint searches title, citation key, venue, canonical l
 
 The active registration policy comes from `BIBMGR_REGISTRATION_POLICY`. The persistence request cannot choose a weaker policy.
 
-`POST /references/pipeline-import` accepts up to 100 reviewed single-entry candidates and commits them atomically with their citation contexts. A duplicate or invalid candidate rolls back the complete import. `POST /references/{id}/citation-contexts` appends later contexts without changing stored BibTeX and records the resulting complete state as a `context` history revision.
+`POST /references/{id}/citation-contexts` appends contexts without changing stored BibTeX and records the resulting complete state as a `context` history revision. The independent initialization pipeline is not exposed through an application registration endpoint.
 
 ## Editing and deletion
 

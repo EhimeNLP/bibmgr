@@ -294,6 +294,27 @@ def test_registration_separates_display_title_from_stored_bibtex() -> None:
         assert record.canonical_bibtex == source
 
 
+def test_pipeline_json_registration_is_not_exposed_by_the_app() -> None:
+    client, _engine, _sessions = build_test_client()
+
+    invalid_source = client.post(
+        "/references",
+        json={
+            "bibtex": "@article{pipeline, title = {Pipeline}}\n",
+            "source": "pipeline",
+        },
+    )
+    removed_endpoint = client.post(
+        "/references/pipeline-import",
+        json={"items": []},
+    )
+    openapi_paths = client.get("/openapi.json").json()["paths"]
+
+    assert invalid_source.status_code == 422
+    assert removed_endpoint.status_code == 405
+    assert "/references/pipeline-import" not in openapi_paths
+
+
 def test_register_search_edit_and_delete_reference() -> None:
     client, engine, sessions = build_test_client()
     original = (
@@ -795,15 +816,15 @@ def test_structured_search_page_returns_total_and_filters() -> None:
     assert [item["title"] for item in page.json()["items"]] == ["Second"]
 
 
-def test_pipeline_contexts_are_audited_and_visible() -> None:
+def test_citation_contexts_are_audited_and_visible() -> None:
     client, engine, _sessions = build_test_client()
-    source = "@article{pipeline, title = {Pipeline}}\n"
+    source = "@article{contexts, title = {Citation contexts}}\n"
     engine.add(
         source,
         [
             semantic_record(
-                key="pipeline",
-                title="Pipeline",
+                key="contexts",
+                title="Citation contexts",
                 authors=[],
             )
         ],
@@ -813,12 +834,12 @@ def test_pipeline_contexts_are_audited_and_visible() -> None:
         "/references",
         json={
             "bibtex": source,
-            "source": "pipeline",
+            "source": "manual",
             "citation_contexts": [
                 {
                     "source_paper_title": "Citing paper",
                     "source_file_name": "paper.pdf",
-                    "context": "Pipeline is useful.",
+                    "context": "Citation contexts are useful.",
                 }
             ],
         },
@@ -826,7 +847,7 @@ def test_pipeline_contexts_are_audited_and_visible() -> None:
     assert created.status_code == 201
     reference = created.json()["reference"]
     assert reference["citationContexts"][0]["context"] == (
-        "Pipeline is useful."
+        "Citation contexts are useful."
     )
 
     augmented = client.post(

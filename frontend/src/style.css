@@ -2478,65 +2478,6 @@ pre {
   justify-content: flex-end;
 }
 
-.pipeline-review-list {
-  display: grid;
-  gap: 10px;
-}
-
-.pipeline-review-item {
-  display: grid;
-  gap: 10px;
-  padding: 12px;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-group);
-  background: var(--color-fill);
-}
-
-.pipeline-review-item__select {
-  display: flex;
-  align-items: flex-start;
-  gap: 10px;
-  color: var(--color-text);
-}
-
-.pipeline-review-item__select input {
-  width: 18px;
-  height: 18px;
-  margin-top: 1px;
-}
-
-.pipeline-review-item__select span,
-.pipeline-review-item__select strong,
-.pipeline-review-item__select small {
-  display: block;
-}
-
-.pipeline-review-item__select strong {
-  font-size: 13px;
-}
-
-.pipeline-review-item__select small {
-  margin-top: 3px;
-  color: var(--color-text-muted);
-  font-size: 11px;
-}
-
-.pipeline-review-item select {
-  min-height: 38px;
-  padding-inline: 10px;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-control);
-  background: var(--color-surface);
-  color: var(--color-text);
-}
-
-.pipeline-review-item details summary {
-  color: var(--color-primary);
-  cursor: pointer;
-  font-size: 12px;
-  font-weight: 600;
-}
-
 .registration-actions > :first-child:not(:last-child) {
   flex: 1;
 }

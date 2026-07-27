@@ -25,7 +25,7 @@ export type Reference = {
   updatedAt?: string;
 };
 
-export type RegistrationSource = "manual" | "file" | "pipeline";
+export type RegistrationSource = "manual" | "file";
 
 export type RegisterBibtexPayload = {
   bibtex: string;
@@ -42,13 +42,6 @@ export type RegisterBibtexPayload = {
 export type RegisterBibtexResult = {
   reference: Reference;
   references?: Reference[];
-};
-
-export type PipelineImportItem = {
-  bibtex: string;
-  citation_contexts: NonNullable<
-    RegisterBibtexPayload["citation_contexts"]
-  >;
 };
 
 export type UpdateReferencePayload = {

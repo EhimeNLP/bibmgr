@@ -1,6 +1,5 @@
 import type {
   Reference,
-  PipelineImportItem,
   RegisterBibtexPayload,
   RegisterBibtexResult,
 } from "../types/reference";
@@ -33,28 +32,6 @@ export async function registerBibtexToDatabase(
   }
 
   return normalizeRegisterBibtexResult(responsePayload, payload.bibtex);
-}
-
-export async function importPipelineReferences(
-  items: PipelineImportItem[],
-): Promise<RegisterBibtexResult> {
-  const response = await fetch(`${API_BASE_URL}/references/pipeline-import`, {
-    method: "POST",
-    credentials: "include",
-    headers: authenticatedWriteHeaders({ json: true }),
-    body: JSON.stringify({ items }),
-  });
-  const responsePayload = await readResponsePayload(response);
-  if (!response.ok) {
-    handleAuthenticationFailure(response.status);
-    throw new Error(
-      errorMessage(responsePayload, "Failed to import pipeline results."),
-    );
-  }
-  return normalizeRegisterBibtexResult(
-    responsePayload,
-    items[0]?.bibtex ?? "",
-  );
 }
 
 async function readResponsePayload(response: Response): Promise<unknown> {
