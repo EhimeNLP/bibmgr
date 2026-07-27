@@ -4,26 +4,30 @@ from dotenv import load_dotenv
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-load_dotenv()
-
 BASE_DIR = Path(__file__).resolve().parent.parent
 CONFIG_PATH = BASE_DIR / "config.yml"
+ENV_PATH = BASE_DIR / ".env"
+load_dotenv(ENV_PATH)
 
 class Settings(BaseSettings):
     # --- Search Settings ---
     similarity_threshold: float = 0.9
+    trusted_doi_threshold: float = 0.97
     max_parallel_requests: int = 5
     # --- LLM Settings ---
-    model_name: str = "gemini-flash-lite-latest"
+    model_name: str = "gemini-2.5-pro"
     gemini_api_key: str = Field("", validation_alias="GEMINI_API_KEY")
-    temperature: float = 0.0
-    max_output_tokens: int = 150
+    temperature: float = 0.1
+    max_output_tokens: int = 2048
+    max_llm_attempts: int = 3
+    # --- Rust validation ---
+    registration_policy: str = "laboratory"
+    rewrite_citation_keys: bool = True
     # --- API Base URLs ---
     max_retries: int = 3
     retry_backoff_sec: int = 2
     doi_base_url: str = "https://doi.org/"
-    dblp_venue_api_url: str = "https://dblp.org/search/venue/api"
-    dblp_timeout: int = 10
+    doi_timeout: int = 15
     ## --- crossref ---
     crossref_base_url: str = "https://api.crossref.org/works"
     crossref_timeout: int = 10
@@ -47,15 +51,8 @@ class Settings(BaseSettings):
     arxiv_base_url: str = "https://export.arxiv.org/api/query"
     arxiv_timeout: int = 10
     arxiv_wait_sec: float = 0
-    ## --- localdb ---
-    localdb_enabled: bool = False
-    # --- venue abbreviations ---
-    venue_abbrev_map: dict[str, str] = Field(default_factory=dict)
-    # --- API Keys / Environment Variables ---
-    api_key: str = Field("", validation_alias="API_KEY")
-    
     model_config = SettingsConfigDict(
-        env_file=".env",
+        env_file=ENV_PATH,
         env_file_encoding="utf-8",
         extra="ignore"
     )
@@ -68,24 +65,19 @@ class Settings(BaseSettings):
                 raw_data = yaml.safe_load(f) or {}
                 conf_data.update(raw_data.get("search", {}))
                 conf_data.update(raw_data.get("llm", {}))
+                conf_data.update(raw_data.get("validation", {}))
                 
                 api_section = raw_data.get("api", {})
                 conf_data["max_retries"] = api_section.get("max_retries", 3)
                 conf_data["retry_backoff_sec"] = api_section.get("retry_backoff_sec", 2)
                 conf_data["doi_base_url"] = api_section.get("doi_base_url")
-                conf_data["dblp_timeout"] = api_section.get("dblp_timeout", 10)
-                conf_data["dblp_venue_api_url"] = api_section.get("dblp_venue_api_url")
+                conf_data["doi_timeout"] = api_section.get("doi_timeout", 15)
                 if isinstance(api_section, dict):
-                    localdb = api_section.get("localdb", {})
-                    conf_data["localdb_enabled"] = localdb.get("enabled", False)
-
                     for service in ["crossref", "cinii", "semanticscholar", "jstage", "arxiv"]:
                         detail = api_section.get(service, {})
                         conf_data[f"{service}_base_url"] = detail.get("base_url")
                         conf_data[f"{service}_timeout"] = detail.get("timeout", 10)
                         conf_data[f"{service}_wait_sec"] = detail.get("wait_sec", 0)
-                
-                conf_data["venue_abbrev_map"] = raw_data.get("venue_abbreviations", {})
 
         return cls(**{k: v for k, v in conf_data.items() if v is not None})
 

@@ -1,8 +1,9 @@
 # models/output_models.py
-from typing import List, Optional, Any
+from typing import List, Optional
 from pydantic import BaseModel, Field
 from .input_models import ReferenceData
-from core.constants import ProcessingStatus
+from core.constants import CandidateStatus, ReconstructionOutcome, ReconstructionPath
+
 
 class VerifiedCitationInfo(BaseModel):
     title: str
@@ -12,25 +13,71 @@ class VerifiedCitationInfo(BaseModel):
     doi: Optional[str] = None
     url: Optional[str] = None
 
+
 class CandidateResult(BaseModel):
     source_api: str = Field(..., description="The API that provided this candidate (e.g., 'Crossref', 'CiNii')")
-    status: ProcessingStatus = Field(..., description="Status of this specific API's result: 'success', 'needs_review', 'api_error', or 'not_found'")
+    status: CandidateStatus = Field(..., description="Search result classification for this API")
     confidence_score: Optional[float] = Field(0.0, ge=0.0, le=1.0, description="Similarity score calculated for this specific result (0.0 to 1.0)")
     verified_info: Optional[VerifiedCitationInfo] = Field(None, description="Verified metadata obtained from the API. None if not found.")
     bibtex: Optional[str] = Field(None, description="Formatted BibTeX string from this API")
+    error: Optional[str] = Field(None, description="Non-sensitive API failure summary")
+
+
+class EvidenceBundle(BaseModel):
+    """Source-preserving evidence supplied to semantic reconstruction."""
+
+    raw_text: str
+    original: ReferenceData
+    search_clues: ReferenceData
+    extracted_dois: List[str] = Field(default_factory=list)
+    trusted_doi: Optional[str] = None
+    candidates: List[CandidateResult] = Field(default_factory=list)
+
+
+class ValidationDiagnostic(BaseModel):
+    code: str
+    severity: str
+    blocking: bool
+    message: str
+    range: Optional[tuple[int, int]] = None
+    notes: List[str] = Field(default_factory=list)
+    fixes: List[str] = Field(default_factory=list)
+
+
+class RustValidationResult(BaseModel):
+    accepted: bool
+    source: str
+    unresolved_semantics: bool = False
+    diagnostics: List[ValidationDiagnostic] = Field(default_factory=list)
+    applied_fix_ids: List[str] = Field(default_factory=list)
+
+
+class LLMReconstruction(BaseModel):
+    """Structured response produced by the semantic reconstruction model."""
+
+    bibtex: str
+    confidence: float = Field(ge=0.0, le=1.0)
+    evidence_sources: List[str] = Field(default_factory=list)
+    unresolved_fields: List[str] = Field(default_factory=list)
+    summary: str = ""
+
+
+class ReconstructionAttempt(BaseModel):
+    attempt: int = Field(ge=1)
+    path: ReconstructionPath
+    candidate_bibtex: str
+    validation: RustValidationResult
+    llm_result: Optional[LLMReconstruction] = None
+
 
 class ProcessedReference(BaseModel):
-    ref_id: str = Field(..., description="Corresponds exactly to references[].id in JSON schema")
-    overall_status: str = Field(..., description="Overall system status: 'success', 'needs_review', or 'not_found'")
-    original_data: ReferenceData = Field(..., description="The raw reference data extracted from a PDF.")
+    ref_id: str = Field(..., description="Stable fragment ID assigned during initialization")
+    outcome: ReconstructionOutcome
+    original_data: ReferenceData = Field(..., description="The source fragment before clue enrichment")
     candidates: List[CandidateResult] = Field(default_factory=list, description="List of all matching results from various APIs, sorted by score")
-
-class OutputData(BaseModel):
-    title: str = Field(..., description="Title of the root document")
-    authors: List[str] = Field(default_factory=list, description="Authors of the root document")
-    year: Optional[Any] = Field(None, description="Publication year of the root document")
-    doi: Optional[str] = Field(None, description="DOI of the root document")
-    abstract: str = Field(..., description="Abstract of the root document")
-    reference_count: int = Field(..., description="Total number of references")
-    processed_references: List[ProcessedReference] = Field(default_factory=list, description="List of references enriched with API data")
-    saved_files: List[Any] = Field(default_factory=list, description="Files associated with the root document")
+    evidence: Optional[EvidenceBundle] = None
+    reconstruction_path: Optional[ReconstructionPath] = None
+    reconstructed_bibtex: Optional[str] = None
+    validation: Optional[RustValidationResult] = None
+    attempts: List[ReconstructionAttempt] = Field(default_factory=list)
+    review_reason: Optional[str] = None

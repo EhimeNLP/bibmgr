@@ -1,129 +1,142 @@
-import asyncio
+"""Standalone command-line entry point for bibliography initialization."""
+
+from __future__ import annotations
+
+import argparse
 import json
-from concurrent.futures import ThreadPoolExecutor
-from contextlib import asynccontextmanager
-from fastapi import FastAPI, HTTPException, Depends
-from fastapi.security import APIKeyHeader
-from models import DocumentRoot, InputData, OutputData
-from services.orchestrator import SearchOrchestrator
+import logging
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from pathlib import Path
+
 from core.config import settings
-
-_API_KEY_HEADER = APIKeyHeader(name="X-API-Key", auto_error=False)
-
-async def verify_api_key(
-    x_api_key: str | None = Depends(_API_KEY_HEADER),
-) -> None:
-    """
-    Verify the X-API-Key header.
-
-    - If API_KEY is not set, skip authentication (for development environment).
-      Output a WARNING and indicate the open state at startup.
-    - If the header is missing or the value does not match, return HTTP 401.
-    """
-    if not settings.api_key:
-        return
-    if x_api_key is None or x_api_key != settings.api_key:
-        raise HTTPException(
-            status_code=401,
-            detail="Invalid or missing API key.",
-            headers={"WWW-Authenticate": "ApiKey"},
-        )
+from core.constants import ReconstructionOutcome
+from models import InputData, ProcessedReference
+from services.orchestrator import ReconstructionOrchestrator
+from services.source_loader import load_bibliography_fragments
 
 
-orchestrator = SearchOrchestrator()
-_executor: ThreadPoolExecutor | None = None
+logger = logging.getLogger(__name__)
 
 
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    """Resource management when launching and closing the app."""
-    global _executor
-    if not settings.api_key:
-        print(
-            "WARNING:   API_KEY is not set. "
-            "The /reconstruct endpoint is open to all requests."
-        )
-    _executor = ThreadPoolExecutor(max_workers=settings.max_parallel_requests)
-    yield
-    _executor.shutdown(wait=True)
+def reconstruct_file(
+    input_path: Path,
+    output_path: Path,
+    review_path: Path,
+    *,
+    orchestrator: ReconstructionOrchestrator | None = None,
+) -> tuple[list[str], list[ProcessedReference]]:
+    """Reconstruct all fragments and write accepted entries plus a review report."""
 
-
-app = FastAPI(title="BibTeX-Reconstruction-API", lifespan=lifespan)
-
-@app.post("/reconstruct", response_model=OutputData, dependencies=[Depends(verify_api_key)])
-async def reconstruct_bibtex(request_data: DocumentRoot):
-    """
-    Reconstruct BibTeX entries for all references in the document.
-
-    Each reference is processed by SearchOrchestrator.reconstruct_reference(),
-    which is a synchronous function that internally uses a ThreadPoolExecutor
-    for parallel API calls.  To avoid blocking FastAPI's async event loop,
-    every reference is offloaded to a shared thread-pool executor and all
-    references are awaited concurrently via asyncio.gather().
-
-    Requires a valid ``X-API-Key`` header (configured via ``API_KEY`` in ``.env``).
-    Authentication is disabled when ``API_KEY`` is not set (development mode).
-    """
-    try:
-        loop = asyncio.get_running_loop()
-
-        tasks = [
-            loop.run_in_executor(
-                _executor,
-                orchestrator.reconstruct_reference,
-                InputData(parsed_data=ref),
-            )
-            for ref in request_data.references
-        ]
-        processed_refs = await asyncio.gather(*tasks)
-
-        return OutputData(
-            **request_data.model_dump(exclude={"references", "reference_count"}),
-            reference_count=len(processed_refs),
-            processed_references=list(processed_refs),
-        )
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Pipeline Error: {str(e)}")
-
-
-def run_local(input_path: str, output_path: str):
-    with open(input_path, "r", encoding="utf-8") as f:
-        document = DocumentRoot.model_validate(json.load(f))
-
-    processed_refs = []
-    for ref in document.references:
-        print(f"Processing: {ref.id} - {ref.title[:30]}...")
-        processed_refs.append(
-            orchestrator.reconstruct_reference(InputData(parsed_data=ref))
-        )
-
-    output = OutputData(
-        **document.model_dump(exclude={"references", "reference_count"}),
-        reference_count=len(processed_refs),
-        processed_references=processed_refs,
+    service = orchestrator or ReconstructionOrchestrator()
+    references = load_bibliography_fragments(
+        input_path.read_text(encoding="utf-8")
     )
+    logger.info("loaded bibliography fragments count=%d", len(references))
 
-    with open(output_path, "w", encoding="utf-8") as f:
-        json.dump(output.model_dump(exclude_none=True), f, ensure_ascii=False, indent=2)
-    print(f"Done! Results saved to {output_path}")
+    results: list[ProcessedReference | None] = [None] * len(references)
+    with ThreadPoolExecutor(max_workers=settings.max_parallel_requests) as executor:
+        future_to_index = {
+            executor.submit(
+                service.reconstruct_reference,
+                InputData(parsed_data=reference),
+            ): index
+            for index, reference in enumerate(references)
+        }
+        for future in as_completed(future_to_index):
+            index = future_to_index[future]
+            results[index] = future.result()
+
+    processed = [result for result in results if result is not None]
+    entries = [
+        result.reconstructed_bibtex.strip()
+        for result in processed
+        if (
+            result.outcome == ReconstructionOutcome.READY
+            and result.reconstructed_bibtex
+        )
+    ]
+    reviews = [
+        result
+        for result in processed
+        if result.outcome == ReconstructionOutcome.MANUAL_REVIEW
+    ]
+
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    output_text = "\n\n".join(entries)
+    if output_text:
+        output_text += "\n"
+    output_path.write_text(output_text, encoding="utf-8")
+
+    review_path.parent.mkdir(parents=True, exist_ok=True)
+    review_payload = {
+        "schema_version": "1",
+        "input": str(input_path),
+        "bibtex_output": str(output_path),
+        "total_fragments": len(processed),
+        "reconstructed_count": len(entries),
+        "manual_review_count": len(reviews),
+        "manual_review": [
+            result.model_dump(mode="json", exclude_none=True)
+            for result in reviews
+        ],
+    }
+    review_path.write_text(
+        json.dumps(review_payload, ensure_ascii=False, indent=2) + "\n",
+        encoding="utf-8",
+    )
+    return entries, reviews
 
 
-def main():
-    import argparse
-
-    parser = argparse.ArgumentParser(description="Run BibTeX Reconstruction Pipeline")
-    parser.add_argument("--input", type=str, help="Path to input JSON file")
+def build_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(
+        description=(
+            "Reconstruct a damaged BibTeX file into Rust-validated entries. "
+            "Unresolved fragments are written to a separate review report."
+        )
+    )
+    parser.add_argument("input", type=Path, help="Damaged input .bib file")
     parser.add_argument(
-        "--output", type=str, default="output.json", help="Path to output JSON file"
+        "-o",
+        "--output",
+        type=Path,
+        default=Path("reconstructed.bib"),
+        help="Rust-validated BibTeX output",
     )
-    args = parser.parse_args()
+    parser.add_argument(
+        "--review-output",
+        type=Path,
+        default=Path("reconstruction-review.json"),
+        help="Evidence and diagnostics for unresolved fragments",
+    )
+    parser.add_argument(
+        "--fail-on-review",
+        action="store_true",
+        help="Exit with status 2 when any fragment requires manual review",
+    )
+    return parser
 
-    if args.input:
-        run_local(args.input, args.output)
-    else:
-        import uvicorn
-        uvicorn.run(app, host="localhost", port=8000)
+
+def main() -> int:
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s %(levelname)s %(name)s: %(message)s",
+    )
+    args = build_parser().parse_args()
+    entries, reviews = reconstruct_file(
+        args.input,
+        args.output,
+        args.review_output,
+    )
+    logger.info(
+        "initialization completed reconstructed=%d manual_review=%d output=%s",
+        len(entries),
+        len(reviews),
+        args.output,
+    )
+    if args.fail_on_review and reviews:
+        return 2
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

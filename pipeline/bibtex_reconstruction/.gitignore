@@ -7,6 +7,8 @@ env/
 .venv/
 
 .env
+/reconstructed.bib
+/reconstruction-review.json
 
 *.log
 .pytest_cache/

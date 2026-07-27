@@ -1,6 +1,7 @@
 # models/input_models.py
-from typing import List, Optional, Any, Union
+from typing import List, Optional
 from pydantic import BaseModel, Field
+
 
 class ReferenceData(BaseModel):
     id: str
@@ -10,20 +11,12 @@ class ReferenceData(BaseModel):
     doi: Optional[str] = None
     venue: Optional[str] = None
     raw_text: str
+    context: Optional[str] = None
 
-class DocumentRoot(BaseModel):
-    title: str
-    authors: List[str] = Field(default_factory=list)
-    year: Optional[Any] = None
-    doi: Optional[str] = None
-    abstract: str
-    reference_count: Union[int, float]
-    references: List[ReferenceData] = Field(default_factory=list)
-    saved_files: List[Any] = Field(default_factory=list)
 
 class InputData(BaseModel):
     """
-    An architectural wrapper (envelope) used internally by the SearchOrchestrator.
+    An architectural wrapper used internally by ReconstructionOrchestrator.
     It encapsulates a single reference and can be expanded in the future 
     to include system-level search parameters (e.g., timeout, retry counts).
     """

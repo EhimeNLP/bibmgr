@@ -21,7 +21,6 @@ class BaseAPIClient(ABC):
         "api.semanticscholar.org",
         "api.jstage.jst.go.jp",
         "export.arxiv.org",
-        "dblp.org",
     }
     
     @property
