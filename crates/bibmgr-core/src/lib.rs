@@ -1194,6 +1194,38 @@ kind = "conference"
     }
 
     #[test]
+    fn storage_canonicalization_normalizes_value_lines_without_changing_title_groups() {
+        let source = concat!(
+            "@inproceedings{gong-etal-2023-diffuseq,\n",
+            "  title = {{D}iffu{S}eq-v2: Bridging Text Spaces},\n",
+            "  author = {Gong, Shansan and\n",
+            "    Li, Mukai},\n",
+            "  booktitle = {Findings of ACL},\n",
+            "  year = {2023},\n",
+            "  abstract = {First sentence.\n",
+            "    Second sentence.},\n",
+            "}\n",
+        );
+
+        let result = canonicalize_for_storage(source, &RegistrationPolicy::laboratory());
+
+        assert!(
+            result.accepted,
+            "unexpected diagnostics: {:?}",
+            result.diagnostics
+        );
+        assert!(result
+            .source
+            .contains("title = {{D}iffu{S}eq-v2: Bridging Text Spaces}"));
+        assert!(result
+            .source
+            .contains("author = {Gong, Shansan and Li, Mukai}"));
+        assert!(result
+            .source
+            .contains("abstract = {First sentence. Second sentence.}"));
+    }
+
+    #[test]
     fn storage_inventory_detects_field_or_comment_loss() {
         let complete = "% retained\n@misc{k, title={T}, url={https://example.test},}\n";
         let missing_url = "% retained\n@misc{k, title={T},}\n";

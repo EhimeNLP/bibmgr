@@ -20,6 +20,7 @@ pub const RULE_VALUE_DELIMITER: &str = "BIB-SYNTAX-005";
 pub const RULE_EQUALS_WHITESPACE: &str = "BIB-SYNTAX-006";
 pub const RULE_INLINE_PERCENT_COMMENT: &str = "BIB-SYNTAX-007";
 pub const RULE_UNESCAPED_TEX_SPECIAL: &str = "BIB-SYNTAX-008";
+pub const RULE_VALUE_LINE_BREAKS: &str = "BIB-SYNTAX-009";
 pub const RULE_UNESCAPED_PERCENT: &str = RULE_UNESCAPED_TEX_SPECIAL;
 pub const RULE_DOI: &str = "BIB-SEMANTIC-001";
 pub const RULE_ARXIV: &str = "BIB-SEMANTIC-002";
@@ -60,6 +61,7 @@ pub const REGISTERED_RULE_CODES: &[&str] = &[
     RULE_EQUALS_WHITESPACE,
     RULE_INLINE_PERCENT_COMMENT,
     RULE_UNESCAPED_TEX_SPECIAL,
+    RULE_VALUE_LINE_BREAKS,
     "BIB-SEMANTIC-101",
     "BIB-SEMANTIC-102",
     "BIB-SEMANTIC-106",
@@ -1074,6 +1076,25 @@ impl<'a> Engine<'a> {
                     }),
                 );
             }
+            if let Some((range, edits)) = self.value_line_break_issue(field) {
+                self.emit(
+                    RULE_VALUE_LINE_BREAKS,
+                    format!(
+                        "field `{}` contains line breaks in its value",
+                        field.name.text
+                    ),
+                    range,
+                    vec![],
+                    vec![String::from(
+                        "stored field values use a single space at line boundaries",
+                    )],
+                    Some(FixDraft {
+                        title: format!("Normalize line breaks in `{}`", field.name.text),
+                        applicability: FixApplicability::Safe,
+                        edits,
+                    }),
+                );
+            }
         }
 
         for range in inline_percent_comment_ranges(self.syntax, entry) {
@@ -1716,6 +1737,28 @@ impl<'a> Engine<'a> {
         ))
     }
 
+    fn value_line_break_issue(&self, field: &FieldNode) -> Option<(TextRange, Vec<TextEdit>)> {
+        let mut edits = Vec::new();
+        for atom in &field.value.atoms {
+            if !matches!(
+                atom.kind,
+                ValueAtomKind::Braced { .. } | ValueAtomKind::Quoted { .. }
+            ) {
+                continue;
+            }
+            let value = self.syntax.slice(atom.content_range)?;
+            if let Some(replacement) = normalize_value_line_breaks(value) {
+                edits.push(TextEdit {
+                    range: atom.content_range,
+                    replacement,
+                });
+            }
+        }
+        let first = edits.first()?;
+        let last = edits.last()?;
+        Some((TextRange::new(first.range.start, last.range.end), edits))
+    }
+
     fn emit_conflicting_values(&mut self, label: &str, values: &BTreeMap<String, TextRange>) {
         if values.len() <= 1 {
             return;
@@ -1833,6 +1876,35 @@ fn plain_value<'a>(syntax: &'a SyntaxDocument, field: &FieldNode) -> Option<(&'a
 
 fn is_simple_horizontal_gap(value: &str) -> bool {
     value.bytes().all(|byte| matches!(byte, b' ' | b'\t'))
+}
+
+fn normalize_value_line_breaks(value: &str) -> Option<String> {
+    if !value.contains('\r') && !value.contains('\n') {
+        return None;
+    }
+
+    let mut output = String::with_capacity(value.len());
+    let mut after_line_break = false;
+    for character in value.chars() {
+        if matches!(character, '\r' | '\n') {
+            after_line_break = true;
+            while output.ends_with(' ') || output.ends_with('\t') {
+                output.pop();
+            }
+            continue;
+        }
+        if after_line_break {
+            if matches!(character, ' ' | '\t') {
+                continue;
+            }
+            if !output.is_empty() {
+                output.push(' ');
+            }
+            after_line_break = false;
+        }
+        output.push(character);
+    }
+    Some(output)
 }
 
 fn inline_percent_comment_ranges(syntax: &SyntaxDocument, entry: &EntryNode) -> Vec<TextRange> {
@@ -3492,7 +3564,10 @@ fn default_rule_setting(code: &str) -> RuleSetting {
         | RULE_INLINE_PERCENT_COMMENT
         | RULE_UNESCAPED_TEX_SPECIAL => Severity::Warning,
         RULE_FIELD_CASE | RULE_TRAILING_COMMA => Severity::Hint,
-        RULE_FIELD_ORDER | RULE_VALUE_DELIMITER | RULE_EQUALS_WHITESPACE => Severity::Information,
+        RULE_FIELD_ORDER
+        | RULE_VALUE_DELIMITER
+        | RULE_EQUALS_WHITESPACE
+        | RULE_VALUE_LINE_BREAKS => Severity::Information,
         RULE_REQUIRED_DATA | RULE_IDENTIFIER_CONFLICT => Severity::Error,
         _ if is_parser_rule(code) => Severity::Error,
         _ => Severity::Warning,
@@ -3851,6 +3926,55 @@ exclude = []
             .diagnostics
             .iter()
             .any(|diagnostic| diagnostic.code.as_str() == RULE_EQUALS_WHITESPACE));
+    }
+
+    #[test]
+    fn value_line_break_fix_preserves_bibtex_grouping_and_is_idempotent() {
+        let source = concat!(
+            "@misc{k,\n",
+            "  title = {{D}iffu{S}eq-v2},\n",
+            "  note = {first line  \r\n",
+            "      second line\n",
+            "      third line},\n",
+            "}\n",
+        );
+        let policy = ValidationPolicy::default();
+        let first = run(source, &policy);
+        let diagnostic = first
+            .diagnostics
+            .iter()
+            .find(|diagnostic| diagnostic.code.as_str() == RULE_VALUE_LINE_BREAKS)
+            .unwrap();
+        assert_eq!(diagnostic.severity, Severity::Information);
+        assert!(!diagnostic.blocking);
+
+        let fix = first
+            .fixes
+            .iter()
+            .find(|fix| diagnostic.fixes.contains(&fix.id))
+            .unwrap();
+        assert_eq!(fix.applicability, FixApplicability::Safe);
+        let plan = plan_fixes(
+            &SourceRevision::of(source),
+            &first.fixes,
+            &FixSelection::Ids(vec![fix.id.clone()]),
+        )
+        .unwrap();
+        let applied = apply_fix_plan(source, &plan).unwrap();
+        assert!(applied.source.contains("title = {{D}iffu{S}eq-v2}"));
+        assert!(applied
+            .source
+            .contains("note = {first line second line third line}"));
+
+        let second = run(&applied.source, &policy);
+        assert!(!second
+            .diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.code.as_str() == RULE_VALUE_LINE_BREAKS));
+        assert!(!second
+            .fixes
+            .iter()
+            .any(|fix| fix.id.as_str().starts_with(RULE_VALUE_LINE_BREAKS)));
     }
 
     #[test]

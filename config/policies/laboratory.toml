@@ -24,7 +24,7 @@ field_order = [
   "note",
 ]
 citation_key_pattern = '^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$'
-forbidden_fields = ["abstract", "keywords", "file", "timestamp"]
+forbidden_fields = ["file", "timestamp"]
 url_policy = "allow"
 arxiv_representation = "eprint"
 prefer_braces = true
@@ -77,6 +77,11 @@ blocking = true
 enabled = true
 severity = "error"
 blocking = true
+
+[rules."BIB-SYNTAX-009"]
+enabled = true
+severity = "information"
+blocking = false
 
 [rules."BIB-SEMANTIC-001"]
 enabled = true
