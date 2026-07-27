@@ -1,7 +1,7 @@
 schema_version = "1"
 profile = "laboratory"
 display_name = "Laboratory Canonical"
-description = "Canonical laboratory output with full venue names and a compact field projection."
+description = "Canonical laboratory output with full venue names, preserved URLs, and a compact field projection."
 validation_profile = "laboratory"
 preprint_representation = "misc-eprint"
 venue_style = "full"
@@ -22,18 +22,18 @@ field_order = [
   "year",
   "doi",
   "eprint",
-  "archiveprefix",
-  "primaryclass",
+  "archivePrefix",
+  "primaryClass",
   "url",
   "note",
 ]
-field_case = "lowercase"
+field_case = "canonical"
 value_delimiter = "braces"
 line_ending = "lf"
 indent = "  "
 trailing_comma = true
 include_doi = true
-include_url = false
+include_url = true
 include_extra_fields = true
 excluded_fields = []
 allow_unknown_work_type = false
@@ -56,8 +56,9 @@ allowed_fields = [
   "year",
   "doi",
   "eprint",
-  "archiveprefix",
-  "primaryclass",
+  "archivePrefix",
+  "primaryClass",
+  "url",
   "note",
 ]
-excluded_fields = ["url"]
+excluded_fields = []

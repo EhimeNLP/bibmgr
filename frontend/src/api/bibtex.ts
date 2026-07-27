@@ -14,7 +14,6 @@ import type {
 const API_BASE_URL = (
   (import.meta.env.VITE_API_BASE_URL as string | undefined) ?? "/api"
 ).replace(/\/$/, "");
-const API_KEY = import.meta.env.VITE_BIBMGR_API_KEY as string | undefined;
 
 export type BibtexRequestOptions = {
   signal?: AbortSignal;
@@ -60,6 +59,17 @@ export function validateBibtexForRegistration(
   options?: BibtexRequestOptions,
 ): Promise<RegistrationValidationResult> {
   return postVersionedJson("/bibtex/registration/validate", request, options);
+}
+
+export function canonicalizeBibtexForStorage(
+  request: ValidateRegistrationRequest,
+  options?: BibtexRequestOptions,
+): Promise<RegistrationValidationResult> {
+  return postVersionedJson(
+    "/bibtex/registration/canonicalize",
+    request,
+    options,
+  );
 }
 
 export function exportBibtex(
@@ -120,11 +130,7 @@ async function versionedResponse<T extends { schema_version: "1" }>(
 }
 
 function jsonHeaders(): Headers {
-  const headers = new Headers({ "Content-Type": "application/json" });
-  if (API_KEY) {
-    headers.set("X-API-Key", API_KEY);
-  }
-  return headers;
+  return new Headers({ "Content-Type": "application/json" });
 }
 
 async function readResponsePayload(response: Response): Promise<unknown> {

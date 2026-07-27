@@ -1,4 +1,10 @@
 <script setup lang="ts">
+import { reactive } from "vue";
+import type {
+  ReferenceSearchFilters,
+  ReferenceSort,
+} from "../types/reference";
+
 const props = defineProps<{
   modelValue: string;
   disabled?: boolean;
@@ -7,11 +13,39 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   "update:modelValue": [value: string];
-  search: [];
+  search: [filters: ReferenceSearchFilters];
 }>();
 
+const advanced = reactive({
+  year: "",
+  author: "",
+  venue: "",
+  identifier: "",
+  entryType: "",
+  createdBy: "",
+  updatedFrom: "",
+  updatedTo: "",
+  sort: "updated_desc" as ReferenceSort,
+});
+
 function onSubmit() {
-  emit("search");
+  const parsedYear = Number.parseInt(advanced.year, 10);
+  emit("search", {
+    query: props.modelValue,
+    year: Number.isInteger(parsedYear) ? parsedYear : undefined,
+    author: advanced.author,
+    venue: advanced.venue,
+    identifier: advanced.identifier,
+    entryType: advanced.entryType,
+    createdBy: advanced.createdBy,
+    updatedFrom: advanced.updatedFrom
+      ? new Date(`${advanced.updatedFrom}T00:00:00`).toISOString()
+      : undefined,
+    updatedTo: advanced.updatedTo
+      ? new Date(`${advanced.updatedTo}T23:59:59.999`).toISOString()
+      : undefined,
+    sort: advanced.sort,
+  });
 }
 </script>
 
@@ -47,5 +81,66 @@ function onSubmit() {
       </svg>
       <span>{{ props.loading ? "Searching…" : "Search" }}</span>
     </button>
+    <details class="search-filters">
+      <summary>Filters and sorting</summary>
+      <div class="search-filters__grid">
+        <label>
+          <span>Year</span>
+          <input
+            v-model="advanced.year"
+            type="number"
+            min="1"
+            max="9999"
+            inputmode="numeric"
+          />
+        </label>
+        <label>
+          <span>Author</span>
+          <input v-model="advanced.author" type="search" />
+        </label>
+        <label>
+          <span>Venue</span>
+          <input v-model="advanced.venue" type="search" />
+        </label>
+        <label>
+          <span>DOI or identifier</span>
+          <input v-model="advanced.identifier" type="search" />
+        </label>
+        <label>
+          <span>Entry type</span>
+          <input
+            v-model="advanced.entryType"
+            type="search"
+            placeholder="article"
+          />
+        </label>
+        <label>
+          <span>Created by</span>
+          <input
+            v-model="advanced.createdBy"
+            type="search"
+            placeholder="member@…"
+          />
+        </label>
+        <label>
+          <span>Updated from</span>
+          <input v-model="advanced.updatedFrom" type="date" />
+        </label>
+        <label>
+          <span>Updated through</span>
+          <input v-model="advanced.updatedTo" type="date" />
+        </label>
+        <label>
+          <span>Sort</span>
+          <select v-model="advanced.sort">
+            <option value="updated_desc">Recently updated</option>
+            <option value="updated_asc">Oldest update</option>
+            <option value="year_desc">Newest publication</option>
+            <option value="year_asc">Oldest publication</option>
+            <option value="title_asc">Title</option>
+          </select>
+        </label>
+      </div>
+    </details>
   </form>
 </template>

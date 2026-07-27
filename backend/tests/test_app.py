@@ -43,6 +43,18 @@ class RecordingEngine:
             "diagnostics": [],
         }
 
+    def canonicalize_for_storage(
+        self, source: str, policy: str
+    ) -> dict[str, Any]:
+        self.calls.append(("canonicalize", (source, policy)))
+        return {
+            "schema_version": "1",
+            "accepted": True,
+            "source": source,
+            "source_revision": "sha256:" + "3" * 64,
+            "diagnostics": [],
+        }
+
     def export_profiles(self) -> dict[str, Any]:
         self.calls.append(("export_profiles", ()))
         return {
@@ -152,6 +164,20 @@ def test_registration_uses_the_native_decision() -> None:
     assert engine.calls == [("validate", ("", "laboratory"))]
 
 
+def test_storage_canonicalization_uses_the_native_decision() -> None:
+    client, engine = client_and_engine()
+    source = "@misc{key, Title={T}}"
+
+    response = client.post(
+        "/bibtex/registration/canonicalize",
+        json={"source": source, "policy": "laboratory"},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["source"] == source
+    assert engine.calls == [("canonicalize", (source, "laboratory"))]
+
+
 def test_export_is_a_separate_native_operation() -> None:
     client, engine = client_and_engine()
 
@@ -241,3 +267,31 @@ def test_native_errors_use_the_versioned_error_dto() -> None:
         "schema_version": "1",
         "error": {"code": "configuration_error", "message": "unknown profile"},
     }
+
+
+def test_request_ids_and_metrics_use_normalized_routes() -> None:
+    client, _engine = client_and_engine()
+
+    response = client.get("/healthz", headers={"X-Request-ID": "test-request-1"})
+
+    assert response.status_code == 200
+    assert response.headers["X-Request-ID"] == "test-request-1"
+    metrics = client.get("/metrics").text
+    assert (
+        'bibmgr_http_requests_total{method="GET",route="/healthz",status="200"} 1'
+        in metrics
+    )
+    assert (
+        'bibmgr_http_request_duration_seconds_count'
+        '{method="GET",route="/healthz"} 1'
+        in metrics
+    )
+
+
+def test_invalid_request_id_is_replaced() -> None:
+    client, _engine = client_and_engine()
+
+    response = client.get("/healthz", headers={"X-Request-ID": "not valid"})
+
+    assert response.status_code == 200
+    assert response.headers["X-Request-ID"] != "not valid"

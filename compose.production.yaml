@@ -1,0 +1,109 @@
+name: bibmgr-production
+
+services:
+  postgres:
+    image: postgres:18-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: bibmgr
+      POSTGRES_USER: bibmgr
+      POSTGRES_PASSWORD_FILE: /run/secrets/database_password
+    secrets:
+      - database_password
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U bibmgr -d bibmgr"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    volumes:
+      - bibmgr-postgres-data:/var/lib/postgresql
+
+  migrate:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: bibmgr-backend:${BIBMGR_IMAGE_TAG:-local}
+    command: ["bibmgr-db", "upgrade"]
+    environment:
+      BIBMGR_DATABASE_URL_FILE: /run/secrets/database_url
+    secrets:
+      - database_url
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: bibmgr-backend:${BIBMGR_IMAGE_TAG:-local}
+    restart: unless-stopped
+    environment:
+      BIBMGR_ENV: production
+      BIBMGR_DATABASE_URL_FILE: /run/secrets/database_url
+      BIBMGR_AUTH_SECRET_FILE: /run/secrets/auth_secret
+      BIBMGR_AUTH_EMAIL_DOMAIN: ai.cs.ehime-u.ac.jp
+      BIBMGR_AUTH_ALLOWED_EMAILS: ${BIBMGR_AUTH_ALLOWED_EMAILS:-}
+      BIBMGR_COOKIE_SECURE: "true"
+      BIBMGR_EMAIL_FROM: ${BIBMGR_EMAIL_FROM}
+      BIBMGR_SMTP_HOST: ${BIBMGR_SMTP_HOST}
+      BIBMGR_SMTP_PORT: ${BIBMGR_SMTP_PORT:-587}
+      BIBMGR_SMTP_USERNAME: ${BIBMGR_SMTP_USERNAME:-}
+      BIBMGR_SMTP_PASSWORD_FILE: /run/secrets/smtp_password
+      BIBMGR_SMTP_STARTTLS: ${BIBMGR_SMTP_STARTTLS:-true}
+    secrets:
+      - database_url
+      - auth_secret
+      - smtp_password
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python3",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/readyz', timeout=3)",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    volumes:
+      - bibmgr-backups:/var/lib/bibmgr/backups
+
+  web:
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile
+    image: bibmgr-web:${BIBMGR_IMAGE_TAG:-local}
+    restart: unless-stopped
+    environment:
+      BIBMGR_SITE_ADDRESS: ${BIBMGR_SITE_ADDRESS}
+    depends_on:
+      backend:
+        condition: service_healthy
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    volumes:
+      - caddy-data:/data
+      - caddy-config:/config
+
+secrets:
+  database_password:
+    file: ${BIBMGR_DATABASE_PASSWORD_FILE:-./deploy/secrets/database_password}
+  database_url:
+    file: ${BIBMGR_DATABASE_URL_FILE:-./deploy/secrets/database_url}
+  auth_secret:
+    file: ${BIBMGR_AUTH_SECRET_FILE:-./deploy/secrets/auth_secret}
+  smtp_password:
+    file: ${BIBMGR_SMTP_PASSWORD_FILE:-./deploy/secrets/smtp_password}
+
+volumes:
+  bibmgr-postgres-data:
+  bibmgr-backups:
+  caddy-data:
+  caddy-config:

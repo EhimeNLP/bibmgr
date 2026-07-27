@@ -33,6 +33,7 @@ def extract_essential_info(payload: dict[str, Any]) -> dict[str, Any]:
                 "pages": item.get("pages"),
                 "publication_info": item.get("publication_info"),
                 "raw_text": item.get("raw_text"),
+                "citation_contexts": item.get("citation_contexts") or [],
             }
             for item in repaired_references
         ],
@@ -98,7 +99,11 @@ def _expanded_references(references: Any) -> list[dict[str, Any]]:
                             source=item.get("source") or "paddleocr-vl",
                             confidence=float(item.get("confidence", 0.45)),
                         )
-                        expanded.append(parsed.to_dict())
+                        parsed_item = parsed.to_dict()
+                        parsed_item["citation_contexts"] = (
+                            item.get("citation_contexts") or []
+                        )
+                        expanded.append(parsed_item)
                     continue
             except Exception:
                 pass
@@ -238,7 +243,18 @@ def _to_csv(essential: dict[str, Any]) -> str:
     buffer = io.StringIO()
     writer = csv.DictWriter(
         buffer,
-        fieldnames=["id", "title", "authors", "year", "doi", "venue", "pages", "publication_info", "raw_text"],
+        fieldnames=[
+            "id",
+            "title",
+            "authors",
+            "year",
+            "doi",
+            "venue",
+            "pages",
+            "publication_info",
+            "raw_text",
+            "citation_contexts",
+        ],
     )
     writer.writeheader()
     for reference in essential["references"]:
@@ -246,6 +262,10 @@ def _to_csv(essential: dict[str, Any]) -> str:
             {
                 **reference,
                 "authors": "; ".join(reference["authors"]),
+                "citation_contexts": " | ".join(
+                    str(context)
+                    for context in reference["citation_contexts"]
+                ),
             }
         )
     return buffer.getvalue()

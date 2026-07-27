@@ -1,7 +1,16 @@
 <script setup lang="ts">
-import { nextTick, onMounted, ref } from "vue";
-import type { Reference } from "./types/reference";
-import { searchReferences } from "./api/references";
+import { computed, nextTick, onBeforeUnmount, onMounted, ref } from "vue";
+import {
+  AUTHENTICATION_REQUIRED_EVENT,
+  clearRememberedAuthentication,
+  getAuthenticationSession,
+} from "./api/auth";
+import type {
+  Reference,
+  ReferenceSearchFilters,
+} from "./types/reference";
+import type { AuthenticationSession } from "./types/auth";
+import { searchReferencePage } from "./api/references";
 import SearchBar from "./components/SearchBar.vue";
 import ReferenceList from "./components/ReferenceList.vue";
 import ReferenceDetail from "./components/ReferenceDetail.vue";
@@ -9,6 +18,8 @@ import EmptyState from "./components/EmptyState.vue";
 import LoadingState from "./components/LoadingState.vue";
 import RegistrationPanel from "./components/RegistrationPanel.vue";
 import ThemeSwitcher from "./components/ThemeSwitcher.vue";
+import AuthMenu from "./components/AuthMenu.vue";
+import HistoryPanel from "./components/HistoryPanel.vue";
 
 const query = ref("");
 const references = ref<Reference[]>([]);
@@ -16,34 +27,104 @@ const selectedReference = ref<Reference | null>(null);
 const isLoading = ref(false);
 const errorMessage = ref<string | null>(null);
 const hasSearched = ref(false);
+const totalReferences = ref(0);
+const pageLimit = 25;
+const pageOffset = ref(0);
+const activeFilters = ref<ReferenceSearchFilters>({
+  query: "",
+  sort: "updated_desc",
+});
 const mobileView = ref<"library" | "detail">("library");
 const mobileBackButton = ref<HTMLButtonElement | null>(null);
+const authMenu = ref<InstanceType<typeof AuthMenu> | null>(null);
+const authenticationSession = ref<AuthenticationSession>({
+  schema_version: "1",
+  authenticated: false,
+});
+const pageNumber = computed(() =>
+  Math.floor(pageOffset.value / pageLimit) + 1
+);
+const pageCount = computed(() =>
+  Math.max(1, Math.ceil(totalReferences.value / pageLimit))
+);
 
 onMounted(() => {
-  void loadReferences("");
+  window.addEventListener(
+    AUTHENTICATION_REQUIRED_EVENT,
+    handleAuthenticationRequired,
+  );
+  void loadReferences(activeFilters.value, 0);
+  void loadAuthenticationSession();
 });
 
-async function loadReferences(searchQuery: string) {
+onBeforeUnmount(() => {
+  window.removeEventListener(
+    AUTHENTICATION_REQUIRED_EVENT,
+    handleAuthenticationRequired,
+  );
+});
+
+async function loadAuthenticationSession() {
+  try {
+    authenticationSession.value = await getAuthenticationSession();
+  } catch (error) {
+    console.error(error);
+    authenticationSession.value = {
+      schema_version: "1",
+      authenticated: false,
+    };
+  }
+}
+
+function handleAuthenticationChanged(session: AuthenticationSession) {
+  authenticationSession.value = session;
+  if (!session.authenticated) clearRememberedAuthentication();
+}
+
+function requestLogin() {
+  void authMenu.value?.openLogin();
+}
+
+function handleAuthenticationRequired() {
+  authenticationSession.value = {
+    schema_version: "1",
+    authenticated: false,
+  };
+  void authMenu.value?.openLogin();
+}
+
+async function loadReferences(
+  filters: ReferenceSearchFilters,
+  offset: number,
+) {
   isLoading.value = true;
   errorMessage.value = null;
   selectedReference.value = null;
 
   try {
-    references.value = await searchReferences(searchQuery);
+    const page = await searchReferencePage(filters, {
+      limit: pageLimit,
+      offset,
+    });
+    references.value = page.items;
+    totalReferences.value = page.total;
+    pageOffset.value = page.offset;
     selectedReference.value = references.value[0] ?? null;
   } catch (error) {
     console.error(error);
     errorMessage.value = "Failed to load references.";
     references.value = [];
+    totalReferences.value = 0;
   } finally {
     isLoading.value = false;
   }
 }
 
-async function handleSearch() {
+async function handleSearch(filters?: ReferenceSearchFilters) {
   mobileView.value = "library";
   hasSearched.value = true;
-  await loadReferences(query.value);
+  activeFilters.value = filters ?? activeFilters.value;
+  await loadReferences(activeFilters.value, 0);
 }
 
 async function selectReference(reference: Reference, event?: MouseEvent) {
@@ -68,20 +149,41 @@ async function showLibrary(event?: MouseEvent) {
   });
 }
 
-function handleReferenceRegistered(reference: Reference) {
-  const existingIndex = references.value.findIndex((item) => item.id === reference.id);
-  if (existingIndex >= 0) {
-    references.value[existingIndex] = reference;
-  } else {
-    references.value = [reference, ...references.value];
-  }
-
-  selectedReference.value = reference;
+async function handleReferenceRegistered(reference: Reference) {
+  await loadReferences(activeFilters.value, 0);
+  selectedReference.value =
+    references.value.find((item) => item.id === reference.id) ?? reference;
   hasSearched.value = true;
 
   if (window.matchMedia("(max-width: 720px)").matches) {
     mobileView.value = "detail";
   }
+}
+
+function handleReferenceRestored(reference: Reference) {
+  void handleReferenceRegistered(reference);
+}
+
+async function handleReferenceDeleted() {
+  const nextOffset =
+    references.value.length === 1 && pageOffset.value > 0
+      ? Math.max(0, pageOffset.value - pageLimit)
+      : pageOffset.value;
+  await loadReferences(activeFilters.value, nextOffset);
+  hasSearched.value = true;
+
+  if (
+    window.matchMedia("(max-width: 720px)").matches &&
+    !selectedReference.value
+  ) {
+    mobileView.value = "library";
+  }
+}
+
+async function changePage(direction: -1 | 1) {
+  const nextOffset = pageOffset.value + direction * pageLimit;
+  if (nextOffset < 0 || nextOffset >= totalReferences.value) return;
+  await loadReferences(activeFilters.value, nextOffset);
 }
 </script>
 
@@ -99,6 +201,11 @@ function handleReferenceRegistered(reference: Reference) {
           <p>Laboratory Bibliography Manager</p>
         </div>
         <ThemeSwitcher />
+        <AuthMenu
+          ref="authMenu"
+          :session="authenticationSession"
+          @session-changed="handleAuthenticationChanged"
+        />
       </div>
     </header>
 
@@ -116,12 +223,23 @@ function handleReferenceRegistered(reference: Reference) {
                 v-if="!isLoading"
                 class="count-badge"
                 aria-live="polite"
-                :aria-label="`${references.length} ${references.length === 1 ? 'reference' : 'references'}`"
+                :aria-label="`${totalReferences} ${totalReferences === 1 ? 'reference' : 'references'}`"
               >
-                {{ references.length }}
+                {{ totalReferences }}
               </span>
             </div>
-            <RegistrationPanel @registered="handleReferenceRegistered" />
+            <div class="pane-actions">
+              <HistoryPanel
+                :authenticated="authenticationSession.authenticated"
+                @restored="handleReferenceRestored"
+                @login-required="requestLogin"
+              />
+              <RegistrationPanel
+                :authenticated="authenticationSession.authenticated"
+                @registered="handleReferenceRegistered"
+                @login-required="requestLogin"
+              />
+            </div>
           </div>
 
           <div class="sidebar-search">
@@ -139,15 +257,15 @@ function handleReferenceRegistered(reference: Reference) {
             <div class="state-icon" aria-hidden="true">!</div>
             <h2>References could not be loaded</h2>
             <p>{{ errorMessage }}</p>
-            <button type="button" class="button-secondary" @click="handleSearch">
+            <button type="button" class="button-secondary" @click="handleSearch()">
               Try again
             </button>
           </div>
 
           <EmptyState
             v-else-if="references.length === 0 && !hasSearched"
-            title="No test references loaded"
-            message="The local test dataset is empty. Add sample entries or connect the backend database to show references."
+            title="No references found"
+            message="The database is empty. Add a reference to start the library."
           />
 
           <EmptyState
@@ -163,6 +281,29 @@ function handleReferenceRegistered(reference: Reference) {
             aria-labelledby="references-heading"
             @select="selectReference"
           />
+          <nav
+            v-if="!isLoading && totalReferences > pageLimit"
+            class="pagination"
+            aria-label="Reference pages"
+          >
+            <button
+              type="button"
+              class="button-secondary"
+              :disabled="pageOffset === 0"
+              @click="changePage(-1)"
+            >
+              Previous
+            </button>
+            <span>Page {{ pageNumber }} of {{ pageCount }}</span>
+            <button
+              type="button"
+              class="button-secondary"
+              :disabled="pageOffset + pageLimit >= totalReferences"
+              @click="changePage(1)"
+            >
+              Next
+            </button>
+          </nav>
         </aside>
 
         <section class="right-pane" aria-label="Reference details">
@@ -177,7 +318,13 @@ function handleReferenceRegistered(reference: Reference) {
             </svg>
             References
           </button>
-          <ReferenceDetail :reference="selectedReference" />
+          <ReferenceDetail
+            :reference="selectedReference"
+            :authenticated="authenticationSession.authenticated"
+            @updated="handleReferenceRegistered"
+            @deleted="handleReferenceDeleted"
+            @login-required="requestLogin"
+          />
         </section>
       </section>
     </main>

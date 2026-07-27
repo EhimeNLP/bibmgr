@@ -1,45 +1,59 @@
 import type {
   Reference,
+  PipelineImportItem,
   RegisterBibtexPayload,
   RegisterBibtexResult,
 } from "../types/reference";
+import {
+  authenticatedWriteHeaders,
+  handleAuthenticationFailure,
+} from "./auth";
 
 type ApiRecord = Record<string, unknown>;
 
 const API_BASE_URL = (
   (import.meta.env.VITE_API_BASE_URL as string | undefined) ?? "/api"
 ).replace(/\/$/, "");
-const API_KEY = import.meta.env.VITE_BIBMGR_API_KEY as string | undefined;
 
 export async function registerBibtexToDatabase(
   payload: RegisterBibtexPayload,
 ): Promise<RegisterBibtexResult> {
   const response = await fetch(`${API_BASE_URL}/references`, {
     method: "POST",
-    headers: jsonHeaders(),
+    credentials: "include",
+    headers: authenticatedWriteHeaders({ json: true }),
     body: JSON.stringify(payload),
   });
   const responsePayload = await readResponsePayload(response);
 
   if (!response.ok) {
+    handleAuthenticationFailure(response.status);
     throw new Error(errorMessage(responsePayload, "Failed to register BibTeX."));
   }
 
   return normalizeRegisterBibtexResult(responsePayload, payload.bibtex);
 }
 
-function authHeaders(): Headers {
-  const headers = new Headers();
-  if (API_KEY) {
-    headers.set("X-API-Key", API_KEY);
+export async function importPipelineReferences(
+  items: PipelineImportItem[],
+): Promise<RegisterBibtexResult> {
+  const response = await fetch(`${API_BASE_URL}/references/pipeline-import`, {
+    method: "POST",
+    credentials: "include",
+    headers: authenticatedWriteHeaders({ json: true }),
+    body: JSON.stringify({ items }),
+  });
+  const responsePayload = await readResponsePayload(response);
+  if (!response.ok) {
+    handleAuthenticationFailure(response.status);
+    throw new Error(
+      errorMessage(responsePayload, "Failed to import pipeline results."),
+    );
   }
-  return headers;
-}
-
-function jsonHeaders(): Headers {
-  const headers = authHeaders();
-  headers.set("Content-Type", "application/json");
-  return headers;
+  return normalizeRegisterBibtexResult(
+    responsePayload,
+    items[0]?.bibtex ?? "",
+  );
 }
 
 async function readResponsePayload(response: Response): Promise<unknown> {
@@ -63,30 +77,84 @@ function normalizeRegisterBibtexResult(
     asRecord(record) ??
     {};
   const fallbackReference = referenceFromBibtex(fallbackBibtex);
+  const reference = normalizeReferenceRecord(
+    referenceRecord,
+    fallbackReference,
+    fallbackBibtex,
+  );
+  const references = Array.isArray(record?.references)
+    ? record.references
+        .map((item) => asRecord(item))
+        .filter((item): item is ApiRecord => Boolean(item))
+        .map((item) =>
+          normalizeReferenceRecord(item, fallbackReference, fallbackBibtex),
+        )
+    : undefined;
 
   return {
-    reference: {
-      id:
-        stringValue(referenceRecord.id) ??
-        stringValue(referenceRecord.reference_id) ??
-        stringValue(referenceRecord.referenceId) ??
-        createClientId("reference"),
-      title: stringValue(referenceRecord.title) ?? fallbackReference.title,
-      authors: authorsValue(referenceRecord.authors) ?? fallbackReference.authors,
-      year: numberValue(referenceRecord.year) ?? fallbackReference.year,
-      venue: stringValue(referenceRecord.venue) ?? fallbackReference.venue,
-      doi: stringValue(referenceRecord.doi) ?? fallbackReference.doi,
-      url: stringValue(referenceRecord.url) ?? fallbackReference.url,
-      bibtexKey:
-        stringValue(referenceRecord.bibtexKey) ??
-        stringValue(referenceRecord.bibtex_key) ??
-        fallbackReference.bibtexKey,
-      bibtex:
-        stringValue(referenceRecord.bibtex) ??
-        stringValue(referenceRecord.formatted_bibtex) ??
-        fallbackBibtex,
-      citationContexts: fallbackReference.citationContexts,
-    },
+    reference,
+    references,
+  };
+}
+
+function normalizeReferenceRecord(
+  referenceRecord: ApiRecord,
+  fallbackReference: Reference,
+  fallbackBibtex: string,
+): Reference {
+  const rawCitationContexts =
+    referenceRecord.citationContexts ??
+    referenceRecord.citation_contexts;
+  return {
+    id:
+      stringValue(referenceRecord.id) ??
+      stringValue(referenceRecord.reference_id) ??
+      stringValue(referenceRecord.referenceId) ??
+      createClientId("reference"),
+    title: stringValue(referenceRecord.title) ?? fallbackReference.title,
+    authors: authorsValue(referenceRecord.authors) ?? fallbackReference.authors,
+    year: numberValue(referenceRecord.year) ?? fallbackReference.year,
+    venue: stringValue(referenceRecord.venue) ?? fallbackReference.venue,
+    doi: stringValue(referenceRecord.doi) ?? fallbackReference.doi,
+    url: stringValue(referenceRecord.url) ?? fallbackReference.url,
+    bibtexKey:
+      stringValue(referenceRecord.bibtexKey) ??
+      stringValue(referenceRecord.bibtex_key) ??
+      fallbackReference.bibtexKey,
+    bibtex:
+      rawStringValue(referenceRecord.bibtex) ??
+      rawStringValue(referenceRecord.formatted_bibtex) ??
+      fallbackBibtex,
+    sourceRevision:
+      stringValue(referenceRecord.sourceRevision) ??
+      stringValue(referenceRecord.source_revision),
+    citationContexts: Array.isArray(rawCitationContexts)
+      ? rawCitationContexts
+          .map(normalizeCitationContext)
+          .filter((context) => context.id && context.context)
+      : fallbackReference.citationContexts,
+    createdAt:
+      stringValue(referenceRecord.createdAt) ??
+      stringValue(referenceRecord.created_at),
+    updatedAt:
+      stringValue(referenceRecord.updatedAt) ??
+      stringValue(referenceRecord.updated_at),
+  };
+}
+
+function normalizeCitationContext(value: unknown) {
+  const record = asRecord(value) ?? {};
+  return {
+    id: stringValue(record.id) ?? "",
+    sourcePaperTitle:
+      stringValue(record.sourcePaperTitle) ??
+      stringValue(record.source_paper_title),
+    sourceFileName:
+      stringValue(record.sourceFileName) ??
+      stringValue(record.source_file_name),
+    before: stringValue(record.before),
+    context: stringValue(record.context) ?? "",
+    after: stringValue(record.after),
   };
 }
 
@@ -120,7 +188,9 @@ function extractBibtexField(
 
 function errorMessage(payload: unknown, fallback: string): string {
   const record = asRecord(payload);
+  const error = asRecord(record?.error);
   return (
+    stringValue(error?.message) ??
     stringValue(record?.detail) ??
     stringValue(record?.message) ??
     stringValue(record?.error) ??
@@ -139,6 +209,10 @@ function stringValue(value: unknown): string | undefined {
   return typeof value === "string" && value.trim().length > 0
     ? value.trim()
     : undefined;
+}
+
+function rawStringValue(value: unknown): string | undefined {
+  return typeof value === "string" && value.length > 0 ? value : undefined;
 }
 
 function numberValue(value: unknown): number | undefined {

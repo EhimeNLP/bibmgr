@@ -2,7 +2,7 @@
 
 ## Scope
 
-The runtime accepts a complete BibTeX document and exposes the same behavior to the CLI, Python backend, and Vue application. `pipeline/` is an initial data generation system and is intentionally outside the dependency graph.
+The runtime accepts a complete BibTeX document and exposes the same behavior to the CLI, Python backend, and Vue application. `pipeline/` remains outside the Rust dependency graph, but it can read the public library search API and hand reviewed reconstruction JSON to the authenticated import API.
 
 ## Dependency direction
 
@@ -37,6 +37,8 @@ flowchart TD
 ```
 
 Arrows mean “is used by.” Crates do not form dependency cycles. Parser backend types never cross the `bibmgr-syntax` boundary, and no adapter depends on `pipeline/`.
+
+The pipeline integration is an HTTP/data-contract boundary: local-library lookup uses the public paginated search endpoint, while the browser presents reconstructed candidates for human selection before an authenticated atomic import. Citation contexts travel as additive metadata and are included in restorable history snapshots.
 
 ## Processing model
 
@@ -80,7 +82,7 @@ The validation engine receives both CST and semantic bibliography plus a resolve
 - `severity` is how prominently a consumer presents the issue.
 - `blocking` is whether the active registration/export policy rejects it.
 
-Registration invokes this engine through `bibmgr-core`; neither the backend nor frontend interprets BibTeX to decide eligibility. A policy may allow an error or block on a warning without changing the rule implementation.
+Registration invokes this engine through `bibmgr-core`; neither the backend nor frontend interprets BibTeX to decide eligibility. A policy may allow an error or block on a warning without changing the rule implementation. Acceptance and storage canonicalization are separate core operations: validation does not mutate the submitted bytes, while `canonicalize_for_storage` applies safe CST edits to a fixed point, revalidates, and verifies that the document inventory was not reduced.
 
 ## Fixes and export
 
@@ -88,7 +90,7 @@ A fix is an atomic, ordered set of non-overlapping `TextEdit` values tied to a c
 
 Bulk safe fixing may require several atomic plans. The core deterministically selects a non-conflicting batch, applies it, reanalyzes, and plans the next batch against the new revision until reaching a fixed point. Thus overlapping safe suggestions are never forced into one invalid plan.
 
-Export is separate. It serializes the semantic bibliography with an explicit profile and may choose an entirely different representation, such as `@misc`/`eprint` versus `@misc`/`howpublished`. It is never used to implement a source-preserving quick fix. Ambiguous or conflicting semantics stop export, and the generated representation is revalidated with the export profile's explicit target validation policy.
+Export is separate. It serializes the semantic bibliography with an explicit target profile and may choose an entirely different representation, such as `@misc`/`eprint` versus `@misc`/`howpublished`. It is never used for storage canonicalization or a source-preserving quick fix. Conversely, validation never offers deletion of valid metadata merely because an export profile omits that field. For example, a URL remains in the submitted source, canonical laboratory source, and stored semantic record while a target-specific external export may exclude it from generated BibTeX. Ambiguous or conflicting semantics stop export, and the generated representation is revalidated with the export profile's explicit target validation policy.
 
 ## Adapter boundary
 
@@ -108,6 +110,10 @@ User input does not cause a panic. Parser recovery becomes a diagnostic in toler
 
 - [Public Rust API](api.md)
 - [Configuration](configuration.md)
+- [Database and reference API](database.md)
+- [Authentication and audit](authentication.md)
+- [Pipeline integration](pipeline-integration.md)
+- [Production operations](operations.md)
 - [Rule authoring](adding-rules.md)
 - [Venue registry](venues.md)
 - [GUI integration](gui-integration.md)

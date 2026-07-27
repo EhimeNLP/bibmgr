@@ -1,0 +1,631 @@
+<script setup lang="ts">
+import {
+  computed,
+  nextTick,
+  onBeforeUnmount,
+  onMounted,
+  reactive,
+  ref,
+  watch,
+} from "vue";
+import {
+  canonicalizeBibtexForStorage,
+  validateBibtexForRegistration,
+} from "../api/bibtex";
+import {
+  deleteReference,
+  getReference,
+  updateReference,
+} from "../api/references";
+import type { BibtexDiagnostic } from "../types/bibtex";
+import type { Reference } from "../types/reference";
+import BibtexCodeBlock from "./BibtexCodeBlock.vue";
+import BibtexEditor from "./BibtexEditor.vue";
+import BibtexValidationPanel from "./BibtexValidationPanel.vue";
+
+type CanonicalPreview = {
+  submittedSource: string;
+  canonicalSource: string;
+};
+
+const props = defineProps<{
+  reference: Reference;
+  authenticated: boolean;
+}>();
+
+const emit = defineEmits<{
+  updated: [reference: Reference];
+  deleted: [referenceId: string];
+  loginRequired: [];
+}>();
+
+const isEditOpen = ref(false);
+const isDeleteOpen = ref(false);
+const isMenuOpen = ref(false);
+const isLoadingReference = ref(false);
+const isSaving = ref(false);
+const isDeleting = ref(false);
+const editSource = ref("");
+const initialSource = ref("");
+const editSourceRevision = ref("");
+const editError = ref<string | null>(null);
+const editMessage = ref<string | null>(null);
+const deleteError = ref<string | null>(null);
+const editCanonicalPreview = ref<CanonicalPreview | null>(null);
+const editDiagnostics = reactive<BibtexDiagnostic[]>([]);
+const editDialog = ref<HTMLElement | null>(null);
+const deleteDialog = ref<HTMLElement | null>(null);
+const actionsRoot = ref<HTMLElement | null>(null);
+const actionsMenu = ref<HTMLElement | null>(null);
+const actionsTrigger = ref<HTMLButtonElement | null>(null);
+let loadGeneration = 0;
+
+const canSave = computed(
+  () =>
+    editSource.value.trim().length > 0 &&
+    editSource.value !== initialSource.value &&
+    editSourceRevision.value.length > 0 &&
+    !isLoadingReference.value &&
+    !isSaving.value,
+);
+const saveLabel = computed(() => {
+  if (isSaving.value) return "Saving…";
+  return editCanonicalPreview.value?.submittedSource === editSource.value
+    ? "Save normalized changes"
+    : "Save changes";
+});
+
+watch(editSource, (source) => {
+  if (
+    editCanonicalPreview.value &&
+    editCanonicalPreview.value.submittedSource !== source
+  ) {
+    editCanonicalPreview.value = null;
+  }
+});
+
+watch(
+  () => props.reference.id,
+  () => {
+    loadGeneration += 1;
+    isMenuOpen.value = false;
+    isEditOpen.value = false;
+    isDeleteOpen.value = false;
+    syncBodyLock();
+  },
+);
+
+onMounted(() => {
+  document.addEventListener("pointerdown", onDocumentPointerDown);
+});
+
+onBeforeUnmount(() => {
+  loadGeneration += 1;
+  document.removeEventListener("pointerdown", onDocumentPointerDown);
+  document.body.classList.remove("reference-write-open");
+});
+
+async function openEdit() {
+  isMenuOpen.value = false;
+  if (!props.authenticated) {
+    emit("loginRequired");
+    return;
+  }
+
+  const referenceId = props.reference.id;
+  const generation = ++loadGeneration;
+  isEditOpen.value = true;
+  isLoadingReference.value = true;
+  editError.value = null;
+  editMessage.value = null;
+  editCanonicalPreview.value = null;
+  replaceDiagnostics([]);
+  editSource.value = props.reference.bibtex ?? "";
+  initialSource.value = editSource.value;
+  editSourceRevision.value = props.reference.sourceRevision ?? "";
+  syncBodyLock();
+  await nextTick();
+  editDialog.value?.focus({ preventScroll: true });
+
+  try {
+    const latest = await getReference(referenceId);
+    if (
+      generation !== loadGeneration ||
+      !isEditOpen.value ||
+      props.reference.id !== referenceId
+    ) {
+      return;
+    }
+    editSource.value = latest.bibtex ?? "";
+    initialSource.value = editSource.value;
+    editSourceRevision.value = latest.sourceRevision ?? "";
+    if (!editSource.value || !editSourceRevision.value) {
+      editError.value =
+        "The latest stored BibTeX or source revision is unavailable.";
+    }
+  } catch (error) {
+    if (generation !== loadGeneration || !isEditOpen.value) return;
+    editError.value = errorText(error, "Could not load the latest reference.");
+  } finally {
+    if (generation === loadGeneration) isLoadingReference.value = false;
+  }
+}
+
+async function closeEdit() {
+  if (isSaving.value) return;
+  loadGeneration += 1;
+  isEditOpen.value = false;
+  editCanonicalPreview.value = null;
+  syncBodyLock();
+  await nextTick();
+  actionsTrigger.value?.focus({ preventScroll: true });
+}
+
+async function saveEdit() {
+  if (!canSave.value) return;
+
+  const bibtex = editSource.value;
+  const sourceRevision = editSourceRevision.value;
+  isSaving.value = true;
+  editError.value = null;
+  editMessage.value = null;
+
+  try {
+    if (editCanonicalPreview.value?.submittedSource !== bibtex) {
+      const validation = await validateBibtexForRegistration({
+        source: bibtex,
+        policy: "laboratory",
+      });
+      if (!validation.accepted) {
+        editError.value = blockedMessage(validation.diagnostics);
+        return;
+      }
+
+      const canonicalized = await canonicalizeBibtexForStorage({
+        source: bibtex,
+        policy: "laboratory",
+      });
+      if (!canonicalized.accepted) {
+        editError.value = blockedMessage(canonicalized.diagnostics);
+        return;
+      }
+      if (canonicalized.source !== bibtex) {
+        editCanonicalPreview.value = {
+          submittedSource: bibtex,
+          canonicalSource: canonicalized.source,
+        };
+        editMessage.value =
+          "Review the laboratory formatting below, then confirm the update.";
+        return;
+      }
+    }
+
+    const updated = await updateReference(props.reference.id, {
+      bibtex,
+      source_revision: sourceRevision,
+    });
+    emit("updated", updated);
+    initialSource.value = updated.bibtex ?? bibtex;
+    await closeEditAfterSave();
+  } catch (error) {
+    editError.value = errorText(error, "Could not update the reference.");
+  } finally {
+    isSaving.value = false;
+  }
+}
+
+async function closeEditAfterSave() {
+  loadGeneration += 1;
+  isEditOpen.value = false;
+  editCanonicalPreview.value = null;
+  syncBodyLock();
+  await nextTick();
+  actionsTrigger.value?.focus({ preventScroll: true });
+}
+
+async function requestDelete() {
+  isMenuOpen.value = false;
+  if (!props.authenticated) {
+    emit("loginRequired");
+    return;
+  }
+  isDeleteOpen.value = true;
+  deleteError.value = null;
+  syncBodyLock();
+  await nextTick();
+  deleteDialog.value?.focus({ preventScroll: true });
+}
+
+async function closeDelete() {
+  if (isDeleting.value) return;
+  isDeleteOpen.value = false;
+  deleteError.value = null;
+  syncBodyLock();
+  await nextTick();
+  actionsTrigger.value?.focus({ preventScroll: true });
+}
+
+async function confirmDelete() {
+  if (isDeleting.value) return;
+  const referenceId = props.reference.id;
+  isDeleting.value = true;
+  deleteError.value = null;
+
+  try {
+    const sourceRevision = props.reference.sourceRevision;
+    if (!sourceRevision) {
+      deleteError.value =
+        "The stored revision is unavailable. Reload the library before deleting.";
+      return;
+    }
+    await deleteReference(referenceId, sourceRevision);
+    isDeleteOpen.value = false;
+    syncBodyLock();
+    emit("deleted", referenceId);
+  } catch (error) {
+    deleteError.value = errorText(error, "Could not delete the reference.");
+  } finally {
+    isDeleting.value = false;
+  }
+}
+
+function replaceDiagnostics(diagnostics: BibtexDiagnostic[]) {
+  editDiagnostics.splice(0, editDiagnostics.length, ...diagnostics);
+}
+
+function onFixApplied() {
+  editError.value = null;
+  editMessage.value = "Fix applied. Check BibTeX again to confirm the result.";
+}
+
+function blockedMessage(diagnostics: Array<{ blocking: boolean }>) {
+  const count = diagnostics.filter((diagnostic) => diagnostic.blocking).length;
+  if (count === 0) {
+    return "The update is blocked by the active policy. Run Check BibTeX to review the source.";
+  }
+  return count === 1
+    ? "The update is blocked by 1 diagnostic. Run Check BibTeX to review it."
+    : `The update is blocked by ${count} diagnostics. Run Check BibTeX to review them.`;
+}
+
+function errorText(error: unknown, fallback: string) {
+  return error instanceof Error && error.message.trim()
+    ? error.message
+    : fallback;
+}
+
+function syncBodyLock() {
+  document.body.classList.toggle(
+    "reference-write-open",
+    isEditOpen.value || isDeleteOpen.value,
+  );
+}
+
+function toggleMenu() {
+  isMenuOpen.value = !isMenuOpen.value;
+}
+
+async function openMenuFromKeyboard(position: "first" | "last") {
+  isMenuOpen.value = true;
+  await nextTick();
+  const items = menuItems();
+  const target = position === "first" ? items[0] : items.at(-1);
+  target?.focus({ preventScroll: true });
+}
+
+function closeMenu(returnFocus = false) {
+  isMenuOpen.value = false;
+  if (returnFocus) {
+    void nextTick(() => actionsTrigger.value?.focus({ preventScroll: true }));
+  }
+}
+
+function onMenuKeydown(event: KeyboardEvent) {
+  const items = menuItems();
+  if (items.length === 0) return;
+  const currentIndex = items.findIndex(
+    (item) => item === document.activeElement,
+  );
+  let nextIndex: number | undefined;
+
+  if (event.key === "ArrowDown") {
+    nextIndex = currentIndex < 0 ? 0 : (currentIndex + 1) % items.length;
+  } else if (event.key === "ArrowUp") {
+    nextIndex =
+      currentIndex < 0 ? items.length - 1 : (currentIndex - 1 + items.length) % items.length;
+  } else if (event.key === "Home") {
+    nextIndex = 0;
+  } else if (event.key === "End") {
+    nextIndex = items.length - 1;
+  } else if (event.key === "Escape") {
+    event.preventDefault();
+    closeMenu(true);
+    return;
+  }
+
+  if (nextIndex === undefined) return;
+  event.preventDefault();
+  items[nextIndex]?.focus({ preventScroll: true });
+}
+
+function menuItems() {
+  return Array.from(
+    actionsMenu.value?.querySelectorAll<HTMLButtonElement>('[role="menuitem"]') ??
+      [],
+  );
+}
+
+function onDocumentPointerDown(event: PointerEvent) {
+  if (
+    isMenuOpen.value &&
+    event.target instanceof Node &&
+    !actionsRoot.value?.contains(event.target)
+  ) {
+    isMenuOpen.value = false;
+  }
+}
+
+function onEditDialogKeydown(event: KeyboardEvent) {
+  if (event.key === "Escape") {
+    event.preventDefault();
+    void closeEdit();
+    return;
+  }
+  trapDialogFocus(event, editDialog.value);
+}
+
+function onDeleteDialogKeydown(event: KeyboardEvent) {
+  if (event.key === "Escape") {
+    event.preventDefault();
+    void closeDelete();
+    return;
+  }
+  trapDialogFocus(event, deleteDialog.value);
+}
+
+function trapDialogFocus(event: KeyboardEvent, root: HTMLElement | null) {
+  if (event.key !== "Tab" || !root) return;
+  const focusable = Array.from(
+    root.querySelectorAll<HTMLElement>(
+      'button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), a[href], [tabindex]:not([tabindex="-1"])',
+    ),
+  ).filter((element) => element.getClientRects().length > 0);
+  const first = focusable[0];
+  const last = focusable.at(-1);
+  if (!first || !last) return;
+  if (
+    event.shiftKey &&
+    (document.activeElement === first || document.activeElement === root)
+  ) {
+    event.preventDefault();
+    last.focus();
+  } else if (!event.shiftKey && document.activeElement === last) {
+    event.preventDefault();
+    first.focus();
+  }
+}
+</script>
+
+<template>
+  <div ref="actionsRoot" class="reference-actions">
+    <button
+      ref="actionsTrigger"
+      type="button"
+      class="reference-actions-trigger"
+      aria-label="Reference actions"
+      aria-haspopup="menu"
+      :aria-expanded="isMenuOpen"
+      title="Reference actions"
+      @click.stop="toggleMenu"
+      @keydown.down.prevent="openMenuFromKeyboard('first')"
+      @keydown.up.prevent="openMenuFromKeyboard('last')"
+    >
+      <svg aria-hidden="true" viewBox="0 0 18 18" fill="none">
+        <circle cx="4" cy="9" r="1.15" />
+        <circle cx="9" cy="9" r="1.15" />
+        <circle cx="14" cy="9" r="1.15" />
+      </svg>
+    </button>
+
+    <div
+      v-if="isMenuOpen"
+      ref="actionsMenu"
+      class="reference-actions-menu"
+      role="menu"
+      aria-label="Reference actions"
+      @keydown="onMenuKeydown"
+    >
+      <button
+        type="button"
+        class="reference-actions-menu__item reference-action-edit"
+        role="menuitem"
+        @click="openEdit"
+      >
+        <svg aria-hidden="true" viewBox="0 0 18 18" fill="none">
+          <path d="m4 12.8-.6 2.2 2.2-.6L14 6a1.45 1.45 0 0 0 0-2.05 1.45 1.45 0 0 0-2.05 0L4 12.8Z" />
+          <path d="m10.9 5 2.1 2.1" />
+        </svg>
+        <span>Edit…</span>
+      </button>
+      <div class="reference-actions-menu__separator" role="separator" />
+      <button
+        type="button"
+        class="reference-actions-menu__item reference-actions-menu__item--danger reference-action-delete"
+        role="menuitem"
+        @click="requestDelete"
+      >
+        <svg aria-hidden="true" viewBox="0 0 18 18" fill="none">
+          <path d="M3.5 5.2h11M7 3.2h4M5.2 5.2l.6 9.1h6.4l.6-9.1M7.4 7.7v4.2M10.6 7.7v4.2" />
+        </svg>
+        <span>Delete…</span>
+      </button>
+    </div>
+
+    <Teleport v-if="isEditOpen" to="body">
+      <div
+        class="registration-backdrop reference-edit-backdrop"
+        @click.self="closeEdit"
+      >
+        <section
+          ref="editDialog"
+          class="registration-sheet reference-edit-sheet"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="reference-edit-heading"
+          tabindex="-1"
+          @keydown="onEditDialogKeydown"
+        >
+          <header class="registration-sheet__header">
+            <div>
+              <h2 id="reference-edit-heading">Edit reference</h2>
+              <p>Changes are validated and recorded as a new revision.</p>
+            </div>
+            <button
+              type="button"
+              class="registration-close"
+              aria-label="Close edit reference"
+              :disabled="isSaving"
+              @click="closeEdit"
+            >
+              <svg aria-hidden="true" viewBox="0 0 18 18" fill="none">
+                <path d="m5 5 8 8M13 5l-8 8" />
+              </svg>
+            </button>
+          </header>
+
+          <div class="registration-body">
+            <p
+              v-if="isLoadingReference"
+              class="registration-message status-message"
+              role="status"
+            >
+              Loading the latest revision…
+            </p>
+            <template v-else>
+              <label class="field-label" for="reference-edit-bibtex">
+                BibTeX entry
+                <span>Replace the complete stored entry.</span>
+              </label>
+              <BibtexEditor
+                id="reference-edit-bibtex"
+                v-model="editSource"
+                accessible-label="Reference BibTeX entry"
+                :disabled="isSaving || Boolean(editError && !editSourceRevision)"
+                :diagnostics="editDiagnostics"
+              />
+              <BibtexValidationPanel
+                :source="editSource"
+                :disabled="isSaving || !editSourceRevision"
+                @update:source="editSource = $event"
+                @update:diagnostics="replaceDiagnostics"
+                @fixed="onFixApplied"
+              />
+
+              <details
+                v-if="editCanonicalPreview"
+                class="registration-canonical-preview"
+                open
+              >
+                <summary>Laboratory BibTeX to be stored</summary>
+                <p>
+                  Only safe formatting changes are applied. Your submitted edit
+                  remains available in the revision history.
+                </p>
+                <BibtexCodeBlock
+                  :source="editCanonicalPreview.canonicalSource"
+                  accessible-label="Laboratory BibTeX update preview"
+                  test-id="edit-canonical-preview"
+                />
+              </details>
+
+              <div class="registration-actions reference-edit-actions">
+                <p
+                  v-if="editError"
+                  class="registration-error status-message"
+                  role="alert"
+                >
+                  {{ editError }}
+                </p>
+                <p
+                  v-else-if="editMessage"
+                  class="registration-message status-message"
+                  role="status"
+                >
+                  {{ editMessage }}
+                </p>
+                <button
+                  type="button"
+                  class="button-primary"
+                  :disabled="!canSave"
+                  :aria-busy="isSaving"
+                  @click="saveEdit"
+                >
+                  <span
+                    v-if="isSaving"
+                    class="button-spinner"
+                    aria-hidden="true"
+                  />
+                  {{ saveLabel }}
+                </button>
+              </div>
+            </template>
+          </div>
+        </section>
+      </div>
+    </Teleport>
+
+    <Teleport v-if="isDeleteOpen" to="body">
+      <div
+        class="auth-backdrop reference-delete-backdrop"
+        @click.self="closeDelete"
+      >
+        <section
+          ref="deleteDialog"
+          class="auth-sheet confirmation-sheet"
+          role="alertdialog"
+          aria-modal="true"
+          aria-labelledby="reference-delete-heading"
+          aria-describedby="reference-delete-description"
+          tabindex="-1"
+          @keydown="onDeleteDialogKeydown"
+        >
+          <header class="auth-sheet__header">
+            <div>
+              <h2 id="reference-delete-heading">Delete Reference?</h2>
+              <p id="reference-delete-description">
+                “{{ reference.title }}” will be removed from the library. You
+                can restore it later from History.
+              </p>
+            </div>
+          </header>
+          <p
+            v-if="deleteError"
+            class="registration-error confirmation-error"
+            role="alert"
+          >
+            {{ deleteError }}
+          </p>
+          <div class="confirmation-actions">
+            <button
+              type="button"
+              class="button-secondary"
+              :disabled="isDeleting"
+              @click="closeDelete"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              class="button-danger"
+              :disabled="isDeleting"
+              :aria-busy="isDeleting"
+              @click="confirmDelete"
+            >
+              {{ isDeleting ? "Deleting…" : "Delete" }}
+            </button>
+          </div>
+        </section>
+      </div>
+    </Teleport>
+  </div>
+</template>

@@ -49,6 +49,8 @@ class Settings(BaseSettings):
     arxiv_wait_sec: float = 0
     ## --- localdb ---
     localdb_enabled: bool = False
+    localdb_base_url: str = "http://127.0.0.1:8000/references/page"
+    localdb_timeout: int = 5
     # --- venue abbreviations ---
     venue_abbrev_map: dict[str, str] = Field(default_factory=dict)
     # --- API Keys / Environment Variables ---
@@ -78,6 +80,11 @@ class Settings(BaseSettings):
                 if isinstance(api_section, dict):
                     localdb = api_section.get("localdb", {})
                     conf_data["localdb_enabled"] = localdb.get("enabled", False)
+                    conf_data["localdb_base_url"] = localdb.get(
+                        "base_url",
+                        "http://127.0.0.1:8000/references/page",
+                    )
+                    conf_data["localdb_timeout"] = localdb.get("timeout", 5)
 
                     for service in ["crossref", "cinii", "semanticscholar", "jstage", "arxiv"]:
                         detail = api_section.get(service, {})

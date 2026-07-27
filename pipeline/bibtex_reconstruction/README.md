@@ -62,3 +62,9 @@ uv run uvicorn main:app --reload
 **開発メモ**
 - 検索の流れ: `services.orchestrator` がローカルDBをまず確認し、見つからなければ外部クライアント群に順次問い合わせ、最も高い類似度の結果を `needs_review` として返します。
 - 整形ルール: `services.formatter.apply_lab_rules` がBibTeXのフィールド抽出・補完・キー生成を行います。
+
+**BibMgRローカルDB連携**
+
+`config.yml`の`api.localdb.enabled`を`true`にすると、外部APIより先にBibMgRの公開検索APIを参照します。開発時のendpointは`http://127.0.0.1:8000/references/page`、本番は`https://HOST/api/references/page`を指定します。loopback以外の平文HTTPは拒否され、検索にlogin credentialは使用しません。
+
+再構築結果はBibMgRフロントエンドの`Pipeline result`タブで読み込み、採用候補と登録対象を人が確認してから認証済みのatomic importへ送ります。引用文脈とreview JSONの契約は[`../../docs/pipeline-integration.md`](../../docs/pipeline-integration.md)を参照してください。

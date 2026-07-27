@@ -1,366 +1,71 @@
-# Vue 3 + TypeScript + Vite
-
-This template should help get you started developing with Vue 3 and TypeScript in Vite. The template uses Vue 3 `<script setup>` SFCs, check out the [script setup docs](https://v3.vuejs.org/api/sfc-script-setup.html#sfc-script-setup) to learn more.
-
-Learn more about the recommended Project Setup and IDE Support in the [Vue Docs TypeScript Guide](https://vuejs.org/guide/typescript/overview.html#project-setup).
-
 # Frontend
 
-## 概要
+## Overview
 
-本ディレクトリでは，`bibmgr` のフロントエンド部分を実装する。
+The Vue 3 + TypeScript client provides public reference search, BibTeX validation/fixes, reference detail, and profile-based export. Database writes and operator history require an authenticated email-code session with CSRF protection.
 
-`bibmgr` は，研究室の過去論文から参考文献を抽出し，BibTeXの登録・検索・再利用を支援するWebアプリである。フロントエンドでは，文献検索，文献一覧表示，文献詳細表示，BibTeX表示，引用文脈表示などのUIを提供する。
+The interface currently supports:
 
-現時点では，バックエンド，データベース，検索処理，データ形式が未確定であるため，フロントエンド側では仮のデータ型と仮のAPI関数を用意している。実際の検索処理やデータベース接続は行わず，arXiv / ACL Anthology由来のテスト用BibTeX 10件を直書きデータとして表示する。バックエンド実装後にAPI接続部分を差し替える前提で作成している。
+- paginated free-text and structured search by year, author, venue, identifier, entry type, creator, updated range, and sort order;
+- canonical laboratory BibTeX as the default single preview, with another export profile rendered into the same preview when selected;
+- citation-context display;
+- manual and `.bib` batch registration with information-preserving canonicalization review;
+- reviewed pipeline JSON import with candidate selection and citation contexts;
+- revision-checked edit and delete actions;
+- paginated append-only history and confirmation-based restore;
+- login through the laboratory domain or an exact operator-approved external address;
+- explicit sign-out confirmation and automatic login recovery after session expiry;
+- keyboard focus containment in modal dialogs and Playwright/axe accessibility coverage.
 
-## 使用技術
+## Runtime data flow
 
-* Vue
-* TypeScript
-* Vite
-* npm
+The browser calls `/api`, which Vite proxies to `http://localhost:8000` during development and Caddy proxies to the backend in production. Initial loading and searches call `GET /references/page` and retain `total`, `limit`, and `offset` for pagination. Read-only operations do not send authentication credentials.
 
-## 現在実装済みの機能
+Protected requests send the HttpOnly session cookie with `credentials: "include"` and the session-bound `X-CSRF-Token`. A protected HTTP 401 clears remembered authentication and opens the login dialog. Update sends the observed `source_revision`; delete sends the observed revision as quoted `If-Match`; restore sends the observed history-head revision.
 
-現在，以下のフロントエンド基盤を実装している。
+## Important modules
 
-* Vue + TypeScript + Vite によるフロントエンド環境の構築
-* アプリケーション全体のレイアウト作成
-* ヘッダー表示
-* 文献検索用のクエリ入力欄
-* 文献一覧表示エリア
-* 文献詳細表示エリア
-* BibTeX表示エリア
-* 引用文脈表示エリア
-* Empty状態の表示
-* Loading状態の表示
-* Error状態の表示
-* 文献データの仮型定義
-* arXiv / ACL Anthology由来のテスト用BibTeX 10件
-* テスト用BibTeXを返すバックエンドAPI接続用の仮関数
+- `src/App.vue`: search/page/session state and responsive master-detail navigation.
+- `src/components/SearchBar.vue`: free-text and structured filters.
+- `src/components/ReferenceDetail.vue`: metadata, citation contexts, and one profile-controlled BibTeX preview.
+- `src/components/RegistrationPanel.vue`: manual, file, and reviewed pipeline registration.
+- `src/components/ReferenceActions.vue`: Apple-style More menu, edit sheet, and destructive confirmation.
+- `src/components/HistoryPanel.vue`: active/deleted histories and append-only restore.
+- `src/components/AuthMenu.vue`: email-code login and sign-out confirmation.
+- `src/api/`: typed transport and response normalization.
+- `src/types/`: authentication, history, BibTeX, and reference DTOs.
 
-現時点では，検索を実行してもバックエンドには接続されず，フロントエンド内のテスト用データを検索対象とする。空検索では全10件が返り，初期表示でも同じデータが表示される。
+## Development
 
-## ディレクトリ構成
-
-```text
-frontend/
-├─ package.json
-├─ package-lock.json
-├─ vite.config.ts
-├─ tsconfig.json
-├─ tsconfig.app.json
-├─ tsconfig.node.json
-├─ index.html
-├─ public/
-└─ src/
-   ├─ main.ts
-   ├─ App.vue
-   ├─ style.css
-   ├─ types/
-   │  └─ reference.ts
-   ├─ data/
-   │  └─ testReferences.ts
-   ├─ api/
-   │  └─ references.ts
-   └─ components/
-      ├─ SearchBar.vue
-      ├─ ReferenceList.vue
-      ├─ ReferenceCard.vue
-      ├─ ReferenceDetail.vue
-      ├─ EmptyState.vue
-      └─ LoadingState.vue
-```
-
-なお，`dist/` は `npm run build` によって生成されるビルド成果物であり，通常はGit管理に含めない。
-
-## 各ファイルの役割
-
-### `src/main.ts`
-
-Vueアプリケーションのエントリーポイントである。`App.vue` を読み込み，`index.html` 内の `#app` にVueアプリをマウントする。
-
-### `src/App.vue`
-
-アプリケーション全体のメイン画面である。検索欄，文献一覧，文献詳細表示を配置し，以下の状態を管理する。
-
-* 検索クエリ
-* 文献一覧
-* 選択中の文献
-* Loading状態
-* Error状態
-* 検索実行済みかどうか
-
-初期表示時には，テスト用BibTeXデータを読み込み，先頭の文献を詳細表示する。
-
-### `src/style.css`
-
-アプリケーション全体のスタイルを定義する。ヘッダー，検索欄，2カラムレイアウト，文献カード，詳細表示，Empty表示，Loading表示，Error表示などの見た目を管理する。
-
-### `src/types/reference.ts`
-
-フロントエンドで使用する文献データの仮型定義を行う。
-
-現在は以下のようなデータ構造を想定している。
-
-```ts
-export type CitationContext = {
-  id: string;
-  sourcePaperTitle?: string;
-  sourceFileName?: string;
-  before?: string;
-  context: string;
-  after?: string;
-};
-
-export type Reference = {
-  id: string;
-  title: string;
-  authors: string[];
-  year?: number;
-  venue?: string;
-  doi?: string;
-  url?: string;
-  bibtexKey?: string;
-  bibtex?: string;
-  citationContexts?: CitationContext[];
-};
-```
-
-バックエンド側で正式なデータ形式が決まった後，この型定義は必要に応じて修正する。
-
-### `src/api/references.ts`
-
-文献検索APIとの接続部分をまとめるファイルである。
-
-現時点ではバックエンド未接続のため，検索クエリを受け取ったうえで `src/data/testReferences.ts` のテスト用データを返す仮実装になっている。
-
-```ts
-export async function searchReferences(query: string): Promise<Reference[]> {
-  const normalizedQuery = query.trim().toLowerCase();
-  if (!normalizedQuery) return testReferences;
-  return testReferences.filter((reference) =>
-    matchesReference(reference, normalizedQuery),
-  );
-}
-```
-
-バックエンドAPIが完成した後は，この関数を実際のAPI通信処理に差し替える。
-
-### `src/data/testReferences.ts`
-
-フロントエンド確認用のテスト文献データである。arXiv / ACL Anthology由来のBibTeX 10件を `Reference` 型に変換して保持している。
-
-### `src/components/SearchBar.vue`
-
-検索入力欄のコンポーネントである。検索文字列の入力と，検索ボタンまたはEnterキーによる検索イベントの発火を担当する。
-
-実際の検索処理はこのコンポーネントでは行わず，親コンポーネントである `App.vue` に通知する。
-
-### `src/components/ReferenceList.vue`
-
-文献一覧を表示するコンポーネントである。複数の文献データを受け取り，各文献を `ReferenceCard.vue` として表示する。
-
-文献カードがクリックされた場合，選択された文献を親コンポーネントへ通知する。
-
-### `src/components/ReferenceCard.vue`
-
-文献1件分の情報をカード形式で表示するコンポーネントである。
-
-現在は以下の項目を表示する。
-
-* title
-* authors
-* year
-* venue
-* doi
-
-### `src/components/ReferenceDetail.vue`
-
-選択された文献の詳細情報を表示するコンポーネントである。
-
-現在は以下の項目を表示する。
-
-* Metadata
-* BibTeX
-* Citation Contexts
-
-BibTeXが存在する場合は，Copyボタンでクリップボードにコピーできる。
-
-### `src/components/EmptyState.vue`
-
-データが存在しない場合の表示用コンポーネントである。
-
-初期状態でテストデータを読み込めなかった場合は，テストデータが空であることを表示する。検索後に結果が存在しない場合は，一致する文献が見つからなかったことを表示する。
-
-### `src/components/LoadingState.vue`
-
-読み込み中の表示用コンポーネントである。バックエンドAPI接続後，検索処理中の状態表示として使用する。
-
-## セットアップ方法
-
-project rootで、lockfileに固定された依存パッケージをインストールする。
+Install locked dependencies and start the frontend from the repository root:
 
 ```bash
 uv run poe setup-frontend
-```
-
-## 起動方法
-
-開発用サーバーを起動する。
-
-```bash
 uv run poe dev-frontend
 ```
 
-起動後，以下のようなURLが表示される。
+The complete local stack also needs PostgreSQL, Mailpit, migrations, and the backend as described in [`../docs/local-development.md`](../docs/local-development.md).
 
-```text
-http://localhost:5173/
-```
+## Verification
 
-このURLをブラウザで開くと，フロントエンド画面を確認できる。
-
-## ビルド方法
-
-本番用のビルドを作成する場合は，以下を実行する。
+Run lint, TypeScript checks, unit/component tests, and a production build:
 
 ```bash
+uv run poe check-frontend
+uv run poe test-frontend
 uv run poe build-frontend
 ```
 
-ビルドが成功すると，`frontend/dist/` ディレクトリに本番用ファイルが生成される。ただし，`frontend/dist/` はビルド成果物であり，通常はGit管理に含めない。
-
-## 現在の表示仕様
-
-### 初期状態
-
-バックエンドとデータベースが未接続のため，初期状態では以下のようなEmpty表示を行う。
-
-```text
-No references found
-The database is currently empty. References will appear here after the backend and database are connected.
-```
-
-### 検索後に結果がない場合
-
-検索を実行しても結果が存在しない場合，以下のような表示を行う。
-
-```text
-No matching references found
-Try another keyword or check whether references have been registered.
-```
-
-### 文献未選択状態
-
-文献詳細エリアでは，文献が選択されていない場合，以下を表示する。
-
-```text
-Select a reference to view details.
-```
-
-## 今後実装するもの
-
-今後，以下の機能を実装する予定である。
-
-* バックエンドAPIとの接続
-* 実際の文献検索処理との接続
-* データベースに保存された文献一覧の取得
-* 文献詳細情報の取得
-* BibTeX復元結果の表示
-* 引用文脈抽出結果の表示
-* 文献登録機能
-* 文献編集機能
-* 文献削除機能
-* 検索条件の拡張
-* エラー表示の改善
-* UI/UXの改善
-* 画面遷移が必要な場合のルーティング追加
-
-## 今後設定が必要なもの
-
-バックエンドやデプロイ方針が決定した後，以下の設定が必要になる。
-
-### APIエンドポイント設定
-
-バックエンドAPIのURLが決まり次第，`src/api/references.ts` を修正する。
-
-例:
-
-```ts
-const response = await fetch(
-  `/api/references?query=${encodeURIComponent(query)}`
-);
-```
-
-開発環境と本番環境でAPIのURLが異なる場合は，環境変数を使用する。
-
-例:
-
-```env
-VITE_API_BASE_URL=http://localhost:8000
-```
-
-### データ形式の調整
-
-バックエンド側で正式なレスポンス形式が決まり次第，`src/types/reference.ts` の型定義を修正する。
-
-特に以下の項目はバックエンド側の設計に合わせる必要がある。
-
-* 文献ID
-* title
-* authors
-* year
-* venue
-* doi
-* BibTeX key
-* BibTeX本文
-* 引用文脈
-* 元論文情報
-* ファイル名
-* 登録日時
-* 更新日時
-
-### ルーティング設定
-
-複数画面構成にする場合は，`vue-router` の導入を検討する。
+The Playwright E2E suite uses PostgreSQL, Mailpit, a migrated database, and Chromium. It verifies the real email-code login flow, registration, search, edit, delete, history restore, and critical/serious axe findings:
 
 ```bash
-npm install vue-router
+cd frontend
+npx playwright install chromium
+npm run test:e2e
 ```
 
-想定される画面は以下である。
+## API configuration
 
-* 文献一覧画面
-* 文献詳細画面
-* 文献登録画面
-* 文献編集画面
-* BibTeX確認画面
-* 引用文脈確認画面
+`VITE_API_BASE_URL` changes the API base URL at build time. It defaults to `/api`, which is the recommended same-origin configuration for session cookies and CSRF.
 
-### 状態管理設定
-
-文献データやユーザー情報など，複数コンポーネントで共有する状態が増えた場合は，`Pinia` の導入を検討する。
-
-```bash
-npm install pinia
-```
-
-現時点では状態管理が単純であるため，Vue標準の `ref` による管理で十分である。
-
-### デプロイ設定
-
-ホスティング方式が決まり次第，以下の設定を行う。
-
-* 本番用ビルド設定
-* API接続先の環境変数設定
-* 静的ファイル配信設定
-* CI/CD設定
-* GitHub Actions設定
-
-## 注意事項
-
-現時点では，フロントエンドはバックエンド未接続である。そのため，検索処理，データベース接続，文献登録，BibTeX復元，引用文脈抽出はまだ実行されない。
-
-現在の実装は，後からバックエンドと接続するためのUI基盤である。
+The registration/import contract is documented in [`fe-registration.md`](fe-registration.md), and the pipeline JSON contract is documented in [`../docs/pipeline-integration.md`](../docs/pipeline-integration.md).

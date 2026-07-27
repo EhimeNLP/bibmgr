@@ -259,6 +259,11 @@ def _reference_from_payload(item: Any, index: int) -> Reference:
         venue=_first_string(item, ["venue", "journal", "booktitle", "publisher"]),
         source="paddleocr-vl",
         confidence=float(item.get("confidence", 0.75)),
+        citation_contexts=_citation_contexts(
+            item.get("citation_contexts")
+            or item.get("contexts")
+            or item.get("citation_context")
+        ),
         raw=item,
     )
 
@@ -287,6 +292,24 @@ def _first_string(payload: dict[str, Any], keys: list[str]) -> str | None:
             if normalized:
                 return normalized
     return None
+
+
+def _citation_contexts(value: Any) -> list[str]:
+    values = value if isinstance(value, list) else [value]
+    contexts: list[str] = []
+    for item in values:
+        if isinstance(item, dict):
+            item = (
+                item.get("context")
+                or item.get("context_text")
+                or item.get("text")
+            )
+        if not isinstance(item, str):
+            continue
+        normalized = normalize_space(item)
+        if normalized and normalized not in contexts:
+            contexts.append(normalized)
+    return contexts
 
 
 def _coerce_year(value: Any) -> str | None:

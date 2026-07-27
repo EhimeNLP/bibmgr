@@ -111,6 +111,9 @@ The parser keeps:
 - abstract
 - reference count
 - reference title/authors/year/DOI/venue/raw text
+- citation contexts associated with each reference
+
+The normalized reference model serializes `citation_contexts` so reconstruction and the reviewed BibMgR import can retain where a work was cited. See [`../../docs/pipeline-integration.md`](../../docs/pipeline-integration.md) for the end-to-end contract.
 
 ## Runner Contract
 

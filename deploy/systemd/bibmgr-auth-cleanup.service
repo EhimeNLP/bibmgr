@@ -1,0 +1,9 @@
+[Unit]
+Description=Remove expired BibMgR authentication records
+Requires=bibmgr.service
+After=bibmgr.service
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/bibmgr
+ExecStart=/usr/bin/docker compose --env-file .env.production -f compose.production.yaml run --rm --no-deps backend bibmgr-admin cleanup-auth

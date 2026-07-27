@@ -55,6 +55,8 @@ jobs:
           cache: npm
           cache-dependency-path: frontend/package-lock.json
       - run: uv run --frozen --no-default-groups poe setup-frontend
+      - run: npm audit --audit-level=high
+        working-directory: frontend
       - run: uv run --frozen --no-default-groups poe check-frontend
       - run: uv run --frozen --no-default-groups poe test-frontend
       - run: uv run --frozen --no-default-groups poe build-frontend
@@ -62,6 +64,22 @@ jobs:
   python-parity:
     name: Python binding and adapter parity
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:18-alpine
+        env:
+          POSTGRES_DB: bibmgr_test
+          POSTGRES_USER: bibmgr
+          POSTGRES_PASSWORD: bibmgr
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U bibmgr -d bibmgr_test"
+          --health-interval 2s
+          --health-timeout 5s
+          --health-retries 15
+    env:
+      BIBMGR_TEST_POSTGRES_URL: postgresql+psycopg://bibmgr:bibmgr@127.0.0.1:5432/bibmgr_test
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
@@ -78,6 +96,70 @@ jobs:
         run: uv run --frozen poe build-backend
       - name: CLI, PyO3, and backend DTO parity
         run: uv run --frozen poe test-parity
+
+  browser-e2e:
+    name: Browser E2E and accessibility
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:18-alpine
+        env:
+          POSTGRES_DB: bibmgr_e2e
+          POSTGRES_USER: bibmgr
+          POSTGRES_PASSWORD: bibmgr
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U bibmgr -d bibmgr_e2e"
+          --health-interval 2s
+          --health-timeout 5s
+          --health-retries 15
+      mailpit:
+        image: axllent/mailpit:v1.30.0
+        ports:
+          - 1025:1025
+          - 8025:8025
+    env:
+      BIBMGR_DATABASE_URL: postgresql+psycopg://bibmgr:bibmgr@127.0.0.1:5432/bibmgr_e2e
+      BIBMGR_AUTH_SECRET: e2e-only-authentication-secret
+      BIBMGR_AUTH_ALLOWED_EMAILS: e2e.visitor@example.org
+      BIBMGR_SMTP_HOST: 127.0.0.1
+      BIBMGR_SMTP_PORT: "1025"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9
+        with:
+          enable-cache: true
+          python-version: "3.12"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: uv run --frozen poe setup
+      - run: .venv/bin/bibmgr-db upgrade
+      - run: npx playwright install --with-deps chromium
+        working-directory: frontend
+      - run: npm run test:e2e
+        working-directory: frontend
+
+  pipelines:
+    name: Extraction and reconstruction pipelines
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9
+        with:
+          enable-cache: true
+          python-version: "3.12"
+      - name: Metadata extraction tests
+        working-directory: pipeline/metadata_extraction
+        run: uv run --frozen python -m unittest discover -s tests -v
+      - name: BibTeX reconstruction tests
+        working-directory: pipeline/bibtex_reconstruction
+        run: uv run --frozen python -m unittest discover -s tests -v
 
   fuzz-build:
     name: Fuzz target build

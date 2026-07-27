@@ -17,7 +17,7 @@ api:
   doi_base_url: "https://doi.org/"
   localdb:
     enabled: false        # true にすると外部API検索より先にローカルDBを参照する
-    base_url: ""          # 例: "http://localhost:8080/api/search"
+    base_url: "http://127.0.0.1:8000/references/page"
     timeout: 5
   crossref:
     base_url: "https://api.crossref.org/works"

@@ -1,6 +1,6 @@
 schema_version = "1"
 profile = "laboratory"
-field_case = "lowercase"
+field_case = "canonical"
 field_order = [
   "title",
   "author",
@@ -18,14 +18,14 @@ field_order = [
   "year",
   "doi",
   "eprint",
-  "archiveprefix",
-  "primaryclass",
+  "archivePrefix",
+  "primaryClass",
   "url",
   "note",
 ]
 citation_key_pattern = '^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$'
 forbidden_fields = ["abstract", "keywords", "file", "timestamp"]
-url_policy = "discourage"
+url_policy = "allow"
 arxiv_representation = "eprint"
 prefer_braces = true
 
@@ -164,6 +164,6 @@ severity = "warning"
 blocking = true
 
 [rules."LAB-URL-001"]
-enabled = true
+enabled = false
 severity = "information"
 blocking = false

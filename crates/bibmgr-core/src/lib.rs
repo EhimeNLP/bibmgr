@@ -303,6 +303,89 @@ pub fn validate_for_registration(
     validate_for_registration_with_options(source, policy, &options)
 }
 
+/// Produce the information-preserving source representation stored by the
+/// reference library.
+///
+/// Registration validation remains a read-only decision. Storage
+/// canonicalization is an explicit second operation that applies only fixes
+/// classified as safe, revalidates the result, and refuses any rewrite that
+/// changes the document's entry/field inventory.
+pub fn canonicalize_for_storage(
+    source: &str,
+    policy: &RegistrationPolicy,
+) -> RegistrationValidation {
+    let mut validation_policy = policy.clone();
+    validation_policy.apply_safe_fixes = false;
+    let initial = validate_for_registration(source, &validation_policy);
+    if !initial.accepted {
+        return initial;
+    }
+
+    let original_inventory = storage_inventory(source);
+    let mut canonicalization_policy = policy.clone();
+    canonicalization_policy.apply_safe_fixes = true;
+    let mut canonicalized = validate_for_registration(source, &canonicalization_policy);
+
+    if canonicalized.accepted
+        && original_inventory != storage_inventory(canonicalized.source.as_str())
+    {
+        canonicalized.accepted = false;
+        canonicalized.diagnostics.push(Diagnostic::new(
+            "storage:BIB-STORAGE-001:0",
+            RuleCode::new("BIB-STORAGE-001"),
+            bibmgr_model::Severity::Error,
+            true,
+            "storage canonicalization would change the document's bibliographic field inventory",
+            None,
+        ));
+        normalize_diagnostics(&mut canonicalized.diagnostics);
+    }
+
+    canonicalized
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct StorageInventory {
+    entries: Vec<(String, Vec<String>, usize)>,
+    strings: Vec<String>,
+    preambles: usize,
+    comments: usize,
+}
+
+fn storage_inventory(source: &str) -> StorageInventory {
+    let document = bibmgr_syntax::parse(source, ParseOptions::strict());
+    let entries = document
+        .entries()
+        .iter()
+        .map(|entry| {
+            let mut fields = entry
+                .fields
+                .iter()
+                .map(|field| field.name.text.to_ascii_lowercase())
+                .collect::<Vec<_>>();
+            fields.sort();
+            (
+                entry.entry_type.text.to_ascii_lowercase(),
+                fields,
+                entry.inline_comments.len(),
+            )
+        })
+        .collect();
+    let mut strings = document
+        .strings()
+        .iter()
+        .map(|definition| definition.name.text.to_ascii_lowercase())
+        .collect::<Vec<_>>();
+    strings.sort();
+
+    StorageInventory {
+        entries,
+        strings,
+        preambles: document.preambles().len(),
+        comments: document.comments().len(),
+    }
+}
+
 /// Validate registration with an externally loaded validation policy and
 /// optional registry snapshots. Registration always forces strict parsing.
 pub fn validate_for_registration_with_options(
@@ -1088,5 +1171,38 @@ kind = "conference"
             .diagnostics
             .iter()
             .any(|diagnostic| diagnostic.code.as_str() == "BIB-CONFIG-001"));
+    }
+
+    #[test]
+    fn storage_canonicalization_applies_safe_laboratory_style_without_losing_url() {
+        let source = "@misc{smith-2024, author={Smith, Jane}, Title={T}, year={2024}, eprint={2401.01234}, archiveprefix={arXiv}, primaryclass={cs.CL}, URL={https://example.test/paper}}\n";
+
+        let result = canonicalize_for_storage(source, &RegistrationPolicy::laboratory());
+
+        assert!(result.accepted);
+        assert_ne!(result.source, source);
+        assert!(result.source.contains("title = {T}"));
+        assert!(result.source.contains("archivePrefix = {arXiv}"));
+        assert!(result.source.contains("primaryClass = {cs.CL}"));
+        assert!(result.source.contains("url = {https://example.test/paper}"));
+        assert!(!result.applied_fix_ids.is_empty());
+
+        let repeated = canonicalize_for_storage(&result.source, &RegistrationPolicy::laboratory());
+        assert!(repeated.accepted);
+        assert_eq!(repeated.source, result.source);
+        assert!(repeated.applied_fix_ids.is_empty());
+    }
+
+    #[test]
+    fn storage_inventory_detects_field_or_comment_loss() {
+        let complete = "% retained\n@misc{k, title={T}, url={https://example.test},}\n";
+        let missing_url = "% retained\n@misc{k, title={T},}\n";
+        let missing_comment = "@misc{k, title={T}, url={https://example.test},}\n";
+
+        assert_ne!(storage_inventory(complete), storage_inventory(missing_url));
+        assert_ne!(
+            storage_inventory(complete),
+            storage_inventory(missing_comment)
+        );
     }
 }

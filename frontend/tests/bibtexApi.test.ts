@@ -5,6 +5,7 @@ import {
   analyzeBibtex,
   applyBibtexFixes,
   BibtexApiError,
+  canonicalizeBibtexForStorage,
   exportBibtex,
   listBibtexExportProfiles,
   validateBibtexForRegistration,
@@ -105,6 +106,31 @@ describe("BibTeX API", () => {
 
     const [, init] = fetchMock.mock.calls[0] as [string, RequestInit];
     expect(JSON.parse(String(init.body)).policy).toBe("laboratory");
+  });
+
+  it("requests storage canonicalization separately from validation and export", async () => {
+    const payload = {
+      schema_version: "1" as const,
+      accepted: true,
+      source_revision: sourceRevision,
+      diagnostics: [],
+      source: "@misc{key,\n  title = {T},\n}\n",
+      applied_fix_ids: ["BIB-SYNTAX-002:0"],
+      unresolved_semantics: false,
+    };
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse(payload));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(
+      canonicalizeBibtexForStorage({
+        source: "@misc{key, Title={T}}",
+        policy: "laboratory",
+      }),
+    ).resolves.toEqual(payload);
+
+    expect(fetchMock.mock.calls[0]?.[0]).toBe(
+      "/api/bibtex/registration/canonicalize",
+    );
   });
 
   it("keeps export separate from source-preserving fixes", async () => {

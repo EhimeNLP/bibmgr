@@ -1399,25 +1399,16 @@ impl<'a> Engine<'a> {
         let url_fields: Vec<_> = entry.fields_named("url").collect();
         if !url_fields.is_empty() && self.policy.url_policy != UrlPolicy::Allow {
             for field in url_fields {
-                let applicability = if self.policy.url_policy == UrlPolicy::Forbid {
-                    FixApplicability::Unsafe
-                } else {
-                    FixApplicability::RequiresConfirmation
-                };
                 self.emit(
                     RULE_URL_POLICY,
-                    String::from("URL retention conflicts with the configured profile"),
+                    String::from(
+                        "the selected profile omits URLs during export; \
+                         preserve the source field",
+                    ),
                     field.name.range,
                     vec![],
                     vec![],
-                    Some(FixDraft {
-                        title: String::from("Remove URL field"),
-                        applicability,
-                        edits: vec![TextEdit {
-                            range: field.range,
-                            replacement: String::new(),
-                        }],
-                    }),
+                    None,
                 );
             }
         }
@@ -5332,7 +5323,6 @@ exclude = []
             RULE_TRAILING_COMMA,
             RULE_VALUE_DELIMITER,
             RULE_EQUALS_WHITESPACE,
-            RULE_URL_POLICY,
         ] {
             let diagnostic = result
                 .diagnostics
@@ -5340,6 +5330,32 @@ exclude = []
                 .find(|diagnostic| diagnostic.code.as_str() == code)
                 .unwrap_or_else(|| panic!("missing expected style diagnostic {code}"));
             assert!(!diagnostic.blocking, "{code} should not block registration");
+        }
+        assert!(!result
+            .diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.code.as_str() == RULE_URL_POLICY));
+    }
+
+    #[test]
+    fn url_projection_guidance_never_offers_a_deletion_fix() {
+        let source = "@misc{key, title = {T}, url = {https://example.test},}\n";
+
+        for url_policy in [UrlPolicy::Discourage, UrlPolicy::Forbid] {
+            let mut policy = ValidationPolicy::modern();
+            policy.url_policy = url_policy;
+            let result = run(source, &policy);
+            let diagnostic = result
+                .diagnostics
+                .iter()
+                .find(|diagnostic| diagnostic.code.as_str() == RULE_URL_POLICY)
+                .expect("missing URL projection guidance");
+
+            assert!(diagnostic.fixes.is_empty());
+            assert!(result
+                .fixes
+                .iter()
+                .all(|fix| fix.title != "Remove URL field"));
         }
     }
 
@@ -5414,7 +5430,7 @@ exclude = []
     }
 
     #[test]
-    fn laboratory_rejects_a_malformed_url_but_not_url_retention() {
+    fn laboratory_rejects_a_malformed_url_without_retention_guidance() {
         let source = "@article{smith2024, title = {T}, author = {Doe, Jane}, journal = {J}, year = {2024}, url = {not a URL},}\n";
         let syntax = parse(source, ParseOptions::tolerant());
         let semantics = analyze(&syntax);
@@ -5433,13 +5449,10 @@ exclude = []
             .expect("malformed URL diagnostic");
         assert_eq!(malformed.severity, Severity::Error);
         assert!(malformed.blocking);
-        let retention = result
+        assert!(!result
             .diagnostics
             .iter()
-            .find(|diagnostic| diagnostic.code.as_str() == RULE_URL_POLICY)
-            .expect("URL retention guidance");
-        assert_eq!(retention.severity, Severity::Information);
-        assert!(!retention.blocking);
+            .any(|diagnostic| diagnostic.code.as_str() == RULE_URL_POLICY));
     }
 
     #[test]

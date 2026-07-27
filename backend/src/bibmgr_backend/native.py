@@ -74,6 +74,13 @@ class NativeEngine:
             "validate_for_registration", source, policy=policy
         )
 
+    def canonicalize_for_storage(
+        self, source: str, policy: str
+    ) -> dict[str, Any]:
+        return self._call(
+            "canonicalize_for_storage", source, policy=policy
+        )
+
     def export_profiles(self) -> dict[str, Any]:
         return self._call("export_profiles")
 

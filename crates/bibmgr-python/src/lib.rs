@@ -635,6 +635,18 @@ fn py_validate_for_registration(
     PyRegistrationValidation::from_serializable(&result)
 }
 
+#[pyfunction(name = "canonicalize_for_storage", signature = (source, policy="laboratory"))]
+fn py_canonicalize_for_storage(
+    py: Python<'_>,
+    source: String,
+    policy: &str,
+) -> PyResult<PyRegistrationValidation> {
+    let policy = RegistrationPolicy::for_profile(&ProfileId::from(policy))
+        .map_err(|error| ConfigurationError::new_err(error.to_string()))?;
+    let result = py.detach(move || bibmgr_core::canonicalize_for_storage(&source, &policy));
+    PyRegistrationValidation::from_serializable(&result)
+}
+
 #[pyfunction(name = "export", signature = (source, profile="laboratory"))]
 fn py_export(py: Python<'_>, source: String, profile: &str) -> PyResult<PyExportResult> {
     let profile = ExportProfile::for_profile(&ProfileId::from(profile))
@@ -758,6 +770,7 @@ fn bibmgr_native(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_function(wrap_pyfunction!(py_analyze, module)?)?;
     module.add_function(wrap_pyfunction!(apply_fixes, module)?)?;
     module.add_function(wrap_pyfunction!(py_validate_for_registration, module)?)?;
+    module.add_function(wrap_pyfunction!(py_canonicalize_for_storage, module)?)?;
     module.add_function(wrap_pyfunction!(py_export, module)?)?;
     module.add_function(wrap_pyfunction!(export_source, module)?)?;
     module.add_function(wrap_pyfunction!(export_profiles, module)?)?;

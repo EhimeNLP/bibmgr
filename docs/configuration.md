@@ -43,11 +43,11 @@ Rust hosts can inject immutable `VenueRegistry` and `RepositoryRegistry` snapsho
 ```toml
 schema_version = "1"
 profile = "laboratory"
-field_case = "lowercase"
+field_case = "canonical"
 field_order = ["title", "author", "booktitle", "pages", "year", "doi", "url"]
 citation_key_pattern = '^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$'
 forbidden_fields = ["file", "timestamp"]
-url_policy = "discourage"
+url_policy = "allow"
 arxiv_representation = "eprint"
 prefer_braces = true
 
@@ -69,7 +69,7 @@ The syntax style catalog includes `BIB-SYNTAX-006`, which normalizes each simple
 
 The TeX-special rule excludes raw identifier fields used for URLs, repository identifiers, and publication identifiers, plus literal content only inside complete braced arguments of `\url{...}`, `\nolinkurl{...}`, and `\path{...}`. Complete delimiter forms of `\verb`, `\verb*`, `\Verb`, and `\lstinline` are treated as verbatim and are not diagnosed, while incomplete or ambiguous literal forms and ordinary TeX command arguments require confirmation. Referenced `@string` definitions are followed recursively in the context of every consuming field; simple aliases retain the leaf applicability, command or math context that crosses a macro or concatenation boundary requires confirmation, a definition used only by excluded fields is not diagnosed, and a definition shared by prose and excluded fields is diagnosed without an automatic fix. Macro traversal is bounded by global visit and expansion-depth limits; if either limit is reached before traversal completes, an incomplete-analysis diagnostic is emitted and automatic fixes for all referenced `@string` values are disabled.
 
-The `laboratory` profile treats field spelling, field order, trailing commas, value delimiters, whitespace around `=`, and discouraged retention of a valid URL as non-blocking presentation guidance. Correctness, identity, required-data, malformed URLs, entry-internal percent comments that require parser recovery, unsafe raw TeX-special characters in text values, and explicit laboratory-convention rules remain blocking.
+The `laboratory` profile treats field spelling, field order, trailing commas, value delimiters, and whitespace around `=` as non-blocking presentation guidance. Laboratory policy allows valid URLs and retains them in both the stored source and laboratory export. No URL policy offers a metadata-deleting fix; target-specific profiles that exclude URLs project them out only during export. Correctness, identity, required-data, malformed URLs, entry-internal percent comments that require parser recovery, unsafe raw TeX-special characters in text values, and explicit laboratory-convention rules remain blocking.
 
 The duplicate semantic analyzer codes `BIB-SEMANTIC-103`, `BIB-SEMANTIC-104`, and `BIB-SEMANTIC-105` are retired in favor of the canonical DOI, arXiv, and date codes `BIB-SEMANTIC-001`, `BIB-SEMANTIC-002`, and `BIB-SEMANTIC-007`. TOML loaders migrate the retired codes to their canonical replacements and reject conflicting settings.
 
@@ -114,17 +114,17 @@ Each checked-in output profile is a complete TOML document and includes user-fac
 schema_version = "1"
 profile = "laboratory"
 display_name = "Laboratory Canonical"
-description = "Canonical laboratory output with full venue names and a compact field projection."
+description = "Canonical laboratory output with full venue names, preserved URLs, and a compact field projection."
 validation_profile = "laboratory"
 preprint_representation = "misc-eprint"
 venue_style = "full"
-field_case = "lowercase"
-field_order = ["title", "author", "editor", "journal", "booktitle", "series", "volume", "number", "pages", "publisher", "institution", "school", "address", "year", "doi", "eprint", "archiveprefix", "primaryclass", "url", "note"]
-include_url = false
+field_case = "canonical"
+field_order = ["title", "author", "editor", "journal", "booktitle", "series", "volume", "number", "pages", "publisher", "institution", "school", "address", "year", "doi", "eprint", "archivePrefix", "primaryClass", "url", "note"]
+include_url = true
 
 [field_selection]
-allowed_fields = ["title", "author", "editor", "journal", "booktitle", "series", "volume", "number", "pages", "publisher", "institution", "school", "address", "year", "doi", "eprint", "archiveprefix", "primaryclass", "note"]
-excluded_fields = ["url"]
+allowed_fields = ["title", "author", "editor", "journal", "booktitle", "series", "volume", "number", "pages", "publisher", "institution", "school", "address", "year", "doi", "eprint", "archivePrefix", "primaryClass", "url", "note"]
+excluded_fields = []
 ```
 
 `field_order` controls only serialization order and never implicitly deletes a field. `field_selection.allowed_fields` is a case-insensitive allowlist applied to every generated candidate field, including structured identifiers and extra fields; omitting it allows every candidate. `field_selection.excluded_fields` is a case-insensitive denylist applied after the allowlist. Invalid names, duplicates, and fields present in both lists are rejected while loading.
@@ -142,7 +142,7 @@ During semantic export, prose text escapes raw `%`, `&`, `#`, and `_`, renders a
 | Export profile | Configuration file | BST reference or role | Intended optimization |
 | --- | --- | --- | --- |
 | `modern` | `modern.toml` | General-purpose built-in | Modern BibTeX with structured identifiers, `eprint` metadata, and preserved supported extras |
-| `laboratory` | `laboratory.toml` | Laboratory convention | Full venue names, lowercase laboratory order, `misc-eprint`, and no discouraged URL or private metadata |
+| `laboratory` | `laboratory.toml` | Laboratory convention | Full venue names, canonical field spelling, `misc-eprint`, preserved URL metadata, and no private local metadata |
 | `acl` | `acl-publications.toml` | `acl_natbib.bst` | ACL publication fields, including DOI, renamed `pubmed`, eprint, and web metadata |
 | `aaai` | `aaai-conference.toml` | `aaai2026.bst` | AAAI publication, ISBN, EID, and eprint fields without DOI or URL |
 | `acm-publications` | `acm-publications.toml` | `ACM-Reference-Format.bst` | ACM identifiers, eprints, and ACM-specific publication metadata |

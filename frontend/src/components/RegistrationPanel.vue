@@ -1,19 +1,52 @@
 <script setup lang="ts">
-import { computed, nextTick, onBeforeUnmount, reactive, ref } from "vue";
-import { validateBibtexForRegistration } from "../api/bibtex";
-import { registerBibtexToDatabase } from "../api/registration";
+import { computed, nextTick, onBeforeUnmount, reactive, ref, watch } from "vue";
+import {
+  canonicalizeBibtexForStorage,
+  validateBibtexForRegistration,
+} from "../api/bibtex";
+import {
+  importPipelineReferences,
+  registerBibtexToDatabase,
+} from "../api/registration";
 import type { BibtexDiagnostic } from "../types/bibtex";
-import type { Reference } from "../types/reference";
+import type {
+  Reference,
+  PipelineImportItem,
+  RegisterBibtexResult,
+} from "../types/reference";
 import { countBibliographicEntries } from "../utils/bibtexHighlight";
 import BibtexEditor from "./BibtexEditor.vue";
+import BibtexCodeBlock from "./BibtexCodeBlock.vue";
 import BibtexValidationPanel from "./BibtexValidationPanel.vue";
 
-type RegistrationMode = "manual" | "file";
+type RegistrationMode = "manual" | "file" | "pipeline";
+type CanonicalPreview = {
+  submittedSource: string;
+  canonicalSource: string;
+};
+type PipelineBibtexOption = {
+  label: string;
+  bibtex: string;
+};
+type PipelineReviewItem = {
+  id: string;
+  title: string;
+  selected: boolean;
+  selectedBibtex: string;
+  bibtexOptions: PipelineBibtexOption[];
+  contexts: PipelineImportItem["citation_contexts"];
+};
 
 const MAX_BIB_FILE_SIZE = 2 * 1024 * 1024;
+const MAX_PIPELINE_FILE_SIZE = 10 * 1024 * 1024;
+
+const props = defineProps<{
+  authenticated: boolean;
+}>();
 
 const emit = defineEmits<{
   registered: [reference: Reference];
+  loginRequired: [];
 }>();
 
 const isOpen = ref(false);
@@ -27,6 +60,7 @@ const isManualRegistering = ref(false);
 const manualError = ref<string | null>(null);
 const manualMessage = ref<string | null>(null);
 const manualDiagnostics = reactive<BibtexDiagnostic[]>([]);
+const manualCanonicalPreview = ref<CanonicalPreview | null>(null);
 
 const selectedBibFile = ref<File | null>(null);
 const fileBibtex = ref("");
@@ -35,6 +69,14 @@ const isFileRegistering = ref(false);
 const fileError = ref<string | null>(null);
 const fileMessage = ref<string | null>(null);
 const fileDiagnostics = reactive<BibtexDiagnostic[]>([]);
+const fileCanonicalPreview = ref<CanonicalPreview | null>(null);
+const pipelineInput = ref<HTMLInputElement | null>(null);
+const selectedPipelineFile = ref<File | null>(null);
+const pipelineItems = ref<PipelineReviewItem[]>([]);
+const isPipelineReading = ref(false);
+const isPipelineImporting = ref(false);
+const pipelineError = ref<string | null>(null);
+const pipelineMessage = ref<string | null>(null);
 
 const canRegisterManual = computed(
   () => manualBibtex.value.trim().length > 0 && !isManualRegistering.value,
@@ -57,10 +99,52 @@ const fileEntryCountLabel = computed(() =>
 );
 const fileRegistrationLabel = computed(() => {
   if (isFileRegistering.value) return "Registering…";
+  if (
+    fileCanonicalPreview.value?.submittedSource === fileBibtex.value
+  ) {
+    return fileEntryCount.value === 1
+      ? "Register normalized reference"
+      : `Register ${fileEntryCount.value} normalized references`;
+  }
   if (fileEntryCount.value === 0) return "Register file";
   return fileEntryCount.value === 1
     ? "Register 1 reference"
     : `Register ${fileEntryCount.value} references`;
+});
+const manualRegistrationLabel = computed(() => {
+  if (isManualRegistering.value) return "Registering…";
+  return manualCanonicalPreview.value?.submittedSource === manualBibtex.value
+    ? "Register normalized BibTeX"
+    : "Register BibTeX";
+});
+const selectedPipelineItems = computed(() =>
+  pipelineItems.value.filter(
+    (item) => item.selected && item.selectedBibtex.trim(),
+  ),
+);
+const canImportPipeline = computed(
+  () =>
+    selectedPipelineItems.value.length > 0 &&
+    !isPipelineReading.value &&
+    !isPipelineImporting.value,
+);
+
+watch(manualBibtex, (source) => {
+  if (
+    manualCanonicalPreview.value &&
+    manualCanonicalPreview.value.submittedSource !== source
+  ) {
+    manualCanonicalPreview.value = null;
+  }
+});
+
+watch(fileBibtex, (source) => {
+  if (
+    fileCanonicalPreview.value &&
+    fileCanonicalPreview.value.submittedSource !== source
+  ) {
+    fileCanonicalPreview.value = null;
+  }
 });
 
 onBeforeUnmount(() => {
@@ -68,6 +152,10 @@ onBeforeUnmount(() => {
 });
 
 async function openRegistration() {
+  if (!props.authenticated) {
+    emit("loginRequired");
+    return;
+  }
   isOpen.value = true;
   document.body.classList.add("registration-open");
   await nextTick();
@@ -131,22 +219,44 @@ async function registerManualBibtex() {
   manualMessage.value = null;
 
   try {
-    const validation = await validateBibtexForRegistration({
-      source: bibtex,
-      policy: "laboratory",
-    });
-    if (!validation.accepted) {
-      manualError.value = registrationBlockedMessage(validation.diagnostics);
-      return;
+    if (manualCanonicalPreview.value?.submittedSource !== bibtex) {
+      const validation = await validateBibtexForRegistration({
+        source: bibtex,
+        policy: "laboratory",
+      });
+      if (!validation.accepted) {
+        manualError.value = registrationBlockedMessage(validation.diagnostics);
+        return;
+      }
+      const canonicalized = await canonicalizeBibtexForStorage({
+        source: bibtex,
+        policy: "laboratory",
+      });
+      if (!canonicalized.accepted) {
+        manualError.value = registrationBlockedMessage(
+          canonicalized.diagnostics,
+        );
+        return;
+      }
+      if (canonicalized.source !== bibtex) {
+        manualCanonicalPreview.value = {
+          submittedSource: bibtex,
+          canonicalSource: canonicalized.source,
+        };
+        manualMessage.value =
+          "Review the laboratory formatting below, then confirm registration.";
+        return;
+      }
     }
     const result = await registerBibtexToDatabase({
-      bibtex: validation.source,
+      bibtex,
       source: "manual",
     });
     manualBibtex.value = "";
+    manualCanonicalPreview.value = null;
     replaceDiagnostics(manualDiagnostics, []);
     manualMessage.value = "Registered.";
-    emit("registered", result.reference);
+    emitRegisteredReferences(result);
   } catch (error) {
     manualError.value =
       error instanceof Error ? error.message : "Failed to register BibTeX.";
@@ -164,6 +274,7 @@ async function onBibFileChange(event: Event) {
   replaceDiagnostics(fileDiagnostics, []);
   fileError.value = null;
   fileMessage.value = null;
+  fileCanonicalPreview.value = null;
 
   if (!file) return;
 
@@ -202,6 +313,215 @@ async function onBibFileChange(event: Event) {
   }
 }
 
+async function onPipelineFileChange(event: Event) {
+  const input = event.target as HTMLInputElement;
+  const file = input.files?.[0];
+  selectedPipelineFile.value = null;
+  pipelineItems.value = [];
+  pipelineError.value = null;
+  pipelineMessage.value = null;
+  if (!file) return;
+  if (!file.name.toLowerCase().endsWith(".json")) {
+    pipelineError.value = "Choose a pipeline result with the .json extension.";
+    input.value = "";
+    return;
+  }
+  if (file.size > MAX_PIPELINE_FILE_SIZE) {
+    pipelineError.value = "The pipeline result must be 10 MB or smaller.";
+    input.value = "";
+    return;
+  }
+  isPipelineReading.value = true;
+  try {
+    const payload: unknown = JSON.parse(
+      (await file.text()).replace(/^\uFEFF/, ""),
+    );
+    const items = parsePipelineResult(payload, file.name);
+    if (items.length === 0) {
+      throw new Error(
+        "No candidate containing BibTeX was found in this pipeline result.",
+      );
+    }
+    selectedPipelineFile.value = file;
+    pipelineItems.value = items;
+    pipelineMessage.value =
+      `${items.length} reconstructed ${items.length === 1 ? "reference is" : "references are"} ready for review.`;
+  } catch (error) {
+    pipelineError.value =
+      error instanceof Error
+        ? `Could not read ${file.name}: ${error.message}`
+        : `Could not read ${file.name}.`;
+    input.value = "";
+  } finally {
+    isPipelineReading.value = false;
+  }
+}
+
+async function importReviewedPipeline() {
+  if (!canImportPipeline.value) return;
+  isPipelineImporting.value = true;
+  pipelineError.value = null;
+  pipelineMessage.value = null;
+  try {
+    const result = await importPipelineReferences(
+      selectedPipelineItems.value.map((item) => ({
+        bibtex: item.selectedBibtex,
+        citation_contexts: item.contexts,
+      })),
+    );
+    const count = result.references?.length ?? 1;
+    pipelineMessage.value = `Imported ${count} reviewed ${count === 1 ? "reference" : "references"}.`;
+    pipelineItems.value = [];
+    selectedPipelineFile.value = null;
+    if (pipelineInput.value) pipelineInput.value.value = "";
+    emitRegisteredReferences(result);
+  } catch (error) {
+    pipelineError.value =
+      error instanceof Error
+        ? error.message
+        : "Failed to import pipeline results.";
+  } finally {
+    isPipelineImporting.value = false;
+  }
+}
+
+function parsePipelineResult(
+  payload: unknown,
+  sourceFileName: string,
+): PipelineReviewItem[] {
+  const root = objectValue(payload);
+  const sourcePaperTitle =
+    textValue(root?.title) ?? textValue(objectValue(root?.metadata)?.title);
+  const explicitItems = Array.isArray(root?.items) ? root.items : null;
+  if (explicitItems) {
+    return explicitItems
+      .map((value, index) =>
+        parseGenericPipelineItem(
+          value,
+          index,
+          sourcePaperTitle,
+          sourceFileName,
+        ),
+      )
+      .filter((item): item is PipelineReviewItem => item !== null);
+  }
+
+  const processed = Array.isArray(root?.processed_references)
+    ? root.processed_references
+    : [];
+  return processed
+    .map((value, index) => {
+      const item = objectValue(value);
+      const original = objectValue(item?.original_data);
+      const candidates = Array.isArray(item?.candidates)
+        ? item.candidates
+        : [];
+      const options = candidates
+        .map((candidate, candidateIndex) => {
+          const record = objectValue(candidate);
+          const bibtex = textValue(record?.bibtex);
+          if (!bibtex) return null;
+          return {
+            label:
+              textValue(record?.source_api) ??
+              `Candidate ${candidateIndex + 1}`,
+            bibtex,
+          };
+        })
+        .filter((option): option is PipelineBibtexOption => option !== null);
+      if (options.length === 0) return null;
+      return {
+        id:
+          textValue(item?.ref_id) ??
+          textValue(original?.id) ??
+          `reference-${index + 1}`,
+        title:
+          textValue(original?.title) ??
+          `Reconstructed reference ${index + 1}`,
+        selected: true,
+        selectedBibtex: options[0].bibtex,
+        bibtexOptions: options,
+        contexts: normalizePipelineContexts(
+          original?.citation_contexts ?? item?.citation_contexts,
+          sourcePaperTitle,
+          sourceFileName,
+        ),
+      };
+    })
+    .filter((item): item is PipelineReviewItem => item !== null);
+}
+
+function parseGenericPipelineItem(
+  value: unknown,
+  index: number,
+  sourcePaperTitle: string | undefined,
+  sourceFileName: string,
+): PipelineReviewItem | null {
+  const item = objectValue(value);
+  const bibtex = textValue(item?.bibtex);
+  if (!bibtex) return null;
+  const option = { label: "Pipeline result", bibtex };
+  return {
+    id: textValue(item?.id) ?? `reference-${index + 1}`,
+    title: textValue(item?.title) ?? `Reconstructed reference ${index + 1}`,
+    selected: true,
+    selectedBibtex: bibtex,
+    bibtexOptions: [option],
+    contexts: normalizePipelineContexts(
+      item?.citation_contexts,
+      textValue(item?.source_paper_title) ?? sourcePaperTitle,
+      textValue(item?.source_file_name) ?? sourceFileName,
+    ),
+  };
+}
+
+function normalizePipelineContexts(
+  value: unknown,
+  sourcePaperTitle: string | undefined,
+  sourceFileName: string,
+): PipelineImportItem["citation_contexts"] {
+  if (!Array.isArray(value)) return [];
+  const normalized: PipelineImportItem["citation_contexts"] = [];
+  for (const raw of value) {
+    if (typeof raw === "string" && raw.trim()) {
+      normalized.push({
+        source_paper_title: sourcePaperTitle,
+        source_file_name: sourceFileName,
+        context: raw.trim(),
+      });
+      continue;
+    }
+    const context = objectValue(raw);
+    const text =
+      textValue(context?.context) ??
+      textValue(context?.context_text) ??
+      textValue(context?.text);
+    if (!text) continue;
+    normalized.push({
+      source_paper_title:
+        textValue(context?.source_paper_title) ?? sourcePaperTitle,
+      source_file_name:
+        textValue(context?.source_file_name) ?? sourceFileName,
+      before: textValue(context?.before) ?? textValue(context?.before_text),
+      context: text,
+      after: textValue(context?.after) ?? textValue(context?.after_text),
+    });
+  }
+  return normalized;
+}
+
+function objectValue(value: unknown): Record<string, unknown> | undefined {
+  return typeof value === "object" && value !== null && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : undefined;
+}
+
+function textValue(value: unknown): string | undefined {
+  return typeof value === "string" && value.trim()
+    ? value.trim()
+    : undefined;
+}
+
 async function registerFileBibtex() {
   if (!selectedBibFile.value || !fileBibtex.value.trim()) return;
 
@@ -212,24 +532,46 @@ async function registerFileBibtex() {
   fileMessage.value = null;
 
   try {
-    const validation = await validateBibtexForRegistration({
-      source: bibtex,
-      policy: "laboratory",
-    });
-    if (!validation.accepted) {
-      fileError.value = registrationBlockedMessage(validation.diagnostics);
-      return;
+    if (fileCanonicalPreview.value?.submittedSource !== bibtex) {
+      const validation = await validateBibtexForRegistration({
+        source: bibtex,
+        policy: "laboratory",
+      });
+      if (!validation.accepted) {
+        fileError.value = registrationBlockedMessage(validation.diagnostics);
+        return;
+      }
+      const canonicalized = await canonicalizeBibtexForStorage({
+        source: bibtex,
+        policy: "laboratory",
+      });
+      if (!canonicalized.accepted) {
+        fileError.value = registrationBlockedMessage(
+          canonicalized.diagnostics,
+        );
+        return;
+      }
+      if (canonicalized.source !== bibtex) {
+        fileCanonicalPreview.value = {
+          submittedSource: bibtex,
+          canonicalSource: canonicalized.source,
+        };
+        fileMessage.value =
+          "Review the laboratory formatting below, then confirm registration.";
+        return;
+      }
     }
     const result = await registerBibtexToDatabase({
-      bibtex: validation.source,
+      bibtex,
       source: "file",
     });
     selectedBibFile.value = null;
     fileBibtex.value = "";
+    fileCanonicalPreview.value = null;
     replaceDiagnostics(fileDiagnostics, []);
     resetFileInput();
     fileMessage.value = `${fileName} was registered.`;
-    emit("registered", result.reference);
+    emitRegisteredReferences(result);
   } catch (error) {
     fileError.value =
       error instanceof Error ? error.message : "Failed to register BibTeX.";
@@ -243,12 +585,21 @@ function failFileSelection(message: string, input: HTMLInputElement) {
   fileBibtex.value = "";
   replaceDiagnostics(fileDiagnostics, []);
   fileMessage.value = null;
+  fileCanonicalPreview.value = null;
   fileError.value = message;
   input.value = "";
 }
 
 function resetFileInput() {
   if (fileInput.value) fileInput.value.value = "";
+}
+
+function emitRegisteredReferences(result: RegisterBibtexResult) {
+  const references =
+    result.references?.length ? result.references : [result.reference];
+  for (const reference of references) {
+    emit("registered", reference);
+  }
 }
 
 function replaceDiagnostics(
@@ -299,6 +650,7 @@ function onFileFixApplied() {
       aria-label="Add reference"
       aria-haspopup="dialog"
       :aria-expanded="isOpen"
+      :title="authenticated ? undefined : 'Log in to add references'"
       @click="openRegistration"
     >
       <svg aria-hidden="true" viewBox="0 0 18 18" fill="none">
@@ -307,9 +659,8 @@ function onFileFixApplied() {
       <span>Add reference</span>
     </button>
 
-    <Teleport to="body">
+    <Teleport v-if="isOpen" to="body">
       <div
-        v-if="isOpen"
         class="registration-backdrop"
         @click.self="closeRegistration"
       >
@@ -351,9 +702,9 @@ function onFileFixApplied() {
                 :tabindex="mode === 'manual' ? 0 : -1"
                 @click="selectMode('manual')"
                 @keydown.right.prevent="selectMode('file', true)"
-                @keydown.left.prevent="selectMode('file', true)"
+                @keydown.left.prevent="selectMode('pipeline', true)"
                 @keydown.home.prevent="selectMode('manual', true)"
-                @keydown.end.prevent="selectMode('file', true)"
+                @keydown.end.prevent="selectMode('pipeline', true)"
               >
                 Manual entry
               </button>
@@ -367,17 +718,33 @@ function onFileFixApplied() {
                 :tabindex="mode === 'file' ? 0 : -1"
                 @click="selectMode('file')"
                 @keydown.left.prevent="selectMode('manual', true)"
-                @keydown.right.prevent="selectMode('manual', true)"
+                @keydown.right.prevent="selectMode('pipeline', true)"
                 @keydown.home.prevent="selectMode('manual', true)"
-                @keydown.end.prevent="selectMode('file', true)"
+                @keydown.end.prevent="selectMode('pipeline', true)"
               >
                 BibTeX file
+              </button>
+              <button
+                id="registration-tab-pipeline"
+                type="button"
+                role="tab"
+                :class="{ active: mode === 'pipeline' }"
+                :aria-selected="mode === 'pipeline'"
+                aria-controls="registration-panel-pipeline"
+                :tabindex="mode === 'pipeline' ? 0 : -1"
+                @click="selectMode('pipeline')"
+                @keydown.left.prevent="selectMode('file', true)"
+                @keydown.right.prevent="selectMode('manual', true)"
+                @keydown.home.prevent="selectMode('manual', true)"
+                @keydown.end.prevent="selectMode('pipeline', true)"
+              >
+                Pipeline result
               </button>
             </div>
           </div>
 
           <div
-            v-show="mode === 'manual'"
+            v-if="mode === 'manual'"
             id="registration-panel-manual"
             class="registration-body"
             role="tabpanel"
@@ -402,6 +769,23 @@ function onFileFixApplied() {
               @update:diagnostics="onManualDiagnostics"
               @fixed="onManualFixApplied"
             />
+
+            <details
+              v-if="manualCanonicalPreview"
+              class="registration-canonical-preview"
+              open
+            >
+              <summary>Laboratory BibTeX to be stored</summary>
+              <p>
+                Only safe formatting changes are applied. Your submitted source
+                remains available in the revision history.
+              </p>
+              <BibtexCodeBlock
+                :source="manualCanonicalPreview.canonicalSource"
+                accessible-label="Laboratory BibTeX registration preview"
+                test-id="manual-canonical-preview"
+              />
+            </details>
 
             <div class="registration-actions">
               <p
@@ -430,13 +814,13 @@ function onFileFixApplied() {
                   class="button-spinner"
                   aria-hidden="true"
                 />
-                {{ isManualRegistering ? "Registering…" : "Register BibTeX" }}
+                {{ manualRegistrationLabel }}
               </button>
             </div>
           </div>
 
           <div
-            v-show="mode === 'file'"
+            v-if="mode === 'file'"
             id="registration-panel-file"
             class="registration-body"
             role="tabpanel"
@@ -502,6 +886,22 @@ function onFileFixApplied() {
                 @update:diagnostics="onFileDiagnostics"
                 @fixed="onFileFixApplied"
               />
+              <details
+                v-if="fileCanonicalPreview"
+                class="registration-canonical-preview"
+                open
+              >
+                <summary>Laboratory BibTeX to be stored</summary>
+                <p>
+                  Only safe formatting changes are applied. The submitted file
+                  remains available in the revision history.
+                </p>
+                <BibtexCodeBlock
+                  :source="fileCanonicalPreview.canonicalSource"
+                  accessible-label="Laboratory BibTeX file registration preview"
+                  test-id="file-canonical-preview"
+                />
+              </details>
             </template>
 
             <div class="registration-actions registration-actions--file">
@@ -518,6 +918,138 @@ function onFileFixApplied() {
                   aria-hidden="true"
                 />
                 {{ fileRegistrationLabel }}
+              </button>
+            </div>
+          </div>
+
+          <div
+            v-if="mode === 'pipeline'"
+            id="registration-panel-pipeline"
+            class="registration-body"
+            role="tabpanel"
+            aria-labelledby="registration-tab-pipeline"
+          >
+            <label class="file-picker">
+              <input
+                id="pipeline-file"
+                ref="pipelineInput"
+                type="file"
+                accept=".json,application/json"
+                :disabled="isPipelineReading || isPipelineImporting"
+                @change="onPipelineFileChange"
+              />
+              <span class="file-picker__icon" aria-hidden="true">
+                <svg viewBox="0 0 20 20" fill="none">
+                  <path d="M4 3.5h12v13H4zM7 7h6M7 10h6M7 13h4" />
+                </svg>
+              </span>
+              <span class="file-picker__copy">
+                <strong>
+                  {{
+                    selectedPipelineFile
+                      ? "Pipeline result selected"
+                      : "Choose a pipeline JSON result"
+                  }}
+                </strong>
+                <span>
+                  {{
+                    selectedPipelineFile?.name ??
+                    "Reconstruction output, up to 10 MB"
+                  }}
+                </span>
+              </span>
+              <span class="file-picker__action">Browse</span>
+            </label>
+
+            <p
+              v-if="pipelineError"
+              class="registration-error status-message"
+              role="alert"
+            >
+              {{ pipelineError }}
+            </p>
+            <p
+              v-else-if="pipelineMessage"
+              class="registration-message status-message"
+              role="status"
+            >
+              {{ pipelineMessage }}
+            </p>
+
+            <div
+              v-if="pipelineItems.length"
+              class="pipeline-review-list"
+              aria-label="Reconstructed references to review"
+            >
+              <article
+                v-for="item in pipelineItems"
+                :key="item.id"
+                class="pipeline-review-item"
+              >
+                <label class="pipeline-review-item__select">
+                  <input
+                    v-model="item.selected"
+                    type="checkbox"
+                    :disabled="isPipelineImporting"
+                  />
+                  <span>
+                    <strong>{{ item.title }}</strong>
+                    <small>
+                      {{ item.contexts.length }}
+                      citation
+                      {{ item.contexts.length === 1 ? "context" : "contexts" }}
+                    </small>
+                  </span>
+                </label>
+                <label
+                  v-if="item.bibtexOptions.length > 1"
+                  class="field-label"
+                >
+                  Candidate source
+                  <select
+                    v-model="item.selectedBibtex"
+                    :disabled="!item.selected || isPipelineImporting"
+                  >
+                    <option
+                      v-for="option in item.bibtexOptions"
+                      :key="option.label"
+                      :value="option.bibtex"
+                    >
+                      {{ option.label }}
+                    </option>
+                  </select>
+                </label>
+                <details>
+                  <summary>Review BibTeX</summary>
+                  <BibtexCodeBlock
+                    :source="item.selectedBibtex"
+                    :accessible-label="`Reconstructed BibTeX for ${item.title}`"
+                  />
+                </details>
+              </article>
+            </div>
+
+            <div class="registration-actions registration-actions--file">
+              <span v-if="pipelineItems.length">
+                {{ selectedPipelineItems.length }} selected
+              </span>
+              <button
+                type="button"
+                class="button-primary"
+                :disabled="!canImportPipeline"
+                :aria-busy="isPipelineImporting"
+                @click="importReviewedPipeline"
+              >
+                <span
+                  v-if="isPipelineImporting"
+                  class="button-spinner"
+                  aria-hidden="true"
+                />
+                {{
+                  isPipelineImporting
+                    ? "Importing…"
+                    : "Import reviewed references"
+                }}
               </button>
             </div>
           </div>

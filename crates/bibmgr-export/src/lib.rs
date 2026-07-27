@@ -2716,7 +2716,7 @@ validation_profile = "modern"
             .source;
         assert!(eprint.starts_with("@misc{vaswani2017,"));
         assert!(eprint.contains("eprint = {1706.03762}"));
-        assert!(eprint.contains("archiveprefix = {arXiv}"));
+        assert!(eprint.contains("archivePrefix = {arXiv}"));
 
         let howpublished = export(&bibliography, &ExportProfile::classical_bst())
             .unwrap()
@@ -3456,7 +3456,7 @@ validation_profile = "modern"
     }
 
     #[test]
-    fn export_profiles_drop_fields_forbidden_by_the_target_format() {
+    fn export_profiles_project_fields_for_the_target_format() {
         let bibliography = bibliography(
             "@misc{k, title={T}, abstract={Private}, file={local.pdf}, url={https://example.test},}\n",
         );
@@ -3466,7 +3466,7 @@ validation_profile = "modern"
             .source;
         assert!(!laboratory.contains("abstract ="));
         assert!(!laboratory.contains("file ="));
-        assert!(!laboratory.contains("url ="));
+        assert!(laboratory.contains("url = {https://example.test/}"));
 
         let classical = export(&bibliography, &ExportProfile::classical_bst())
             .unwrap()
