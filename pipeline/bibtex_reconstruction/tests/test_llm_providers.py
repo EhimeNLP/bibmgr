@@ -151,7 +151,7 @@ def test_environment_overrides_yaml_llm_settings(monkeypatch):
         "http://localhost:1234/v1",
     )
 
-    configured = Settings.load_settings()
+    configured = Settings()
 
     assert configured.llm_provider == "openai_compatible"
     assert configured.llm_model == "environment-model"

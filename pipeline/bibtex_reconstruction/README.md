@@ -138,19 +138,19 @@ uv run --project pipeline/bibtex_reconstruction \
 
 ## Configuration
 
-`config.yml`で次の動作を調整できます．
+設定の既定値と型は`core/config.py`の`Settings`へ集約しています．
+秘密情報や実行環境ごとの差分だけを`.env`で指定し，リポジトリ内の設定YAMLは使用しません．
 
-- `search.similarity_threshold`: 外部API候補を高類似候補とみなす閾値です．
-- `search.trusted_doi_threshold`: 検索で発見したDOIをLLM省略経路へ送るためのタイトル類似度です．
-- `llm.provider`: 意味的復元に利用するproviderです．
+主な調整項目は次のとおりです．
 
-- `llm.model`: providerへ渡すmodel名です．
+- `BIBTEX_RECONSTRUCTION_SIMILARITY_THRESHOLD`: 外部API候補を高類似候補とみなす閾値です．
+- `BIBTEX_RECONSTRUCTION_TRUSTED_DOI_THRESHOLD`: 検索で発見したDOIをLLM省略経路へ送るためのタイトル類似度です．
+- `BIBTEX_RECONSTRUCTION_MAX_PARALLEL_REQUESTS`: 同時に処理するfragmentまたは外部検索の上限です．
+- `BIBTEX_RECONSTRUCTION_LLM_MAX_ATTEMPTS`: Rust diagnosticを使ったLLM修正の最大回数です．
+- `BIBTEX_RECONSTRUCTION_REGISTRATION_POLICY`: `bibmgr_native.validate_for_registration()`へ渡すpolicyです．
+- `BIBTEX_RECONSTRUCTION_REWRITE_CITATION_KEYS`: 初期化成果物のcitation keyをRustのpolicyに合わせて再採番してよいかを指定します．
 
-- `llm.base_url`: OpenAI互換APIまたはGemini互換endpointを利用する場合のbase URLです．
-- `llm.max_llm_attempts`: Rust diagnosticを使ったLLM修正の最大回数です．
-- `validation.registration_policy`: `bibmgr_native.validate_for_registration()`へ渡すpolicyです．
-- `validation.rewrite_citation_keys`: 初期化成果物のcitation keyをRustのpolicyに合わせて再採番してよいかを指定します．
-- `api.*`: 各外部APIのendpoint，timeout，retry設定です．
+API endpointやtimeoutも`BIBTEX_RECONSTRUCTION_`に`Settings`のfield名を大文字で続けることで上書きできますが，通常は変更不要です．
 
 venueの省略名やexport形式はこのCLIでハードコードしません．登録後の出力はRustのexport profileと`config/registries/venues.toml`が担当します．
 
