@@ -9,24 +9,15 @@ import {
   watch,
 } from "vue";
 import {
-  canonicalizeBibtexForStorage,
-  validateBibtexForRegistration,
-} from "../api/bibtex";
-import {
   deleteReference,
   getReference,
   updateReference,
 } from "../api/references";
 import type { BibtexDiagnostic } from "../types/bibtex";
 import type { Reference } from "../types/reference";
-import BibtexCodeBlock from "./BibtexCodeBlock.vue";
 import BibtexEditor from "./BibtexEditor.vue";
+import BibtexExportPanel from "./BibtexExportPanel.vue";
 import BibtexValidationPanel from "./BibtexValidationPanel.vue";
-
-type CanonicalPreview = {
-  submittedSource: string;
-  canonicalSource: string;
-};
 
 const props = defineProps<{
   reference: Reference;
@@ -51,7 +42,6 @@ const editSourceRevision = ref("");
 const editError = ref<string | null>(null);
 const editMessage = ref<string | null>(null);
 const deleteError = ref<string | null>(null);
-const editCanonicalPreview = ref<CanonicalPreview | null>(null);
 const editDiagnostics = reactive<BibtexDiagnostic[]>([]);
 const editDialog = ref<HTMLElement | null>(null);
 const deleteDialog = ref<HTMLElement | null>(null);
@@ -70,18 +60,7 @@ const canSave = computed(
 );
 const saveLabel = computed(() => {
   if (isSaving.value) return "Saving…";
-  return editCanonicalPreview.value?.submittedSource === editSource.value
-    ? "Save normalized changes"
-    : "Save changes";
-});
-
-watch(editSource, (source) => {
-  if (
-    editCanonicalPreview.value &&
-    editCanonicalPreview.value.submittedSource !== source
-  ) {
-    editCanonicalPreview.value = null;
-  }
+  return "Save changes";
 });
 
 watch(
@@ -118,7 +97,6 @@ async function openEdit() {
   isLoadingReference.value = true;
   editError.value = null;
   editMessage.value = null;
-  editCanonicalPreview.value = null;
   replaceDiagnostics([]);
   editSource.value = props.reference.bibtex ?? "";
   initialSource.value = editSource.value;
@@ -155,7 +133,6 @@ async function closeEdit() {
   if (isSaving.value) return;
   loadGeneration += 1;
   isEditOpen.value = false;
-  editCanonicalPreview.value = null;
   syncBodyLock();
   await nextTick();
   actionsTrigger.value?.focus({ preventScroll: true });
@@ -171,35 +148,6 @@ async function saveEdit() {
   editMessage.value = null;
 
   try {
-    if (editCanonicalPreview.value?.submittedSource !== bibtex) {
-      const validation = await validateBibtexForRegistration({
-        source: bibtex,
-        policy: "laboratory",
-      });
-      if (!validation.accepted) {
-        editError.value = blockedMessage(validation.diagnostics);
-        return;
-      }
-
-      const canonicalized = await canonicalizeBibtexForStorage({
-        source: bibtex,
-        policy: "laboratory",
-      });
-      if (!canonicalized.accepted) {
-        editError.value = blockedMessage(canonicalized.diagnostics);
-        return;
-      }
-      if (canonicalized.source !== bibtex) {
-        editCanonicalPreview.value = {
-          submittedSource: bibtex,
-          canonicalSource: canonicalized.source,
-        };
-        editMessage.value =
-          "Review the laboratory formatting below, then confirm the update.";
-        return;
-      }
-    }
-
     const updated = await updateReference(props.reference.id, {
       bibtex,
       source_revision: sourceRevision,
@@ -217,7 +165,6 @@ async function saveEdit() {
 async function closeEditAfterSave() {
   loadGeneration += 1;
   isEditOpen.value = false;
-  editCanonicalPreview.value = null;
   syncBodyLock();
   await nextTick();
   actionsTrigger.value?.focus({ preventScroll: true });
@@ -277,17 +224,6 @@ function onFixApplied() {
   editError.value = null;
   editMessage.value = "Fix applied. Check BibTeX again to confirm the result.";
 }
-
-function blockedMessage(diagnostics: Array<{ blocking: boolean }>) {
-  const count = diagnostics.filter((diagnostic) => diagnostic.blocking).length;
-  if (count === 0) {
-    return "The update is blocked by the active policy. Run Check BibTeX to review the source.";
-  }
-  return count === 1
-    ? "The update is blocked by 1 diagnostic. Run Check BibTeX to review it."
-    : `The update is blocked by ${count} diagnostics. Run Check BibTeX to review them.`;
-}
-
 function errorText(error: unknown, fallback: string) {
   return error instanceof Error && error.message.trim()
     ? error.message
@@ -478,7 +414,7 @@ function trapDialogFocus(event: KeyboardEvent, root: HTMLElement | null) {
           <header class="registration-sheet__header">
             <div>
               <h2 id="reference-edit-heading">Edit reference</h2>
-              <p>Changes are validated and recorded as a new revision.</p>
+              <p>The source is preserved and recorded as a new revision.</p>
             </div>
             <button
               type="button"
@@ -515,28 +451,29 @@ function trapDialogFocus(event: KeyboardEvent, root: HTMLElement | null) {
               />
               <BibtexValidationPanel
                 :source="editSource"
+                profile="archive"
                 :disabled="isSaving || !editSourceRevision"
                 @update:source="editSource = $event"
                 @update:diagnostics="replaceDiagnostics"
                 @fixed="onFixApplied"
               />
 
-              <details
-                v-if="editCanonicalPreview"
-                class="registration-canonical-preview"
-                open
+              <p class="registration-help">
+                Profile checks are advisory. Structural errors and database
+                conflicts can block saving; no output profile rewrites the
+                BibTeX.
+              </p>
+              <section
+                v-if="editSource.trim()"
+                class="registration-output-preview"
+                aria-label="Output preview"
               >
-                <summary>Laboratory BibTeX to be stored</summary>
-                <p>
-                  Only safe formatting changes are applied. Your submitted edit
-                  remains available in the revision history.
-                </p>
-                <BibtexCodeBlock
-                  :source="editCanonicalPreview.canonicalSource"
-                  accessible-label="Laboratory BibTeX update preview"
-                  test-id="edit-canonical-preview"
+                <h3>Output preview</h3>
+                <BibtexExportPanel
+                  :source="editSource"
+                  :citation-key="reference.bibtexKey"
                 />
-              </details>
+              </section>
 
               <div class="registration-actions reference-edit-actions">
                 <p

@@ -96,7 +96,7 @@ describe("BibtexValidationPanel", () => {
     expect(bibtexApiMocks.analyzeBibtex).toHaveBeenCalledOnce();
     expect(bibtexApiMocks.analyzeBibtex.mock.calls[0]?.[0]).toEqual({
       source,
-      profile: "laboratory",
+      profile: "archive",
       mode: "tolerant",
     });
     expect(

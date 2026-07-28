@@ -14,8 +14,8 @@ const referenceApiMocks = vi.hoisted(() => ({
 const bibtexApiMocks = vi.hoisted(() => ({
   analyzeBibtex: vi.fn(),
   applyBibtexFixes: vi.fn(),
-  canonicalizeBibtexForStorage: vi.fn(),
-  validateBibtexForRegistration: vi.fn(),
+  exportBibtex: vi.fn(),
+  listBibtexExportProfiles: vi.fn(),
 }));
 
 vi.mock("../src/api/references", () => referenceApiMocks);
@@ -33,6 +33,22 @@ const reference: Reference = {
   bibtex: storedSource,
   sourceRevision,
 };
+const exportProfiles = [
+  {
+    id: "laboratory",
+    display_name: "Laboratory",
+    description: "Laboratory-standard optimized BibTeX.",
+    validation_profile: "laboratory",
+    preprint_representation: "misc-eprint",
+  },
+  {
+    id: "modern",
+    display_name: "Modern",
+    description: "General-purpose modern BibTeX.",
+    validation_profile: "modern",
+    preprint_representation: "misc-eprint",
+  },
+];
 
 const wrappers: Array<ReturnType<typeof mount>> = [];
 
@@ -50,19 +66,6 @@ async function openActionsMenu(wrapper: ReturnType<typeof mount>) {
   await wrapper.get("button.reference-actions-trigger").trigger("click");
 }
 
-function accepted(source: string) {
-  return {
-    schema_version: "1" as const,
-    accepted: true,
-    source,
-    source_revision: latestRevision,
-    diagnostics: [],
-    bibliography: { records: [], diagnostics: [] },
-    applied_fix_ids: [],
-    unresolved_semantics: false,
-  };
-}
-
 beforeEach(() => {
   referenceApiMocks.getReference.mockResolvedValue({
     ...reference,
@@ -78,11 +81,19 @@ beforeEach(() => {
     diagnostics: [],
     available_fixes: [],
   });
-  bibtexApiMocks.validateBibtexForRegistration.mockImplementation(
-    ({ source }: { source: string }) => Promise.resolve(accepted(source)),
-  );
-  bibtexApiMocks.canonicalizeBibtexForStorage.mockImplementation(
-    ({ source }: { source: string }) => Promise.resolve(accepted(source)),
+  bibtexApiMocks.listBibtexExportProfiles.mockResolvedValue({
+    schema_version: "1",
+    profiles: exportProfiles,
+  });
+  bibtexApiMocks.exportBibtex.mockImplementation(
+    ({ source, profile }: { source: string; profile: string }) =>
+      Promise.resolve({
+        schema_version: "1",
+        source: `${source}\n% ${profile}`,
+        profile,
+        record_count: 1,
+        warnings: [],
+      }),
   );
 });
 
@@ -136,18 +147,14 @@ describe("ReferenceActions", () => {
     expect(wrapper.find('[role="alertdialog"]').exists()).toBe(false);
   });
 
-  it("validates, previews canonicalization, and updates with the latest revision", async () => {
+  it("updates with the exact edited source and latest revision", async () => {
     const submitted = storedSource.replace("Stored", "Edited");
-    const canonical = submitted.replace("title = {Edited}", "title={Edited}");
     const updated: Reference = {
       ...reference,
       title: "Edited",
-      bibtex: canonical,
+      bibtex: submitted,
       sourceRevision: `sha256:${"3".repeat(64)}`,
     };
-    bibtexApiMocks.canonicalizeBibtexForStorage.mockResolvedValueOnce(
-      accepted(canonical),
-    );
     referenceApiMocks.updateReference.mockResolvedValueOnce(updated);
     const wrapper = renderActions();
 
@@ -159,23 +166,23 @@ describe("ReferenceActions", () => {
     expect(
       wrapper.get<HTMLTextAreaElement>("#reference-edit-bibtex").element.value,
     ).toBe(storedSource);
+    expect(bibtexApiMocks.exportBibtex).toHaveBeenCalledWith(
+      { source: storedSource, profile: "laboratory" },
+      expect.objectContaining({ signal: expect.any(AbortSignal) }),
+    );
+    expect(
+      wrapper.get('[data-testid="bibtex-export-preview"]').text(),
+    ).toBe(`${storedSource}\n% laboratory`);
 
     await wrapper
       .get<HTMLTextAreaElement>("#reference-edit-bibtex")
       .setValue(submitted);
-    await wrapper
-      .get(".reference-edit-actions button.button-primary")
-      .trigger("click");
     await flushPromises();
 
-    expect(referenceApiMocks.updateReference).not.toHaveBeenCalled();
-    expect(
-      wrapper.get('[data-testid="edit-canonical-preview"]').element.textContent,
-    ).toBe(canonical);
-    expect(
-      wrapper.get(".reference-edit-actions button.button-primary").text(),
-    ).toBe("Save normalized changes");
-
+    expect(bibtexApiMocks.exportBibtex).toHaveBeenLastCalledWith(
+      { source: submitted, profile: "laboratory" },
+      expect.objectContaining({ signal: expect.any(AbortSignal) }),
+    );
     await wrapper
       .get(".reference-edit-actions button.button-primary")
       .trigger("click");
@@ -190,6 +197,7 @@ describe("ReferenceActions", () => {
     );
     expect(wrapper.emitted("updated")).toEqual([[updated]]);
     expect(wrapper.find(".reference-edit-sheet").exists()).toBe(false);
+    expect(bibtexApiMocks.analyzeBibtex).not.toHaveBeenCalled();
   });
 
   it("deletes only after confirmation and emits the deleted ID", async () => {

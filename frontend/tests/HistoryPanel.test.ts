@@ -120,10 +120,10 @@ describe("HistoryPanel", () => {
     const restoreButtons = wrapper.findAll("button.history-restore");
     expect(restoreButtons).toHaveLength(1);
     expect(wrapper.text()).toContain(
-      "View submitted and laboratory BibTeX",
+      "View submitted and stored BibTeX",
     );
     expect(wrapper.text()).toContain("Submitted source");
-    expect(wrapper.text()).toContain("Laboratory BibTeX");
+    expect(wrapper.text()).toContain("Stored BibTeX");
     await restoreButtons[0]!.trigger("click");
     expect(wrapper.text()).toContain("Restore revision 1 as a new revision?");
 

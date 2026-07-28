@@ -177,7 +177,7 @@ function canRestore(revision: ReferenceRevision): boolean {
   );
 }
 
-function sourceWasCanonicalized(revision: ReferenceRevision): boolean {
+function sourceDiffersFromStored(revision: ReferenceRevision): boolean {
   return Boolean(
     revision.submittedBibtex &&
       revision.canonicalBibtex &&
@@ -392,22 +392,22 @@ function trapDialogFocus(event: KeyboardEvent, root: HTMLElement | null) {
                     >
                       <summary>
                         {{
-                          sourceWasCanonicalized(revision)
-                            ? "View submitted and laboratory BibTeX"
-                            : "View laboratory BibTeX"
+                          sourceDiffersFromStored(revision)
+                            ? "View submitted and stored BibTeX"
+                            : "View stored BibTeX"
                         }}
                       </summary>
-                      <template v-if="sourceWasCanonicalized(revision)">
+                      <template v-if="sourceDiffersFromStored(revision)">
                         <h4>Submitted source</h4>
                         <BibtexCodeBlock
                           :source="revision.submittedBibtex || ''"
                           accessible-label="Submitted BibTeX source"
                         />
                       </template>
-                      <h4>Laboratory BibTeX</h4>
+                      <h4>Stored BibTeX</h4>
                       <BibtexCodeBlock
                         :source="revision.canonicalBibtex"
-                        accessible-label="Canonical laboratory BibTeX"
+                        accessible-label="Stored BibTeX"
                       />
                     </details>
                   </div>

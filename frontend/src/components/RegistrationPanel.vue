@@ -1,9 +1,5 @@
 <script setup lang="ts">
-import { computed, nextTick, onBeforeUnmount, reactive, ref, watch } from "vue";
-import {
-  canonicalizeBibtexForStorage,
-  validateBibtexForRegistration,
-} from "../api/bibtex";
+import { computed, nextTick, onBeforeUnmount, reactive, ref } from "vue";
 import { registerBibtexToDatabase } from "../api/registration";
 import type { BibtexDiagnostic } from "../types/bibtex";
 import type {
@@ -12,14 +8,10 @@ import type {
 } from "../types/reference";
 import { countBibliographicEntries } from "../utils/bibtexHighlight";
 import BibtexEditor from "./BibtexEditor.vue";
-import BibtexCodeBlock from "./BibtexCodeBlock.vue";
+import BibtexExportPanel from "./BibtexExportPanel.vue";
 import BibtexValidationPanel from "./BibtexValidationPanel.vue";
 
 type RegistrationMode = "manual" | "file";
-type CanonicalPreview = {
-  submittedSource: string;
-  canonicalSource: string;
-};
 
 const MAX_BIB_FILE_SIZE = 2 * 1024 * 1024;
 
@@ -43,7 +35,6 @@ const isManualRegistering = ref(false);
 const manualError = ref<string | null>(null);
 const manualMessage = ref<string | null>(null);
 const manualDiagnostics = reactive<BibtexDiagnostic[]>([]);
-const manualCanonicalPreview = ref<CanonicalPreview | null>(null);
 
 const selectedBibFile = ref<File | null>(null);
 const fileBibtex = ref("");
@@ -52,7 +43,6 @@ const isFileRegistering = ref(false);
 const fileError = ref<string | null>(null);
 const fileMessage = ref<string | null>(null);
 const fileDiagnostics = reactive<BibtexDiagnostic[]>([]);
-const fileCanonicalPreview = ref<CanonicalPreview | null>(null);
 
 const canRegisterManual = computed(
   () => manualBibtex.value.trim().length > 0 && !isManualRegistering.value,
@@ -75,13 +65,6 @@ const fileEntryCountLabel = computed(() =>
 );
 const fileRegistrationLabel = computed(() => {
   if (isFileRegistering.value) return "Registering…";
-  if (
-    fileCanonicalPreview.value?.submittedSource === fileBibtex.value
-  ) {
-    return fileEntryCount.value === 1
-      ? "Register normalized reference"
-      : `Register ${fileEntryCount.value} normalized references`;
-  }
   if (fileEntryCount.value === 0) return "Register file";
   return fileEntryCount.value === 1
     ? "Register 1 reference"
@@ -89,26 +72,7 @@ const fileRegistrationLabel = computed(() => {
 });
 const manualRegistrationLabel = computed(() => {
   if (isManualRegistering.value) return "Registering…";
-  return manualCanonicalPreview.value?.submittedSource === manualBibtex.value
-    ? "Register normalized BibTeX"
-    : "Register BibTeX";
-});
-watch(manualBibtex, (source) => {
-  if (
-    manualCanonicalPreview.value &&
-    manualCanonicalPreview.value.submittedSource !== source
-  ) {
-    manualCanonicalPreview.value = null;
-  }
-});
-
-watch(fileBibtex, (source) => {
-  if (
-    fileCanonicalPreview.value &&
-    fileCanonicalPreview.value.submittedSource !== source
-  ) {
-    fileCanonicalPreview.value = null;
-  }
+  return "Register BibTeX";
 });
 
 onBeforeUnmount(() => {
@@ -183,41 +147,11 @@ async function registerManualBibtex() {
   manualMessage.value = null;
 
   try {
-    if (manualCanonicalPreview.value?.submittedSource !== bibtex) {
-      const validation = await validateBibtexForRegistration({
-        source: bibtex,
-        policy: "laboratory",
-      });
-      if (!validation.accepted) {
-        manualError.value = registrationBlockedMessage(validation.diagnostics);
-        return;
-      }
-      const canonicalized = await canonicalizeBibtexForStorage({
-        source: bibtex,
-        policy: "laboratory",
-      });
-      if (!canonicalized.accepted) {
-        manualError.value = registrationBlockedMessage(
-          canonicalized.diagnostics,
-        );
-        return;
-      }
-      if (canonicalized.source !== bibtex) {
-        manualCanonicalPreview.value = {
-          submittedSource: bibtex,
-          canonicalSource: canonicalized.source,
-        };
-        manualMessage.value =
-          "Review the laboratory formatting below, then confirm registration.";
-        return;
-      }
-    }
     const result = await registerBibtexToDatabase({
       bibtex,
       source: "manual",
     });
     manualBibtex.value = "";
-    manualCanonicalPreview.value = null;
     replaceDiagnostics(manualDiagnostics, []);
     manualMessage.value = "Registered.";
     emitRegisteredReferences(result);
@@ -238,7 +172,6 @@ async function onBibFileChange(event: Event) {
   replaceDiagnostics(fileDiagnostics, []);
   fileError.value = null;
   fileMessage.value = null;
-  fileCanonicalPreview.value = null;
 
   if (!file) return;
 
@@ -287,42 +220,12 @@ async function registerFileBibtex() {
   fileMessage.value = null;
 
   try {
-    if (fileCanonicalPreview.value?.submittedSource !== bibtex) {
-      const validation = await validateBibtexForRegistration({
-        source: bibtex,
-        policy: "laboratory",
-      });
-      if (!validation.accepted) {
-        fileError.value = registrationBlockedMessage(validation.diagnostics);
-        return;
-      }
-      const canonicalized = await canonicalizeBibtexForStorage({
-        source: bibtex,
-        policy: "laboratory",
-      });
-      if (!canonicalized.accepted) {
-        fileError.value = registrationBlockedMessage(
-          canonicalized.diagnostics,
-        );
-        return;
-      }
-      if (canonicalized.source !== bibtex) {
-        fileCanonicalPreview.value = {
-          submittedSource: bibtex,
-          canonicalSource: canonicalized.source,
-        };
-        fileMessage.value =
-          "Review the laboratory formatting below, then confirm registration.";
-        return;
-      }
-    }
     const result = await registerBibtexToDatabase({
       bibtex,
       source: "file",
     });
     selectedBibFile.value = null;
     fileBibtex.value = "";
-    fileCanonicalPreview.value = null;
     replaceDiagnostics(fileDiagnostics, []);
     resetFileInput();
     fileMessage.value = `${fileName} was registered.`;
@@ -340,7 +243,6 @@ function failFileSelection(message: string, input: HTMLInputElement) {
   fileBibtex.value = "";
   replaceDiagnostics(fileDiagnostics, []);
   fileMessage.value = null;
-  fileCanonicalPreview.value = null;
   fileError.value = message;
   input.value = "";
 }
@@ -370,19 +272,6 @@ function onManualDiagnostics(diagnostics: BibtexDiagnostic[]) {
 
 function onFileDiagnostics(diagnostics: BibtexDiagnostic[]) {
   replaceDiagnostics(fileDiagnostics, diagnostics);
-}
-
-function registrationBlockedMessage(
-  diagnostics: Array<{ blocking: boolean }>,
-): string {
-  const blockingCount = diagnostics.filter((diagnostic) => diagnostic.blocking).length;
-  if (blockingCount === 0) {
-    return "Registration is blocked by the active policy. Run Check BibTeX to review the source.";
-  }
-  if (blockingCount === 1) {
-    return "Registration is blocked by 1 diagnostic. Run Check BibTeX to review it.";
-  }
-  return `Registration is blocked by ${blockingCount} diagnostics. Run Check BibTeX to review them.`;
 }
 
 function onManualFixApplied() {
@@ -503,28 +392,26 @@ function onFileFixApplied() {
             />
             <BibtexValidationPanel
               :source="manualBibtex"
+              profile="archive"
               :disabled="isManualRegistering"
               @update:source="manualBibtex = $event"
               @update:diagnostics="onManualDiagnostics"
               @fixed="onManualFixApplied"
             />
 
-            <details
-              v-if="manualCanonicalPreview"
-              class="registration-canonical-preview"
-              open
+            <p class="registration-help">
+              The source is stored exactly as submitted. Profile checks are
+              advisory; structural errors and database conflicts can still
+              reject registration.
+            </p>
+            <section
+              v-if="manualBibtex.trim()"
+              class="registration-output-preview"
+              aria-label="Output preview"
             >
-              <summary>Laboratory BibTeX to be stored</summary>
-              <p>
-                Only safe formatting changes are applied. Your submitted source
-                remains available in the revision history.
-              </p>
-              <BibtexCodeBlock
-                :source="manualCanonicalPreview.canonicalSource"
-                accessible-label="Laboratory BibTeX registration preview"
-                test-id="manual-canonical-preview"
-              />
-            </details>
+              <h3>Output preview</h3>
+              <BibtexExportPanel :source="manualBibtex" />
+            </section>
 
             <div class="registration-actions">
               <p
@@ -620,27 +507,24 @@ function onFileFixApplied() {
               />
               <BibtexValidationPanel
                 :source="fileBibtex"
+                profile="archive"
                 :disabled="isFileRegistering"
                 @update:source="fileBibtex = $event"
                 @update:diagnostics="onFileDiagnostics"
                 @fixed="onFileFixApplied"
               />
-              <details
-                v-if="fileCanonicalPreview"
-                class="registration-canonical-preview"
-                open
+              <p class="registration-help">
+                Each entry is stored without applying an output profile.
+                Structural errors and database conflicts can still reject the
+                batch.
+              </p>
+              <section
+                class="registration-output-preview"
+                aria-label="Output preview"
               >
-                <summary>Laboratory BibTeX to be stored</summary>
-                <p>
-                  Only safe formatting changes are applied. The submitted file
-                  remains available in the revision history.
-                </p>
-                <BibtexCodeBlock
-                  :source="fileCanonicalPreview.canonicalSource"
-                  accessible-label="Laboratory BibTeX file registration preview"
-                  test-id="file-canonical-preview"
-                />
-              </details>
+                <h3>Output preview</h3>
+                <BibtexExportPanel :source="fileBibtex" />
+              </section>
             </template>
 
             <div class="registration-actions registration-actions--file">

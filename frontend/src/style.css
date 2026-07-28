@@ -2510,30 +2510,18 @@ pre {
   background: var(--color-success-soft);
 }
 
-.registration-canonical-preview {
-  margin-top: 14px;
-  padding: 12px;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-group);
-  background: var(--color-fill);
+.registration-output-preview {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 2px;
 }
 
-.registration-canonical-preview summary {
+.registration-output-preview > h3 {
+  margin: 0;
   color: var(--color-text);
-  cursor: pointer;
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 650;
-}
-
-.registration-canonical-preview p {
-  margin: 8px 0 0;
-  color: var(--color-text-muted);
-  font-size: 11.5px;
-  line-height: 1.5;
-}
-
-.registration-canonical-preview .bibtex-code-block {
-  margin-top: 10px;
 }
 
 .bibtex-lint {

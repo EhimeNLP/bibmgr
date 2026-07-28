@@ -133,7 +133,6 @@ const emit = defineEmits<{
           v-if="reference.bibtex"
           :source="reference.bibtex"
           :citation-key="reference.bibtexKey"
-          canonical-profile="laboratory"
         />
         <p v-else class="muted">BibTeX has not been reconstructed yet.</p>
       </div>

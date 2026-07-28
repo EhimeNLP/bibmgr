@@ -1,5 +1,12 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
+import {
+  computed,
+  onBeforeUnmount,
+  onMounted,
+  ref,
+  useId,
+  watch,
+} from "vue";
 import { exportBibtex, listBibtexExportProfiles } from "../api/bibtex";
 import type {
   BibtexExportProfile,
@@ -11,11 +18,12 @@ const props = defineProps<{
   source: string;
   citationKey?: string;
   excludedProfiles?: string[];
-  canonicalProfile?: string;
 }>();
 
 const profiles = ref<BibtexExportProfile[]>([]);
-const selectedProfile = ref(props.canonicalProfile ?? "laboratory");
+const selectedProfile = ref("laboratory");
+const profileSelectId = useId();
+const profileDescriptionId = useId();
 const generatedResult = ref<BibtexExportResult | null>(null);
 const isLoadingProfiles = ref(false);
 const isExporting = ref(false);
@@ -29,23 +37,9 @@ let profilesGeneration = 0;
 let exportGeneration = 0;
 let copyResetTimer: ReturnType<typeof setTimeout> | undefined;
 
-const isCanonicalProfile = computed(
-  () =>
-    Boolean(props.canonicalProfile) &&
-    selectedProfile.value === props.canonicalProfile,
+const result = computed<BibtexExportResult | null>(
+  () => generatedResult.value,
 );
-const result = computed<BibtexExportResult | null>(() => {
-  if (isCanonicalProfile.value && props.source.trim()) {
-    return {
-      schema_version: "1",
-      source: props.source,
-      profile: selectedProfile.value,
-      record_count: 1,
-      warnings: [],
-    };
-  }
-  return generatedResult.value;
-});
 const selectedProfileDetails = computed(() =>
   profiles.value.find((profile) => profile.id === selectedProfile.value),
 );
@@ -118,7 +112,6 @@ function preferredProfileId(availableProfiles: BibtexExportProfile[]) {
     return selectedProfile.value;
   }
   return (
-    availableProfiles.find((profile) => profile.id === props.canonicalProfile)?.id ??
     availableProfiles.find((profile) => profile.id === "laboratory")?.id ??
     availableProfiles[0]?.id ??
     "laboratory"
@@ -147,10 +140,6 @@ async function generatePreview() {
   generatedResult.value = null;
   exportError.value = null;
   isExporting.value = false;
-
-  if (profile === props.canonicalProfile) {
-    return;
-  }
 
   const controller = new AbortController();
   exportController = controller;
@@ -266,12 +255,7 @@ function errorMessage(error: unknown, fallback: string) {
 <template>
   <div class="bibtex-export">
     <div class="section-header bibtex-export__header">
-      <p v-if="canonicalProfile">
-        Choose a profile to preview its BibTeX. Laboratory is the canonical version stored by the library.
-      </p>
-      <p v-else>
-        Generate a BibTeX representation for the selected output profile.
-      </p>
+      <p>Generate a BibTeX representation for the selected output profile.</p>
       <div class="bibtex-export__actions">
         <button
           type="button"
@@ -296,12 +280,12 @@ function errorMessage(error: unknown, fallback: string) {
     </div>
 
     <div class="bibtex-export__profile">
-      <label for="bibtex-export-profile">Output profile</label>
+      <label :for="profileSelectId">Output profile</label>
       <select
-        id="bibtex-export-profile"
+        :id="profileSelectId"
         v-model="selectedProfile"
         :disabled="isLoadingProfiles || profiles.length === 0"
-        :aria-describedby="selectedProfileDetails ? 'bibtex-export-description' : undefined"
+        :aria-describedby="selectedProfileDetails ? profileDescriptionId : undefined"
         @change="onProfileChange"
       >
         <option v-for="profile in profiles" :key="profile.id" :value="profile.id">
@@ -312,7 +296,7 @@ function errorMessage(error: unknown, fallback: string) {
 
     <p
       v-if="selectedProfileDetails"
-      id="bibtex-export-description"
+      :id="profileDescriptionId"
       class="bibtex-export__description"
     >
       {{ selectedProfileDetails.description }}
