@@ -1,7 +1,7 @@
 import pytest
 from pydantic import ValidationError
 
-from core.config import Settings
+from bibtex_reconstruction.config import Settings
 
 
 def test_settings_defaults_are_valid_without_yaml(monkeypatch):

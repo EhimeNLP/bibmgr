@@ -1,4 +1,4 @@
-from core.identifiers import extract_dois, normalize_doi
+from bibtex_reconstruction.parsing.identifiers import extract_dois, normalize_doi
 
 
 def test_normalize_doi_accepts_url_and_removes_sentence_punctuation():

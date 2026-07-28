@@ -1,4 +1,4 @@
-from api_clients.doi import DoiContentNegotiationClient
+from bibtex_reconstruction.clients.doi import DoiContentNegotiationClient
 
 
 class FakeResponse:

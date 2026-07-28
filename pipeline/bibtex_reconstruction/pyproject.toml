@@ -1,3 +1,7 @@
+[build-system]
+requires = ["hatchling>=1.27"]
+build-backend = "hatchling.build"
+
 [project]
 name = "bibtex-reconstruction"
 version = "0.1.0"
@@ -15,6 +19,9 @@ dependencies = [
     "requests>=2.33.1",
 ]
 
+[project.scripts]
+bibtex-reconstruction = "bibtex_reconstruction.cli:main"
+
 [dependency-groups]
 dev = [
     "pytest>=8.4.0",
@@ -22,3 +29,6 @@ dev = [
 
 [tool.uv.sources]
 bibmgr-native = { path = "../../crates/bibmgr-python", editable = true }
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/bibtex_reconstruction"]

@@ -2,8 +2,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from api_clients.jstage import JStageClient
-from models import InputData, ReferenceData
+from bibtex_reconstruction.clients.jstage import JStageClient
+from bibtex_reconstruction.domain import InputData, ReferenceData
 
 
 JSTAGE_ATOM = """\

@@ -37,7 +37,7 @@ source = { editable = "../../crates/bibmgr-python" }
 [[package]]
 name = "bibtex-reconstruction"
 version = "0.1.0"
-source = { virtual = "." }
+source = { editable = "." }
 dependencies = [
     { name = "bibmgr-native" },
     { name = "bibtexparser" },

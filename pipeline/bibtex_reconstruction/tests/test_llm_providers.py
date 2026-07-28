@@ -4,14 +4,20 @@ import json
 
 import pytest
 
-from core.config import Settings
-from models import EvidenceBundle, LLMReconstruction, ReferenceData
-from services.llm_providers import (
+from bibtex_reconstruction.application.semantic_reconstructor import (
+    ConfiguredSemanticReconstructor,
+)
+from bibtex_reconstruction.clients.llm import (
     LLMProviderError,
     OpenAICompatibleProvider,
     create_llm_provider,
 )
-from services.semantic_reconstructor import ConfiguredSemanticReconstructor
+from bibtex_reconstruction.config import Settings
+from bibtex_reconstruction.domain import (
+    EvidenceBundle,
+    LLMReconstruction,
+    ReferenceData,
+)
 
 
 class FakeResponse:

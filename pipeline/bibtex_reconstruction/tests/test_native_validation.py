@@ -1,6 +1,6 @@
 import bibmgr_native
 
-from core.native_validation import NativeBibtexValidator
+from bibtex_reconstruction.validation import NativeBibtexValidator
 
 
 def test_native_validator_accepts_registration_ready_bibtex():

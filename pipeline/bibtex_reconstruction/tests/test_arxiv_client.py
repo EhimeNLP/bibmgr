@@ -2,8 +2,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from api_clients.arxiv import ArxivClient
-from models import InputData, ReferenceData
+from bibtex_reconstruction.clients.arxiv import ArxivClient
+from bibtex_reconstruction.domain import InputData, ReferenceData
 
 
 ARXIV_ATOM = b"""\

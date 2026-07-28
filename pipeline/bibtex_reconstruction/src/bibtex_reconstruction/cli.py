@@ -1,0 +1,149 @@
+"""Standalone command-line entry point for bibliography initialization."""
+
+from __future__ import annotations
+
+import argparse
+import json
+import logging
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from pathlib import Path
+
+from .application.orchestrator import ReconstructionOrchestrator
+from .application.source_loader import load_metadata_document
+from .config import settings
+from .domain import InputData, ProcessedReference, ReconstructionReport
+from .domain.enums import ReconstructionOutcome
+
+
+logger = logging.getLogger(__name__)
+
+
+def reconstruct_file(
+    input_path: Path,
+    output_path: Path,
+    report_path: Path,
+    *,
+    orchestrator: ReconstructionOrchestrator | None = None,
+) -> tuple[list[str], ReconstructionReport]:
+    """Reconstruct all extracted references and write BibTeX plus an audit report."""
+
+    document = load_metadata_document(input_path)
+    references = document.references
+    service = orchestrator or ReconstructionOrchestrator()
+    logger.info("loaded extracted references count=%d", len(references))
+
+    results: list[ProcessedReference | None] = [None] * len(references)
+    with ThreadPoolExecutor(max_workers=settings.max_parallel_requests) as executor:
+        future_to_index = {
+            executor.submit(
+                service.reconstruct_reference,
+                InputData(parsed_data=reference),
+            ): index
+            for index, reference in enumerate(references)
+        }
+        for future in as_completed(future_to_index):
+            index = future_to_index[future]
+            results[index] = future.result()
+
+    processed = [result for result in results if result is not None]
+    entries = [
+        result.reconstructed_bibtex.strip()
+        for result in processed
+        if (
+            result.outcome == ReconstructionOutcome.READY
+            and result.reconstructed_bibtex
+        )
+    ]
+    reviews = [
+        result
+        for result in processed
+        if result.outcome == ReconstructionOutcome.MANUAL_REVIEW
+    ]
+
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    output_text = "\n\n".join(entries)
+    if output_text:
+        output_text += "\n"
+    output_path.write_text(output_text, encoding="utf-8")
+
+    report_path.parent.mkdir(parents=True, exist_ok=True)
+    report = ReconstructionReport(
+        input_path=input_path,
+        bibtex_output_path=output_path,
+        document=document.document_metadata(),
+        total_reference_count=len(processed),
+        reconstructed_count=len(entries),
+        manual_review_count=len(reviews),
+        processed_references=processed,
+    )
+    report_path.write_text(
+        json.dumps(
+            report.model_dump(mode="json", exclude_none=True),
+            ensure_ascii=False,
+            indent=2,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    return entries, report
+
+
+def build_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(
+        description=(
+            "Reconstruct metadata_extraction JSON references into "
+            "Rust-validated BibTeX entries and an audit report."
+        )
+    )
+    parser.add_argument(
+        "input",
+        type=Path,
+        help="metadata_extraction JSON file",
+    )
+    parser.add_argument(
+        "-o",
+        "--output",
+        type=Path,
+        default=Path("reconstructed.bib"),
+        help="Rust-validated BibTeX output",
+    )
+    parser.add_argument(
+        "--report-output",
+        "--review-output",
+        dest="report_output",
+        type=Path,
+        default=Path("reconstruction-report.json"),
+        help="Audit report with outcomes and evidence for every reference",
+    )
+    parser.add_argument(
+        "--fail-on-review",
+        action="store_true",
+        help="Exit with status 2 when any reference requires manual review",
+    )
+    return parser
+
+
+def main() -> int:
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s %(levelname)s %(name)s: %(message)s",
+    )
+    args = build_parser().parse_args()
+    entries, report = reconstruct_file(
+        args.input,
+        args.output,
+        args.report_output,
+    )
+    logger.info(
+        "initialization completed reconstructed=%d manual_review=%d output=%s",
+        len(entries),
+        report.manual_review_count,
+        args.output,
+    )
+    if args.fail_on_review and report.manual_review_count:
+        return 2
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

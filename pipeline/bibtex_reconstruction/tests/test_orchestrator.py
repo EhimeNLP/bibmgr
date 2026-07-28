@@ -1,8 +1,13 @@
 from __future__ import annotations
 
-from core.config import settings
-from core.constants import ReconstructionOutcome, ReconstructionPath
-from models import (
+from bibtex_reconstruction.application.orchestrator import (
+    ReconstructionOrchestrator,
+)
+from bibtex_reconstruction.application.semantic_reconstructor import (
+    SemanticReconstructionUnavailable,
+)
+from bibtex_reconstruction.config import settings
+from bibtex_reconstruction.domain import (
     InputData,
     LLMReconstruction,
     ReferenceData,
@@ -10,8 +15,10 @@ from models import (
     ValidationDiagnostic,
     VerifiedCitationInfo,
 )
-from services.orchestrator import ReconstructionOrchestrator
-from services.semantic_reconstructor import SemanticReconstructionUnavailable
+from bibtex_reconstruction.domain.enums import (
+    ReconstructionOutcome,
+    ReconstructionPath,
+)
 
 
 VALID_BIBTEX = """@article{example,

@@ -4,7 +4,9 @@ from pathlib import Path
 import pytest
 from pydantic import ValidationError
 
-from services.source_loader import load_metadata_document
+from bibtex_reconstruction.application.source_loader import (
+    load_metadata_document,
+)
 
 
 FIXTURE = Path(__file__).with_name("test_input.json")

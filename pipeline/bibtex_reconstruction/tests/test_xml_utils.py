@@ -1,4 +1,4 @@
-from core.xml_utils import element_text, parse_xml
+from bibtex_reconstruction.parsing.xml import element_text, parse_xml
 
 
 def test_xml_parser_does_not_expand_external_entities():

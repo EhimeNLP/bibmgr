@@ -2,11 +2,13 @@ import json
 
 import bibmgr_native
 
-from core.constants import ReconstructionOutcome
-from core.native_validation import NativeBibtexValidator
-from main import reconstruct_file
-from models import ProcessedReference
-from services.orchestrator import ReconstructionOrchestrator
+from bibtex_reconstruction.application.orchestrator import (
+    ReconstructionOrchestrator,
+)
+from bibtex_reconstruction.cli import reconstruct_file
+from bibtex_reconstruction.domain import ProcessedReference
+from bibtex_reconstruction.domain.enums import ReconstructionOutcome
+from bibtex_reconstruction.validation import NativeBibtexValidator
 
 
 class FakeOrchestrator:

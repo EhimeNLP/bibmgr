@@ -1,5 +1,5 @@
-from core.source_clues import enrich_search_clues
-from models import ReferenceData
+from bibtex_reconstruction.domain import ReferenceData
+from bibtex_reconstruction.parsing.source_clues import enrich_search_clues
 
 
 def test_enrich_search_clues_uses_bibtexparser_and_name_parser():
