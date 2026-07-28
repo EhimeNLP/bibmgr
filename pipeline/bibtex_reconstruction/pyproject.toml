@@ -5,7 +5,6 @@ description = "Evidence-grounded, high-accuracy BibTeX reconstruction pipeline"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
-    "beautifulsoup4>=4.14.3",
     "bibmgr-native",
     "bibtexparser>=2.0.0b9",
     "google-genai>=1.75.0",

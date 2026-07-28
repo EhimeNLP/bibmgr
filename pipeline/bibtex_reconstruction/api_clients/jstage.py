@@ -1,10 +1,21 @@
 from typing import Optional, Tuple
-from bs4 import BeautifulSoup
+
+from lxml import etree
+
 from api_clients.base_client import BaseAPIClient
+from core.xml_utils import element_text, parse_xml
 from models import InputData, VerifiedCitationInfo
 
+ATOM_NAMESPACE = "http://www.w3.org/2005/Atom"
+PRISM_NAMESPACE = "http://prismstandard.org/namespaces/basic/2.0/"
+NAMESPACES = {
+    "atom": ATOM_NAMESPACE,
+    "prism": PRISM_NAMESPACE,
+}
+
+
 class JStageClient(BaseAPIClient):
-    """Client for searching academic papers via the J-STAGE XML API."""
+    """Client for searching academic papers via the J-STAGE Atom API."""
 
     @property
     def api_name(self) -> str:
@@ -14,51 +25,84 @@ class JStageClient(BaseAPIClient):
     def api_prefix(self) -> str:
         return "jstage"
 
-    def _execute_search(self, input_data: InputData) -> Tuple[Optional[VerifiedCitationInfo], Optional[str]]:
-        params = {"service": 3, "article": input_data.parsed_data.title, "count": 1}
-        
+    def _execute_search(
+        self,
+        input_data: InputData,
+    ) -> Tuple[Optional[VerifiedCitationInfo], Optional[str]]:
+        params = {
+            "service": 3,
+            "article": input_data.parsed_data.title,
+            "count": 1,
+        }
+
         response = self._make_request(params=params)
-        if not response: 
-            return None, None
-            
-        soup = BeautifulSoup(response.content, "xml")
-        entries = soup.find_all("entry")
-        if not entries: 
+        if not response:
             return None, None
 
-        best_match = entries[0]
+        root = parse_xml(response.content)
+        status = element_text(
+            root.find("atom:result/atom:status", namespaces=NAMESPACES)
+        )
+        if status and status != "0":
+            return None, None
 
-        def get_text_safe(tag_name: str) -> str:
-            tag = best_match.find(tag_name)
-            if not tag: return ""
-            ja_tag, en_tag = tag.find("ja"), tag.find("en")
-            return (ja_tag.get_text(strip=True) if ja_tag else "") or (en_tag.get_text(strip=True) if en_tag else "")
+        entry = root.find("atom:entry", namespaces=NAMESPACES)
+        if entry is None:
+            return None, None
 
-        title = get_text_safe("article_title")
-        venue = get_text_safe("material_title")
-        url = get_text_safe("article_link")
-        
-        authors = []
-        author_tag = best_match.find("author")
-        if author_tag:
-            ja_auth, en_auth = author_tag.find("ja"), author_tag.find("en")
-            target_node = ja_auth if ja_auth and ja_auth.find("name") else en_auth
-            if target_node:
-                authors = [n.get_text(strip=True) for n in target_node.find_all("name") if n.get_text(strip=True)]
-
-        pub_date_tag = best_match.find("pubyear")
-        year = self._extract_year(pub_date_tag.get_text(strip=True)) if pub_date_tag else None
-        
-        doi_tag = best_match.find("prism:doi") or best_match.find("doi")
-        doi = doi_tag.get_text(strip=True) if doi_tag else None
-        
-        metadata = VerifiedCitationInfo(
-            title=title, 
-            authors=authors, 
-            year=year, 
-            venue=venue, 
-            doi=doi, 
-            url=url
+        title = self._localized_text(entry, "article_title")
+        venue = self._localized_text(entry, "material_title")
+        url = self._localized_text(entry, "article_link")
+        authors = self._authors(entry)
+        year = self._extract_year(
+            element_text(entry.find("atom:pubyear", namespaces=NAMESPACES))
+        )
+        doi = (
+            element_text(entry.find("prism:doi", namespaces=NAMESPACES))
+            or element_text(entry.find("atom:doi", namespaces=NAMESPACES))
+            or None
         )
 
+        metadata = VerifiedCitationInfo(
+            title=title,
+            authors=authors,
+            year=year,
+            venue=venue,
+            doi=doi,
+            url=url,
+        )
         return metadata, None
+
+    @staticmethod
+    def _localized_text(
+        entry: etree._Element,
+        field_name: str,
+    ) -> str:
+        for language in ("ja", "en"):
+            value = element_text(
+                entry.find(
+                    f"atom:{field_name}/atom:{language}",
+                    namespaces=NAMESPACES,
+                )
+            )
+            if value:
+                return value
+        return ""
+
+    @staticmethod
+    def _authors(entry: etree._Element) -> list[str]:
+        for language in ("ja", "en"):
+            names = [
+                name
+                for name in (
+                    element_text(element)
+                    for element in entry.findall(
+                        f"atom:author/atom:{language}/atom:name",
+                        namespaces=NAMESPACES,
+                    )
+                )
+                if name
+            ]
+            if names:
+                return names
+        return []

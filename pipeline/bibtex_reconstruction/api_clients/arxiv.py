@@ -2,11 +2,17 @@ import re
 from typing import Optional, Tuple
 from urllib.parse import quote, urlparse
 
-from bs4 import BeautifulSoup
-
 from api_clients.base_client import BaseAPIClient
 from core.config import settings
+from core.xml_utils import element_text, parse_xml
 from models import InputData, VerifiedCitationInfo
+
+ATOM_NAMESPACE = "http://www.w3.org/2005/Atom"
+ARXIV_NAMESPACE = "http://arxiv.org/schemas/atom"
+NAMESPACES = {
+    "atom": ATOM_NAMESPACE,
+    "arxiv": ARXIV_NAMESPACE,
+}
 
 
 class ArxivClient(BaseAPIClient):
@@ -36,32 +42,46 @@ class ArxivClient(BaseAPIClient):
         if not response:
             return None, None
 
-        soup = BeautifulSoup(response.content, "xml")
-        entry = soup.find("entry")
-        if not entry:
+        root = parse_xml(response.content)
+        entry = root.find("atom:entry", namespaces=NAMESPACES)
+        if entry is None:
             return None, None
 
-        title_tag = entry.find("title")
-        title = title_tag.get_text(strip=True) if title_tag else ""
-        title = " ".join(title.split())
+        title = " ".join(
+            element_text(
+                entry.find("atom:title", namespaces=NAMESPACES)
+            ).split()
+        )
 
         authors = [
-            author.find("name").get_text(strip=True)
-            for author in entry.find_all("author")
-            if author.find("name")
+            name
+            for name in (
+                element_text(element)
+                for element in entry.findall(
+                    "atom:author/atom:name",
+                    namespaces=NAMESPACES,
+                )
+            )
+            if name
         ]
 
-        published_tag = entry.find("published")
-        published = published_tag.get_text(strip=True) if published_tag else ""
+        published = element_text(
+            entry.find("atom:published", namespaces=NAMESPACES)
+        )
         year = self._extract_year(published)
 
-        journal_ref = entry.find("arxiv:journal_ref")
-        venue = journal_ref.get_text(strip=True) if journal_ref else "arXiv"
+        venue = (
+            element_text(
+                entry.find("arxiv:journal_ref", namespaces=NAMESPACES)
+            )
+            or "arXiv"
+        )
 
-        doi_tag = entry.find("arxiv:doi")
-        doi = doi_tag.get_text(strip=True) if doi_tag else None
-        id_tag = entry.find("id")
-        url = id_tag.get_text(strip=True) if id_tag else ""
+        doi = (
+            element_text(entry.find("arxiv:doi", namespaces=NAMESPACES))
+            or None
+        )
+        url = element_text(entry.find("atom:id", namespaces=NAMESPACES))
         arxiv_id = self._extract_arxiv_id(url)
 
         metadata = VerifiedCitationInfo(
