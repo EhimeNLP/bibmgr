@@ -86,6 +86,9 @@ test("login, CRUD, restore, and public accessibility", async ({
   await restore.click();
   await page.getByRole("button", { name: "Confirm restore" }).click();
   await expect(page.getByText(/was restored as a new revision/)).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "Download .bib", exact: true }),
+  ).toBeEnabled();
   await assertNoSeriousAccessibilityViolations(page);
 });
 
