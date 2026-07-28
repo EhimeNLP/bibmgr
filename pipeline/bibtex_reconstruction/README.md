@@ -65,7 +65,9 @@ DOI候補とLLM候補には、既存`bibtexparser`のmonth middlewareとRustのs
 
 - `services/orchestrator.py`: DOI直通、並列検索、証拠bundle、LLM再試行、Rust検証を制御します。
 
-- `services/semantic_reconstructor.py`: 証拠に基づくGemini structured outputと修正promptを管理します。
+- `services/semantic_reconstructor.py`: providerに依存しない証拠promptと修正promptを管理します。
+
+- `services/llm_providers/`: Gemini、OpenAI、OpenAI互換APIへの接続差分とstructured outputを管理します。
 
 - `api_clients/`: Crossref、Semantic Scholar、CiNii、J-STAGE、arXiv、doi.orgなどからmetadataまたはBibTeXを取得します。
 
@@ -91,7 +93,13 @@ cp pipeline/bibtex_reconstruction/.env.sample pipeline/bibtex_reconstruction/.en
 
 主な環境変数は次のとおりです。
 
-- `GEMINI_API_KEY`: DOI経路で解決できない文献を意味的に復元するために必要です。
+- `BIBTEX_RECONSTRUCTION_LLM_PROVIDER`: 意味的復元に利用するproviderです。`gemini`、`openai`、`openai_compatible`から選択します。
+
+- `BIBTEX_RECONSTRUCTION_LLM_MODEL`: providerへ渡すmodel名です。
+
+- `BIBTEX_RECONSTRUCTION_LLM_API_KEY`: providerのAPI keyです。認証不要のlocal OpenAI互換serverでは空にできます。
+
+- `BIBTEX_RECONSTRUCTION_LLM_BASE_URL`: OpenAI互換APIのbase URLです。`openai`では未指定時に公式endpointを使用します。
 
 - `CROSSREF_MAILTO`: Crossrefのpolite poolを利用する連絡先です。
 
@@ -99,7 +107,7 @@ cp pipeline/bibtex_reconstruction/.env.sample pipeline/bibtex_reconstruction/.en
 
 - `SEMANTIC_SCHOLAR_API_KEY`: Semantic Scholar APIの認証に使用します。
 
-`GEMINI_API_KEY`が未設定でもDOI直通経路は利用できますが、LLMが必要なfragmentは推測で補完せず`manual_review`へ送られます。
+選択したproviderの必須設定が不足していてもDOI直通経路は利用できますが、LLMが必要なfragmentは推測で補完せず`manual_review`へ送られます。
 
 ## Run
 
@@ -146,7 +154,11 @@ uv run --project pipeline/bibtex_reconstruction \
 
 - `search.trusted_doi_threshold`: 検索で発見したDOIをLLM省略経路へ送るための厳しいタイトル類似度です。
 
-- `llm.model_name`: 意味的復元に利用するGemini modelです。
+- `llm.provider`: 意味的復元に利用するproviderです。
+
+- `llm.model`: providerへ渡すmodel名です。
+
+- `llm.base_url`: OpenAI互換APIまたはGemini endpointを利用する場合のbase URLです。
 
 - `llm.max_llm_attempts`: Rust diagnosticを使ったLLM修正の最大回数です。
 
