@@ -442,26 +442,32 @@ class ReconstructionOrchestrator:
         *,
         attempts: list[ReconstructionAttempt],
     ) -> _EvaluatedCandidate | None:
-        """Try DOI metadata, then an official citation export if incomplete."""
+        """Fetch both DOI representations and prefer the official site export."""
 
         doi_result = self._try_doi_candidate(doi, attempts=attempts)
-        if doi_result is not None and doi_result.ready:
-            return doi_result
-
         citation_result = self._try_official_citation(
             doi,
             attempts=attempts,
         )
-        if citation_result is not None:
-            if citation_result.ready:
-                return citation_result
-            if (
-                doi_result is None
-                or len(citation_result.quality_issues)
-                < len(doi_result.quality_issues)
-            ):
-                return citation_result
-        return doi_result
+
+        # The publisher/repository export is closest to the maintained
+        # bibliographic record and therefore wins whenever it is complete.
+        if citation_result is not None and citation_result.ready:
+            return citation_result
+        if doi_result is not None and doi_result.ready:
+            return doi_result
+
+        # When neither representation is complete, keep a structurally
+        # accepted official export as the base for metadata enrichment and LLM
+        # repair. A usable content-negotiation result is the next fallback.
+        if (
+            citation_result is not None
+            and citation_result.validation.accepted
+        ):
+            return citation_result
+        if doi_result is not None and doi_result.validation.accepted:
+            return doi_result
+        return citation_result or doi_result
 
     def _try_doi_candidate(
         self,

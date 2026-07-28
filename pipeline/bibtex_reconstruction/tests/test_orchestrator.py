@@ -212,9 +212,11 @@ def orchestrator(**kwargs) -> ReconstructionOrchestrator:
 
 def test_exact_input_doi_bypasses_search_and_llm():
     doi_client = FakeDoiClient(VALID_BIBTEX)
+    citation_client = FakeCitationClient()
     validator = FakeValidator([True])
     service = orchestrator(
         doi_client=doi_client,
+        citation_client=citation_client,
         validator=validator,
         reconstructor=FailingIfCalledReconstructor(),
     )
@@ -225,7 +227,68 @@ def test_exact_input_doi_bypasses_search_and_llm():
     assert result.reconstruction_path == ReconstructionPath.DOI_CONTENT_NEGOTIATION
     assert result.reconstructed_bibtex == VALID_BIBTEX
     assert doi_client.calls == ["10.1000/example"]
+    assert citation_client.calls == ["10.1000/example"]
     assert len(result.attempts) == 1
+
+
+def test_complete_official_citation_has_priority_over_complete_doi_bibtex():
+    official_bibtex = VALID_BIBTEX.replace(
+        "@article{example,",
+        "@article{official,",
+    )
+    citation_client = FakeCitationClient(
+        OfficialCitation(
+            bibtex=official_bibtex,
+            source_url="https://publisher.example/paper.bib",
+        )
+    )
+    service = orchestrator(
+        doi_client=FakeDoiClient(VALID_BIBTEX),
+        citation_client=citation_client,
+        validator=FakeValidator([True, True]),
+        reconstructor=FailingIfCalledReconstructor(),
+    )
+
+    result = service.reconstruct_reference(
+        input_data(doi="10.1000/example")
+    )
+
+    assert result.reconstruction_path == ReconstructionPath.OFFICIAL_CITATION
+    assert result.reconstructed_bibtex == official_bibtex
+    assert [attempt.path for attempt in result.attempts] == [
+        ReconstructionPath.DOI_CONTENT_NEGOTIATION,
+        ReconstructionPath.OFFICIAL_CITATION,
+    ]
+
+
+def test_complete_doi_bibtex_wins_when_official_citation_is_incomplete():
+    incomplete_official = """@article{official,
+  title = {},
+  author = {Ada Example},
+  journal = {Journal of Tests},
+  year = {2024}
+}"""
+    service = orchestrator(
+        doi_client=FakeDoiClient(VALID_BIBTEX),
+        citation_client=FakeCitationClient(
+            OfficialCitation(
+                bibtex=incomplete_official,
+                source_url="https://publisher.example/incomplete.bib",
+            )
+        ),
+        validator=FakeValidator([True, True]),
+        reconstructor=FailingIfCalledReconstructor(),
+    )
+
+    result = service.reconstruct_reference(
+        input_data(doi="10.1000/example")
+    )
+
+    assert result.reconstruction_path == (
+        ReconstructionPath.DOI_CONTENT_NEGOTIATION
+    )
+    assert result.reconstructed_bibtex == VALID_BIBTEX
+    assert result.attempts[1].quality_issues == ["title"]
 
 
 def test_high_confidence_search_doi_bypasses_llm():

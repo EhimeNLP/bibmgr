@@ -16,8 +16,8 @@ flowchart LR
         EVIDENCE["抽出値＋raw_text＋API metadataを<br/>出典付きで情報化"]
         DOI{"信頼できるDOIを<br/>特定できたか"}
         DOIFETCH["doi.orgから<br/>候補BibTeXを直接取得"]
-        QUALITY{"Rust検証＋重要fieldの<br/>品質確認に合格したか"}
         OFFICIAL["DOI遷移先の公式Citeから<br/>BibTeXを取得"]
+        SELECT{"両候補をRust検証＋品質確認<br/>公式Citeを優先選択"}
         ENRICH["同一DOIの検証済みmetadataで<br/>欠損fieldだけ補完"]
         LLM["LLMで意味的に復元"]
         CANDIDATE["候補BibTeXの生成"]
@@ -32,12 +32,12 @@ flowchart LR
         PYSEARCH --> EVIDENCE
         EVIDENCE --> DOI
         DOI -- はい --> DOIFETCH
-        DOIFETCH --> QUALITY
-        QUALITY -- 合格 --> OUTPUT
-        QUALITY -- 不完全 --> OFFICIAL
-        OFFICIAL --> RUSTCHECK
-        RUSTCHECK -- 合格 --> OUTPUT
-        RUSTCHECK -- 不完全・取得不能 --> ENRICH
+        DOI -- はい --> OFFICIAL
+        DOIFETCH --> SELECT
+        OFFICIAL --> SELECT
+        SELECT -- 完全な公式Cite --> OUTPUT
+        SELECT -- 公式が不完全・DOI候補は完全 --> OUTPUT
+        SELECT -- 両方不完全・取得不能 --> ENRICH
         ENRICH --> RUSTCHECK
         RUSTCHECK -- なお不完全 --> LLM
         DOI -- いいえ --> LLM
@@ -56,9 +56,9 @@ flowchart LR
 
 抽出済みfieldは確定値ではなく検索手掛かりとして扱います．`venue`には誌名だけでなく巻・号・pageなどが含まれる可能性があるため，正規化済みvenueとはみなしません．`raw_text`は抽出結果を検証・補完するための一次情報として常に証拠bundleへ残します．`2017a`，`2017b`のような年は元の値を保存しつつ，外部metadataとの照合時には`2017`として比較します．
 
-元入力に正確なDOIが含まれる場合は，まずdoi.orgのContent NegotiationからBibTeXを取得します．ただし，DOI登録metadataは常に完全とは限らないため，Rustの登録判定に加えて，`title`，`author`または`editor`，`year`とentry type固有の掲載先fieldが存在することを確認します．この品質確認に合格した場合だけ曖昧検索とLLMを省略します．
+元入力または検索から信頼できるDOIを特定した場合は，doi.orgのContent Negotiationと，DOIの通常の遷移先が公開する公式Cite/BibTeXの両方へ必ずアクセスします．片方が完全でも他方の取得を省略しません．両候補をRustの登録判定に加えて，`title`，`author`または`editor`，`year`とentry type固有の掲載先fieldが存在するか確認します．
 
-DOI BibTeXが不完全な場合は，DOIの通常の遷移先を開き，公式ページが公開しているBibTeXを優先します．特定サイト名には依存せず，`application/x-bibtex`のalternate，`.bib`またはBibTeX download link，ページ内の`pre`，`code`，`textarea`，`citation_bibtex` metadataを`lxml`で探索します．JavaScript操作，認証，POSTが必要なCite機能やBibTeXを公開していないサイトは無理に解析せず，次の補完段階へ進みます．
+採用優先順位は，完全な公式Cite/BibTeX，完全なDOI Content Negotiation，補完可能な公式Cite/BibTeX，補完可能なDOI Content Negotiationの順です．公式Cite探索は特定サイト名には依存せず，`application/x-bibtex`のalternate，`.bib`またはBibTeX download link，ページ内の`pre`，`code`，`textarea`，`citation_bibtex` metadataを`lxml`で探索します．JavaScript操作，認証，POSTが必要なCite機能やBibTeXを公開していないサイトは無理に解析せず，次の候補へ進みます．
 
 公式Citeでも解決しない場合に限り，同じDOIを持ち高類似と判定された外部API候補から，既存値を上書きせず欠損fieldだけを補完します．補完後も同じRust検証と品質確認を行い，不完全なら証拠bundleと直前候補をLLMへ渡します．
 
@@ -272,4 +272,4 @@ uv run --project pipeline/bibtex_reconstruction \
   pytest pipeline/bibtex_reconstruction/tests -q
 ```
 
-テストでは，`metadata_extraction`出力に対する入力契約，件数・IDの整合性，検索手掛かりの補完，完全なDOI候補によるLLM省略，不完全なDOI候補の品質検出，汎用的な公式Cite探索，既存値を上書きしないmetadata補完，検索DOIの整合確認，Rust検証，diagnosticを使ったLLM再試行，手動確認への分離，全referenceを含む監査reportを検証します．
+テストでは，`metadata_extraction`出力に対する入力契約，件数・IDの整合性，検索手掛かりの補完，DOIの両取得経路が常に実行されること，公式Citeの優先，不完全候補の品質検出，汎用的な公式Cite探索，既存値を上書きしないmetadata補完，検索DOIの整合確認，Rust検証，diagnosticを使ったLLM再試行，手動確認への分離，全referenceを含む監査reportを検証します．
