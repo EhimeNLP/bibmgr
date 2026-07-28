@@ -2,11 +2,217 @@
 
 import logging
 import re
+from collections.abc import Iterable, Mapping
+from dataclasses import dataclass
 from typing import Optional
+
 import bibtexparser
+from bibtexparser.model import Field
 
 
 logger = logging.getLogger(__name__)
+
+
+@dataclass(frozen=True)
+class BibtexInspection:
+    """Deterministic quality result for one BibTeX entry."""
+
+    parsed: bool
+    entry_type: str | None
+    citation_key: str | None
+    missing_fields: tuple[str, ...]
+
+    @property
+    def complete(self) -> bool:
+        return self.parsed and not self.missing_fields
+
+
+_TYPE_SPECIFIC_REQUIRED_FIELDS: dict[str, tuple[tuple[str, ...], ...]] = {
+    "article": (("journal",),),
+    "inproceedings": (("booktitle",),),
+    "conference": (("booktitle",),),
+    "incollection": (("booktitle",),),
+    "inbook": (("booktitle",),),
+    "phdthesis": (("school",),),
+    "mastersthesis": (("school",),),
+    "techreport": (("institution",),),
+}
+
+_PORTABLE_BIBTEX_FIELDS = {
+    "abstract",
+    "address",
+    "author",
+    "booktitle",
+    "chapter",
+    "doi",
+    "editor",
+    "eprint",
+    "howpublished",
+    "institution",
+    "isbn",
+    "issn",
+    "journal",
+    "month",
+    "note",
+    "number",
+    "organization",
+    "pages",
+    "primaryclass",
+    "publisher",
+    "school",
+    "series",
+    "title",
+    "type",
+    "url",
+    "volume",
+    "year",
+}
+
+
+def inspect_bibtex(raw_bibtex: str) -> BibtexInspection:
+    """Check whether one entry contains its core bibliographic identity."""
+
+    if not raw_bibtex:
+        return BibtexInspection(False, None, None, ("parseable_entry",))
+    try:
+        library = bibtexparser.parse_string(raw_bibtex)
+    except Exception as exc:
+        logger.debug(
+            "BibTeX quality inspection failed error_type=%s",
+            exc.__class__.__name__,
+        )
+        return BibtexInspection(False, None, None, ("parseable_entry",))
+    if len(library.entries) != 1 or library.failed_blocks:
+        return BibtexInspection(False, None, None, ("single_parseable_entry",))
+
+    entry = library.entries[0]
+    fields = {
+        key.casefold(): field.value.strip()
+        for key, field in entry.fields_dict.items()
+        if field.value is not None
+    }
+    missing: list[str] = []
+    if not fields.get("title"):
+        missing.append("title")
+    if not fields.get("author") and not fields.get("editor"):
+        missing.append("author_or_editor")
+    if not fields.get("year"):
+        missing.append("year")
+
+    entry_type = entry.entry_type.casefold()
+    for alternatives in _TYPE_SPECIFIC_REQUIRED_FIELDS.get(entry_type, ()):
+        if not any(fields.get(field_name) for field_name in alternatives):
+            missing.append("_or_".join(alternatives))
+
+    return BibtexInspection(
+        parsed=True,
+        entry_type=entry_type,
+        citation_key=entry.key,
+        missing_fields=tuple(missing),
+    )
+
+
+def bibtex_fields(raw_bibtex: str) -> dict[str, str]:
+    """Return the first entry's non-empty fields with case-folded names."""
+
+    if not raw_bibtex:
+        return {}
+    try:
+        library = bibtexparser.parse_string(raw_bibtex)
+    except Exception:
+        return {}
+    if len(library.entries) != 1 or library.failed_blocks:
+        return {}
+    return {
+        key.casefold(): field.value.strip()
+        for key, field in library.entries[0].fields_dict.items()
+        if field.value is not None and field.value.strip()
+    }
+
+
+def fill_missing_bibtex_fields(
+    raw_bibtex: str,
+    field_sources: Iterable[Mapping[str, str | None]],
+) -> tuple[str, list[str]]:
+    """Fill empty fields without overwriting information already present."""
+
+    try:
+        library = bibtexparser.parse_string(raw_bibtex)
+    except Exception:
+        return raw_bibtex, []
+    if len(library.entries) != 1 or library.failed_blocks:
+        return raw_bibtex, []
+
+    entry = library.entries[0]
+    present = {
+        key.casefold(): field.value.strip()
+        for key, field in entry.fields_dict.items()
+        if field.value is not None
+    }
+    filled: list[str] = []
+    for source in field_sources:
+        for raw_name, raw_value in source.items():
+            name = raw_name.casefold()
+            if (
+                name not in _PORTABLE_BIBTEX_FIELDS
+                or raw_value is None
+                or not str(raw_value).strip()
+                or present.get(name)
+            ):
+                continue
+            value = str(raw_value).strip()
+            existing_key = next(
+                (
+                    key
+                    for key in entry.fields_dict
+                    if key.casefold() == name
+                ),
+                name,
+            )
+            entry.set_field(Field(existing_key, value))
+            present[name] = value
+            filled.append(name)
+
+    if not filled:
+        return raw_bibtex, []
+    return bibtexparser.write_string(library).strip(), filled
+
+
+def metadata_bibtex_fields(
+    *,
+    entry_type: str | None,
+    title: str | None,
+    authors: Iterable[str],
+    year: int | None,
+    venue: str | None,
+    doi: str | None,
+    url: str | None,
+) -> dict[str, str]:
+    """Map verified metadata into fields appropriate for the entry type."""
+
+    result: dict[str, str] = {}
+    if title:
+        result["title"] = title
+    author_list = [author.strip() for author in authors if author.strip()]
+    if author_list:
+        result["author"] = " and ".join(author_list)
+    if year is not None:
+        result["year"] = str(year)
+    if venue:
+        if entry_type == "article":
+            result["journal"] = venue
+        elif entry_type in {
+            "conference",
+            "inbook",
+            "incollection",
+            "inproceedings",
+        }:
+            result["booktitle"] = venue
+    if doi:
+        result["doi"] = doi
+    if url:
+        result["url"] = url
+    return result
 
 
 def extract_bibtex_field(raw_bibtex: str, field_name: str) -> Optional[str]:

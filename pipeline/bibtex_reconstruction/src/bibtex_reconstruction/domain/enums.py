@@ -19,4 +19,6 @@ class ReconstructionPath(str, Enum):
     """The path that produced the final reconstruction candidate."""
 
     DOI_CONTENT_NEGOTIATION = "doi_content_negotiation"
+    OFFICIAL_CITATION = "official_citation"
+    METADATA_ENRICHMENT = "metadata_enrichment"
     LLM = "llm"

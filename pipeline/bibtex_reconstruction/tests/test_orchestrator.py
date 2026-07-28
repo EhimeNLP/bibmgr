@@ -10,6 +10,7 @@ from bibtex_reconstruction.application.semantic_reconstructor import (
     SemanticReconstructionUnavailable,
 )
 from bibtex_reconstruction.clients.base import APIClientError
+from bibtex_reconstruction.clients.citation_site import OfficialCitation
 from bibtex_reconstruction.config import settings
 from bibtex_reconstruction.domain import (
     InputData,
@@ -63,6 +64,16 @@ class FakeDoiClient:
     def fetch_bibtex(self, doi: str) -> str | None:
         self.calls.append(doi)
         return self.bibtex
+
+
+class FakeCitationClient:
+    def __init__(self, citation: OfficialCitation | None = None) -> None:
+        self.citation = citation
+        self.calls: list[str] = []
+
+    def fetch_bibtex(self, doi: str) -> OfficialCitation | None:
+        self.calls.append(doi)
+        return self.citation
 
 
 class FakeValidator:
@@ -191,6 +202,10 @@ class CountingSearchClient:
 def orchestrator(**kwargs) -> ReconstructionOrchestrator:
     return ReconstructionOrchestrator(
         external_clients=kwargs.pop("external_clients", []),
+        citation_client=kwargs.pop(
+            "citation_client",
+            FakeCitationClient(),
+        ),
         **kwargs,
     )
 
@@ -227,6 +242,73 @@ def test_high_confidence_search_doi_bypasses_llm():
     assert result.outcome == ReconstructionOutcome.READY
     assert result.evidence.trusted_doi == "10.1000/example"
     assert result.candidates[0].source_api == "Crossref API"
+
+
+def test_incomplete_doi_uses_official_site_citation_before_metadata_or_llm():
+    incomplete = """@inproceedings{example,
+  title = {},
+  author = {Ada Example},
+  booktitle = {Proceedings of Tests},
+  year = {2024}
+}"""
+    official = VALID_BIBTEX.replace("@article", "@inproceedings").replace(
+        "journal = {Journal of Tests}",
+        "booktitle = {Proceedings of Tests}",
+    )
+    citation_client = FakeCitationClient(
+        OfficialCitation(
+            bibtex=official,
+            source_url="https://publisher.example/paper.bib",
+        )
+    )
+    service = orchestrator(
+        doi_client=FakeDoiClient(incomplete),
+        citation_client=citation_client,
+        validator=FakeValidator([True, True]),
+        reconstructor=FailingIfCalledReconstructor(),
+    )
+
+    result = service.reconstruct_reference(
+        input_data(doi="10.1000/example")
+    )
+
+    assert result.outcome == ReconstructionOutcome.READY
+    assert result.reconstruction_path == ReconstructionPath.OFFICIAL_CITATION
+    assert [attempt.path for attempt in result.attempts] == [
+        ReconstructionPath.DOI_CONTENT_NEGOTIATION,
+        ReconstructionPath.OFFICIAL_CITATION,
+    ]
+    assert result.attempts[0].quality_issues == ["title"]
+    assert (
+        result.attempts[1].source_url
+        == "https://publisher.example/paper.bib"
+    )
+
+
+def test_incomplete_doi_is_enriched_from_matching_verified_metadata():
+    incomplete = """@inproceedings{example,
+  title = {},
+  author = {Ada Example},
+  booktitle = {Proceedings of Tests}
+}"""
+    service = orchestrator(
+        external_clients=[FakeSearchClient()],
+        doi_client=FakeDoiClient(incomplete),
+        validator=FakeValidator([True, True]),
+        reconstructor=FailingIfCalledReconstructor(),
+    )
+
+    result = service.reconstruct_reference(
+        input_data(doi="10.1000/example")
+    )
+
+    assert result.outcome == ReconstructionOutcome.READY
+    assert result.reconstruction_path == ReconstructionPath.METADATA_ENRICHMENT
+    assert result.attempts[0].quality_issues == ["title", "year"]
+    assert result.attempts[1].filled_fields == ["title", "year", "doi"]
+    assert "title = {A Reliable Paper}" in result.reconstructed_bibtex
+    assert "year = {2024}" in result.reconstructed_bibtex
+    assert "author = {Ada Example}" in result.reconstructed_bibtex
 
 
 def test_citation_year_suffix_does_not_reject_matching_api_year():
@@ -318,6 +400,12 @@ def test_rejected_doi_candidate_is_repaired_with_rust_feedback():
     previous = reconstructor.calls[0][1]
     assert previous["previous_candidate"] == "@article{broken}"
     assert previous["validation"].diagnostics[0].code == "LAB-ENTRY-001"
+    assert previous["quality_issues"] == (
+        "title",
+        "author_or_editor",
+        "year",
+        "journal",
+    )
 
 
 def test_llm_feedback_uses_the_source_that_rust_diagnosed():

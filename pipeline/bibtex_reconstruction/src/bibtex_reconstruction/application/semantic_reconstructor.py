@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from collections.abc import Sequence
 from typing import Protocol
 
 from ..clients.llm import (
@@ -28,6 +29,7 @@ class SemanticReconstructor(Protocol):
         *,
         previous_candidate: str | None = None,
         validation: RustValidationResult | None = None,
+        quality_issues: Sequence[str] = (),
     ) -> LLMReconstruction:
         """Produce one evidence-grounded BibTeX candidate."""
 
@@ -44,11 +46,13 @@ class ConfiguredSemanticReconstructor:
         *,
         previous_candidate: str | None = None,
         validation: RustValidationResult | None = None,
+        quality_issues: Sequence[str] = (),
     ) -> LLMReconstruction:
         prompt = self._build_prompt(
             evidence,
             previous_candidate=previous_candidate,
             validation=validation,
+            quality_issues=quality_issues,
         )
         try:
             provider = self.provider or create_llm_provider()
@@ -62,6 +66,7 @@ class ConfiguredSemanticReconstructor:
         *,
         previous_candidate: str | None,
         validation: RustValidationResult | None,
+        quality_issues: Sequence[str] = (),
     ) -> str:
         diagnostics = []
         if validation:
@@ -81,6 +86,7 @@ class ConfiguredSemanticReconstructor:
             "evidence_bundle": evidence.model_dump(mode="json"),
             "previous_candidate": previous_candidate,
             "rust_diagnostics": diagnostics,
+            "quality_issues": list(quality_issues),
         }
         return (
             "You reconstruct one academic BibTeX entry from damaged input and "
@@ -97,7 +103,8 @@ class ConfiguredSemanticReconstructor:
             "2017b as a citation disambiguation label, not part of the BibTeX "
             "year value.\n"
             "If Rust diagnostics are present, repair the previous candidate while "
-            "preserving supported information. List any unresolved fields and "
-            "the source_api names actually used.\n\n"
+            "preserving supported information. If quality_issues are present, "
+            "fill those core fields only when supported by the evidence. List "
+            "any unresolved fields and the source_api names actually used.\n\n"
             f"INPUT:\n{json.dumps(task, ensure_ascii=False, indent=2)}"
         )

@@ -72,6 +72,9 @@ class ReconstructionAttempt(BaseModel):
     path: ReconstructionPath
     candidate_bibtex: str
     validation: RustValidationResult
+    source_url: Optional[str] = None
+    quality_issues: List[str] = Field(default_factory=list)
+    filled_fields: List[str] = Field(default_factory=list)
     llm_result: Optional[LLMReconstruction] = None
 
 

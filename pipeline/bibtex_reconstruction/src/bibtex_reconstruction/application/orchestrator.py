@@ -6,6 +6,7 @@ import concurrent.futures
 import logging
 import re
 from collections.abc import Sequence
+from dataclasses import dataclass
 
 from ..clients import (
     ArxivClient,
@@ -13,6 +14,7 @@ from ..clients import (
     CrossrefClient,
     DoiContentNegotiationClient,
     JStageClient,
+    OfficialCitationClient,
     SemanticScholarClient,
 )
 from ..clients.base import APIClientError
@@ -32,6 +34,12 @@ from ..domain.enums import (
     ReconstructionPath,
 )
 from ..matching import calculate_similarity
+from ..parsing.bibtex import (
+    bibtex_fields,
+    fill_missing_bibtex_fields,
+    inspect_bibtex,
+    metadata_bibtex_fields,
+)
 from ..parsing.identifiers import extract_dois, normalize_doi
 from ..parsing.source_clues import enrich_search_clues
 from ..validation import NativeBibtexValidator
@@ -45,6 +53,19 @@ from .semantic_reconstructor import (
 logger = logging.getLogger(__name__)
 
 
+@dataclass(frozen=True)
+class _EvaluatedCandidate:
+    source: str
+    validation: RustValidationResult
+    path: ReconstructionPath
+    quality_issues: tuple[str, ...]
+    source_url: str | None = None
+
+    @property
+    def ready(self) -> bool:
+        return self.validation.accepted and not self.quality_issues
+
+
 class ReconstructionOrchestrator:
     """Coordinate deterministic DOI recovery, search, LLM repair, and Rust checks."""
 
@@ -53,6 +74,7 @@ class ReconstructionOrchestrator:
         *,
         external_clients: Sequence[object] | None = None,
         doi_client: DoiContentNegotiationClient | None = None,
+        citation_client: OfficialCitationClient | None = None,
         validator: NativeBibtexValidator | None = None,
         reconstructor: SemanticReconstructor | None = None,
         search_workers: int | None = None,
@@ -65,6 +87,7 @@ class ReconstructionOrchestrator:
             ArxivClient(),
         ]
         self.doi_client = doi_client or DoiContentNegotiationClient()
+        self.citation_client = citation_client or OfficialCitationClient()
         self.validator = validator or NativeBibtexValidator()
         self.reconstructor = reconstructor or ConfiguredSemanticReconstructor()
         self.search_workers = search_workers or settings.api_threads
@@ -87,17 +110,22 @@ class ReconstructionOrchestrator:
         attempts: list[ReconstructionAttempt] = []
         last_candidate: str | None = None
         last_validation: RustValidationResult | None = None
+        last_quality_issues: tuple[str, ...] = ()
+        doi_evaluations: dict[str, _EvaluatedCandidate] = {}
 
         # Exact identifiers present in the input are the strongest evidence.
         for doi in extracted_dois:
-            direct_result = self._try_doi_candidate(
+            direct_result = self._try_doi_recovery(
                 doi,
                 attempts=attempts,
             )
             if direct_result is None:
                 continue
-            last_candidate, last_validation = direct_result
-            if last_validation.accepted:
+            doi_evaluations[doi] = direct_result
+            last_candidate = direct_result.source
+            last_validation = direct_result.validation
+            last_quality_issues = direct_result.quality_issues
+            if direct_result.ready:
                 evidence = self._build_evidence(
                     original_input,
                     search_input=search_input,
@@ -108,8 +136,8 @@ class ReconstructionOrchestrator:
                 return self._accepted_result(
                     original_input,
                     evidence=evidence,
-                    path=ReconstructionPath.DOI_CONTENT_NEGOTIATION,
-                    validation=last_validation,
+                    path=direct_result.path,
+                    validation=direct_result.validation,
                     attempts=attempts,
                 )
 
@@ -127,22 +155,48 @@ class ReconstructionOrchestrator:
             candidates=candidates,
         )
 
-        # A high-confidence DOI returned by search also bypasses the LLM.
-        if trusted_doi:
-            direct_result = self._try_doi_candidate(
-                trusted_doi,
-                attempts=attempts,
+        # Search-discovered identifiers use the same staged DOI recovery.
+        recovery_dois = list(
+            dict.fromkeys(
+                doi
+                for doi in [trusted_doi, *extracted_dois]
+                if doi
             )
-            if direct_result is not None:
-                last_candidate, last_validation = direct_result
-                if last_validation.accepted:
-                    return self._accepted_result(
-                        original_input,
-                        evidence=evidence,
-                        path=ReconstructionPath.DOI_CONTENT_NEGOTIATION,
-                        validation=last_validation,
-                        attempts=attempts,
-                    )
+        )
+        for doi in recovery_dois:
+            direct_result = doi_evaluations.get(doi)
+            if direct_result is None:
+                direct_result = self._try_doi_recovery(
+                    doi,
+                    attempts=attempts,
+                )
+            if direct_result is None:
+                continue
+
+            last_candidate = direct_result.source
+            last_validation = direct_result.validation
+            last_quality_issues = direct_result.quality_issues
+            if not direct_result.ready:
+                enriched = self._try_metadata_enrichment(
+                    direct_result.source,
+                    doi=doi,
+                    candidates=candidates,
+                    attempts=attempts,
+                )
+                if enriched is not None:
+                    direct_result = enriched
+                    last_candidate = enriched.source
+                    last_validation = enriched.validation
+                    last_quality_issues = enriched.quality_issues
+
+            if direct_result.ready:
+                return self._accepted_result(
+                    original_input,
+                    evidence=evidence,
+                    path=direct_result.path,
+                    validation=direct_result.validation,
+                    attempts=attempts,
+                )
 
         try:
             for _ in range(settings.max_llm_attempts):
@@ -150,26 +204,29 @@ class ReconstructionOrchestrator:
                     evidence,
                     previous_candidate=last_candidate,
                     validation=last_validation,
+                    quality_issues=last_quality_issues,
                 )
                 produced_candidate = llm_result.bibtex.strip()
-                last_validation = self.validator.validate(produced_candidate)
-                attempts.append(
-                    ReconstructionAttempt(
-                        attempt=len(attempts) + 1,
-                        path=ReconstructionPath.LLM,
-                        candidate_bibtex=produced_candidate,
-                        validation=last_validation,
-                        llm_result=llm_result,
-                    )
+                evaluated = self._evaluate_candidate(
+                    produced_candidate,
+                    path=ReconstructionPath.LLM,
+                    attempts=attempts,
+                    llm_result=llm_result,
                 )
+                last_validation = evaluated.validation
                 last_candidate = last_validation.source
+                last_quality_issues = evaluated.quality_issues
                 logger.info(
-                    "LLM candidate checked ref_id=%s accepted=%s attempt=%d",
+                    (
+                        "LLM candidate checked ref_id=%s accepted=%s "
+                        "complete=%s attempt=%d"
+                    ),
                     reference.id,
                     last_validation.accepted,
+                    evaluated.ready,
                     len(attempts),
                 )
-                if last_validation.accepted:
+                if evaluated.ready:
                     return self._accepted_result(
                         original_input,
                         evidence=evidence,
@@ -208,7 +265,10 @@ class ReconstructionOrchestrator:
             candidates=candidates,
             validation=last_validation,
             attempts=attempts,
-            reason=f"Rust validation did not pass after {settings.max_llm_attempts} LLM attempts",
+            reason=(
+                "Rust validation or core metadata quality did not pass after "
+                f"{settings.max_llm_attempts} LLM attempts"
+            ),
         )
 
     def _search_candidates(self, input_data: InputData) -> list[CandidateResult]:
@@ -376,12 +436,39 @@ class ReconstructionOrchestrator:
         candidate_tokens = tokens(candidate_authors)
         return bool(original_tokens and original_tokens & candidate_tokens)
 
+    def _try_doi_recovery(
+        self,
+        doi: str,
+        *,
+        attempts: list[ReconstructionAttempt],
+    ) -> _EvaluatedCandidate | None:
+        """Try DOI metadata, then an official citation export if incomplete."""
+
+        doi_result = self._try_doi_candidate(doi, attempts=attempts)
+        if doi_result is not None and doi_result.ready:
+            return doi_result
+
+        citation_result = self._try_official_citation(
+            doi,
+            attempts=attempts,
+        )
+        if citation_result is not None:
+            if citation_result.ready:
+                return citation_result
+            if (
+                doi_result is None
+                or len(citation_result.quality_issues)
+                < len(doi_result.quality_issues)
+            ):
+                return citation_result
+        return doi_result
+
     def _try_doi_candidate(
         self,
         doi: str,
         *,
         attempts: list[ReconstructionAttempt],
-    ) -> tuple[str, RustValidationResult] | None:
+    ) -> _EvaluatedCandidate | None:
         try:
             candidate = self.doi_client.fetch_bibtex(doi)
         except Exception as exc:
@@ -394,17 +481,171 @@ class ReconstructionOrchestrator:
         if not candidate:
             return None
 
-        validation = self.validator.validate(candidate)
+        evaluated = self._evaluate_candidate(
+            candidate,
+            path=ReconstructionPath.DOI_CONTENT_NEGOTIATION,
+            attempts=attempts,
+        )
+        logger.info(
+            "DOI candidate checked doi=%s accepted=%s complete=%s missing=%s",
+            doi,
+            evaluated.validation.accepted,
+            evaluated.ready,
+            ",".join(evaluated.quality_issues) or "none",
+        )
+        return evaluated
+
+    def _try_official_citation(
+        self,
+        doi: str,
+        *,
+        attempts: list[ReconstructionAttempt],
+    ) -> _EvaluatedCandidate | None:
+        try:
+            citation = self.citation_client.fetch_bibtex(doi)
+        except Exception as exc:
+            logger.warning(
+                "official citation retrieval failed doi=%s error_type=%s",
+                doi,
+                exc.__class__.__name__,
+            )
+            return None
+        if citation is None:
+            return None
+
+        evaluated = self._evaluate_candidate(
+            citation.bibtex,
+            path=ReconstructionPath.OFFICIAL_CITATION,
+            attempts=attempts,
+            source_url=citation.source_url,
+        )
+        logger.info(
+            (
+                "official citation checked doi=%s accepted=%s "
+                "complete=%s missing=%s"
+            ),
+            doi,
+            evaluated.validation.accepted,
+            evaluated.ready,
+            ",".join(evaluated.quality_issues) or "none",
+        )
+        return evaluated
+
+    def _try_metadata_enrichment(
+        self,
+        source: str,
+        *,
+        doi: str,
+        candidates: Sequence[CandidateResult],
+        attempts: list[ReconstructionAttempt],
+    ) -> _EvaluatedCandidate | None:
+        inspection = inspect_bibtex(source)
+        field_sources: list[dict[str, str | None]] = []
+        for candidate in candidates:
+            metadata = candidate.verified_info
+            if (
+                candidate.status != CandidateStatus.MATCH
+                or metadata is None
+                or normalize_doi(metadata.doi) != doi
+            ):
+                continue
+            field_sources.append(
+                metadata_bibtex_fields(
+                    entry_type=inspection.entry_type,
+                    title=metadata.title,
+                    authors=metadata.authors,
+                    year=metadata.year,
+                    venue=metadata.venue,
+                    doi=metadata.doi,
+                    url=metadata.url,
+                )
+            )
+            fields = bibtex_fields(candidate.bibtex or "")
+            field_sources.append(
+                self._compatible_candidate_fields(
+                    fields,
+                    entry_type=inspection.entry_type,
+                )
+            )
+
+        enriched, filled_fields = fill_missing_bibtex_fields(
+            source,
+            field_sources,
+        )
+        if not filled_fields:
+            return None
+        evaluated = self._evaluate_candidate(
+            enriched,
+            path=ReconstructionPath.METADATA_ENRICHMENT,
+            attempts=attempts,
+            filled_fields=filled_fields,
+        )
+        logger.info(
+            (
+                "metadata-enriched candidate checked doi=%s accepted=%s "
+                "complete=%s filled=%s missing=%s"
+            ),
+            doi,
+            evaluated.validation.accepted,
+            evaluated.ready,
+            ",".join(filled_fields),
+            ",".join(evaluated.quality_issues) or "none",
+        )
+        return evaluated
+
+    @staticmethod
+    def _compatible_candidate_fields(
+        fields: dict[str, str],
+        *,
+        entry_type: str | None,
+    ) -> dict[str, str]:
+        result = dict(fields)
+        if entry_type == "article":
+            result.pop("booktitle", None)
+        elif entry_type in {
+            "conference",
+            "inbook",
+            "incollection",
+            "inproceedings",
+        }:
+            result.pop("journal", None)
+        else:
+            result.pop("booktitle", None)
+            result.pop("journal", None)
+        return result
+
+    def _evaluate_candidate(
+        self,
+        source: str,
+        *,
+        path: ReconstructionPath,
+        attempts: list[ReconstructionAttempt],
+        source_url: str | None = None,
+        filled_fields: Sequence[str] = (),
+        llm_result: LLMReconstruction | None = None,
+    ) -> _EvaluatedCandidate:
+        validation = self.validator.validate(source)
+        inspection = inspect_bibtex(validation.source)
+        quality_issues = inspection.missing_fields
         attempts.append(
             ReconstructionAttempt(
                 attempt=len(attempts) + 1,
-                path=ReconstructionPath.DOI_CONTENT_NEGOTIATION,
-                candidate_bibtex=candidate,
+                path=path,
+                candidate_bibtex=source,
                 validation=validation,
+                source_url=source_url,
+                quality_issues=list(quality_issues),
+                filled_fields=list(filled_fields),
+                llm_result=llm_result,
             )
         )
-        logger.info("DOI candidate checked doi=%s accepted=%s", doi, validation.accepted)
-        return validation.source, validation
+        return _EvaluatedCandidate(
+            source=validation.source,
+            validation=validation,
+            path=path,
+            quality_issues=quality_issues,
+            source_url=source_url,
+        )
 
     @staticmethod
     def _build_evidence(

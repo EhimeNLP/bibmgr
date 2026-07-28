@@ -6,6 +6,7 @@ from .cinii import CiNiiClient
 from .semantic_scholar import SemanticScholarClient
 from .jstage import JStageClient
 from .doi import DoiContentNegotiationClient
+from .citation_site import OfficialCitation, OfficialCitationClient
 
 __all__ = [
     "CrossrefClient",
@@ -14,4 +15,6 @@ __all__ = [
     "JStageClient",
     "ArxivClient",
     "DoiContentNegotiationClient",
+    "OfficialCitation",
+    "OfficialCitationClient",
 ]

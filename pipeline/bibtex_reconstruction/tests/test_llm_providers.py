@@ -179,9 +179,15 @@ def test_semantic_reconstructor_builds_provider_independent_prompt():
     )
     reconstructor = ConfiguredSemanticReconstructor(provider)
 
-    result = reconstructor.reconstruct(evidence)
+    result = reconstructor.reconstruct(
+        evidence,
+        quality_issues=["title", "year"],
+    )
 
     assert result.confidence == 0.8
     assert "Damaged title" in provider.prompts[0]
     assert '"output_schema"' in provider.prompts[0]
     assert '"unresolved_fields"' in provider.prompts[0]
+    assert '"quality_issues": [' in provider.prompts[0]
+    assert '"title"' in provider.prompts[0]
+    assert '"year"' in provider.prompts[0]
