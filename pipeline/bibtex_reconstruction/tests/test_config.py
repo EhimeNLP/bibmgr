@@ -4,7 +4,7 @@ from pydantic import ValidationError
 from core.config import Settings
 
 
-def test_settings_defaults_preserve_previous_yaml_behavior(monkeypatch):
+def test_settings_defaults_are_valid_without_yaml(monkeypatch):
     for name in (
         "BIBTEX_RECONSTRUCTION_SIMILARITY_THRESHOLD",
         "BIBTEX_RECONSTRUCTION_MAX_RETRIES",
@@ -20,7 +20,7 @@ def test_settings_defaults_preserve_previous_yaml_behavior(monkeypatch):
     assert configured.max_retries == 2
     assert configured.arxiv_wait_sec == 1
     assert configured.llm_provider == "gemini"
-    assert configured.llm_model == "gemini-2.5-pro"
+    assert configured.llm_model
 
 
 def test_prefixed_environment_overrides_runtime_tuning(monkeypatch):

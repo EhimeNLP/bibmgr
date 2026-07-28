@@ -23,13 +23,17 @@ VALID_BIBTEX = """@article{example,
 }"""
 
 
-def input_data(*, doi: str | None = None) -> InputData:
+def input_data(
+    *,
+    doi: str | None = None,
+    year: str = "2024",
+) -> InputData:
     return InputData(
         parsed_data=ReferenceData(
             id="ref-1",
             title="A Reliable Paper",
             authors=["Ada Example"],
-            year="2024",
+            year=year,
             doi=doi,
             raw_text=(
                 "Ada Example. A Reliable Paper. 2024. "
@@ -174,6 +178,20 @@ def test_high_confidence_search_doi_bypasses_llm():
     assert result.outcome == ReconstructionOutcome.READY
     assert result.evidence.trusted_doi == "10.1000/example"
     assert result.candidates[0].source_api == "Crossref API"
+
+
+def test_citation_year_suffix_does_not_reject_matching_api_year():
+    service = orchestrator(
+        external_clients=[FakeSearchClient()],
+        doi_client=FakeDoiClient(VALID_BIBTEX),
+        validator=FakeValidator([True]),
+        reconstructor=FailingIfCalledReconstructor(),
+    )
+
+    result = service.reconstruct_reference(input_data(year="2024a"))
+
+    assert result.outcome == ReconstructionOutcome.READY
+    assert result.evidence.trusted_doi == "10.1000/example"
 
 
 def test_search_doi_with_conflicting_authors_is_not_trusted():

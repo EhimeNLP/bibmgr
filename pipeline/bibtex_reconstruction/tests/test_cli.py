@@ -12,7 +12,7 @@ from services.orchestrator import ReconstructionOrchestrator
 class FakeOrchestrator:
     def reconstruct_reference(self, input_data):
         reference = input_data.parsed_data
-        if reference.id == "entry-0001":
+        if reference.id == "b0":
             return ProcessedReference(
                 ref_id=reference.id,
                 outcome=ReconstructionOutcome.READY,
@@ -43,15 +43,39 @@ class FailingIfCalledReconstructor:
 
 
 def test_cli_writes_only_validated_entries_and_separate_review_report(tmp_path):
-    input_path = tmp_path / "damaged.bib"
+    input_path = tmp_path / "metadata.json"
     output_path = tmp_path / "reconstructed.bib"
     review_path = tmp_path / "review.json"
-    input_path.write_text(
-        "@article{first}\n\n@article{second}",
-        encoding="utf-8",
-    )
+    input_path.write_text(json.dumps({
+        "title": "Source document",
+        "authors": ["Root Author"],
+        "year": 2025,
+        "doi": None,
+        "abstract": "Source abstract",
+        "reference_count": 2,
+        "references": [
+            {
+                "id": "b0",
+                "title": "Ready",
+                "authors": ["First Author"],
+                "year": "2024",
+                "doi": None,
+                "venue": None,
+                "raw_text": "First Author. 2024. Ready.",
+            },
+            {
+                "id": "b1",
+                "title": "Unresolved",
+                "authors": [],
+                "year": None,
+                "doi": None,
+                "venue": None,
+                "raw_text": "Unresolved citation",
+            },
+        ],
+    }), encoding="utf-8")
 
-    entries, reviews = reconstruct_file(
+    entries, report = reconstruct_file(
         input_path,
         output_path,
         review_path,
@@ -59,24 +83,45 @@ def test_cli_writes_only_validated_entries_and_separate_review_report(tmp_path):
     )
 
     assert len(entries) == 1
-    assert len(reviews) == 1
+    assert report.manual_review_count == 1
     assert output_path.read_text(encoding="utf-8") == (
         "@article{ready,\n  title = {Ready}\n}\n"
     )
-    report = json.loads(review_path.read_text(encoding="utf-8"))
-    assert report["reconstructed_count"] == 1
-    assert report["manual_review_count"] == 1
-    assert report["manual_review"][0]["ref_id"] == "entry-0002"
+    report_json = json.loads(review_path.read_text(encoding="utf-8"))
+    assert report_json["document"]["title"] == "Source document"
+    assert report_json["total_reference_count"] == 2
+    assert report_json["reconstructed_count"] == 1
+    assert report_json["manual_review_count"] == 1
+    assert [item["ref_id"] for item in report_json["processed_references"]] == [
+        "b0",
+        "b1",
+    ]
 
 
 def test_cli_produces_a_rust_validated_bibliography_without_network(tmp_path):
-    input_path = tmp_path / "damaged.bib"
+    input_path = tmp_path / "metadata.json"
     output_path = tmp_path / "reconstructed.bib"
     review_path = tmp_path / "review.json"
-    input_path.write_text(
-        "@article{damaged,\n  doi = {10.1000/example}",
-        encoding="utf-8",
-    )
+    input_path.write_text(json.dumps({
+        "title": "Source document",
+        "authors": [],
+        "year": None,
+        "doi": None,
+        "abstract": None,
+        "reference_count": 1,
+        "references": [{
+            "id": "b0",
+            "title": "An Example",
+            "authors": ["Jane Doe"],
+            "year": "2024",
+            "doi": "10.1000/example",
+            "venue": "Journal of Examples",
+            "raw_text": (
+                "Jane Doe. 2024. An Example. "
+                "https://doi.org/10.1000/example"
+            ),
+        }],
+    }), encoding="utf-8")
     orchestrator = ReconstructionOrchestrator(
         external_clients=[],
         doi_client=FakeDoiClient(),
@@ -84,7 +129,7 @@ def test_cli_produces_a_rust_validated_bibliography_without_network(tmp_path):
         reconstructor=FailingIfCalledReconstructor(),
     )
 
-    entries, reviews = reconstruct_file(
+    entries, report = reconstruct_file(
         input_path,
         output_path,
         review_path,
@@ -97,9 +142,10 @@ def test_cli_produces_a_rust_validated_bibliography_without_network(tmp_path):
         policy="laboratory",
     )
     assert len(entries) == 1
-    assert reviews == []
+    assert report.manual_review_count == 0
     assert decision.accepted is True
     assert len(decision.records) == 1
-    report = json.loads(review_path.read_text(encoding="utf-8"))
-    assert report["reconstructed_count"] == 1
-    assert report["manual_review_count"] == 0
+    report_json = json.loads(review_path.read_text(encoding="utf-8"))
+    assert report_json["reconstructed_count"] == 1
+    assert report_json["manual_review_count"] == 0
+    assert report_json["processed_references"][0]["ref_id"] == "b0"
