@@ -179,12 +179,18 @@ uv pip install \
 
 `frontend/dist/` は静的ファイルサーバまたはCDNから配信し, `/api/`をバックエンドへ転送するリバースプロキシを構成します.
 
-本番向けのPostgreSQL 18, migration job, backend, Vue/Caddy構成は`compose.production.yaml`にあります.
+本番向けのPostgreSQL 18, migration job, backend, Vue/Caddyの共通構成は`compose.production.yaml`にあります. 公開方式は, CaddyがTLSを終端する`compose.production.direct.yaml`と, 外部リバースプロキシがTLSを終端する`compose.production.proxy.yaml`から選択します.
 
 ```bash
 cp .env.production.example .env.production
-docker compose --env-file .env.production \
-  -f compose.production.yaml up --detach --build --wait
+
+# Caddyから直接HTTPSで公開する場合
+uv run poe prod-direct-config
+uv run poe prod-direct-up
+
+# 外部リバースプロキシ配下で公開する場合
+uv run poe prod-proxy-config
+uv run poe prod-proxy-up
 ```
 
 本番バックエンドでは`BIBMGR_ENV=production`, secret file, SMTP接続情報, secure cookie, HTTPSを必須とします. アカウント管理, 認証データの定期削除, 監視, backup/restore, systemd timerを含む手順は[`docs/operations.md`](docs/operations.md), 認証仕様は[`docs/authentication.md`](docs/authentication.md)を参照してください.

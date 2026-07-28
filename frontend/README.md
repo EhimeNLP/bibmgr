@@ -18,7 +18,7 @@ The interface currently supports:
 
 ## Runtime data flow
 
-The browser calls `/api`, which Vite proxies to `http://localhost:8000` during development and Caddy proxies to the backend in production. Initial loading and searches call `GET /references/page` and retain `total`, `limit`, and `offset` for pagination. Read-only operations do not send authentication credentials.
+The browser calls the `api` path below Vite's configured base path. At the default root deployment this is `/api`; Vite proxies it to `http://localhost:8000` during development and Caddy proxies it to the backend in production. Initial loading and searches call `GET /references/page` and retain `total`, `limit`, and `offset` for pagination. Read-only operations do not send authentication credentials.
 
 Protected requests send the HttpOnly session cookie with `credentials: "include"` and the session-bound `X-CSRF-Token`. A protected HTTP 401 clears remembered authentication and opens the login dialog. Update sends the observed `source_revision`; delete sends the observed revision as quoted `If-Match`; restore sends the observed history-head revision.
 
@@ -65,6 +65,6 @@ npm run test:e2e
 
 ## API configuration
 
-`VITE_API_BASE_URL` changes the API base URL at build time. It defaults to `/api`, which is the recommended same-origin configuration for session cookies and CSRF.
+`BIBMGR_BASE_PATH` sets Vite's build-time public base path. It defaults to `/`; a value such as `/bibmgr` emits assets and API requests below `/bibmgr/`. `VITE_API_BASE_URL` can override only the API base URL; otherwise the client appends `api` to the application base path. Same-origin API access is recommended for session cookies and CSRF.
 
 The registration contract is documented in [`fe-registration.md`](fe-registration.md).

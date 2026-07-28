@@ -22,7 +22,7 @@ Sessions expire after seven days and can be revoked by `POST /auth/logout`. `GET
 
 The frontend never invokes logout directly from the account button. It first presents a confirmation dialog and calls `POST /auth/logout` only after explicit confirmation; cancellation leaves the session unchanged.
 
-Every protected write sends the session cookie and `X-CSRF-Token`. The cookie is host-only, HttpOnly, `SameSite=Lax`, and uses `Secure` when `BIBMGR_COOKIE_SECURE=true` or `BIBMGR_ENV=production`. Production traffic must use HTTPS and should serve the frontend and `/api` from one origin.
+Every protected write sends the session cookie and `X-CSRF-Token`. The cookie is host-only, HttpOnly, `SameSite=Lax`, and uses `Secure` when `BIBMGR_COOKIE_SECURE=true` or `BIBMGR_ENV=production`. `BIBMGR_COOKIE_PATH` can restrict it to an application subpath on a shared host. Production traffic must use HTTPS and should serve the frontend and API from one origin.
 
 ## Operator audit
 
@@ -64,6 +64,7 @@ The backend reads:
 | `BIBMGR_AUTH_EMAIL_DOMAIN` | Exact allowed email domain |
 | `BIBMGR_AUTH_ALLOWED_EMAILS` | Comma/newline-separated exact external addresses |
 | `BIBMGR_SESSION_COOKIE` | Optional session-cookie name |
+| `BIBMGR_COOKIE_PATH` | Session-cookie path, `/` by default |
 | `BIBMGR_COOKIE_SECURE` | Explicit secure-cookie override |
 | `BIBMGR_SMTP_HOST` | SMTP relay host |
 | `BIBMGR_SMTP_PORT` | SMTP relay port |

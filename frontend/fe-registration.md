@@ -28,8 +28,11 @@ PDFアップロードとPDFからの候補抽出は対象外とする。登録�
 
 - `VITE_API_BASE_URL`
   - フロントエンドが呼び出すAPIベースURL。
-  - 未設定時は `/api` を使用する。
+  - 未設定時はViteの公開ベースパスへ `/api` を追加したURLを使用する。
   - 開発時はVite proxyで `/api` を `http://localhost:8000` へ転送する。
+- `BIBMGR_BASE_PATH`
+  - 本番ビルドをサブパスで公開する場合のベースパス。
+  - 未設定時は `/` を使用する。
 
 ## API Contract
 
