@@ -37,5 +37,6 @@ api:
     timeout: 10
   arxiv:
     base_url: "https://export.arxiv.org/api/query"
+    bibtex_base_url: "https://arxiv.org/bibtex"
     timeout: 10
     wait_sec: 1

@@ -65,6 +65,7 @@ class Settings(BaseSettings):
     jstage_wait_sec: float = 0
     ## --- arxiv ---
     arxiv_base_url: str = "https://export.arxiv.org/api/query"
+    arxiv_bibtex_base_url: str = "https://arxiv.org/bibtex"
     arxiv_timeout: int = 10
     arxiv_wait_sec: float = 0
     model_config = SettingsConfigDict(
@@ -103,6 +104,10 @@ class Settings(BaseSettings):
                         conf_data[f"{service}_base_url"] = detail.get("base_url")
                         conf_data[f"{service}_timeout"] = detail.get("timeout", 10)
                         conf_data[f"{service}_wait_sec"] = detail.get("wait_sec", 0)
+                    conf_data["arxiv_bibtex_base_url"] = api_section.get(
+                        "arxiv",
+                        {},
+                    ).get("bibtex_base_url")
 
         environment_names = {
             "llm_provider": "BIBTEX_RECONSTRUCTION_LLM_PROVIDER",

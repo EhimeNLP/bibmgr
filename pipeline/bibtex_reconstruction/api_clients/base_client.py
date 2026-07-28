@@ -21,6 +21,7 @@ class BaseAPIClient(ABC):
         "api.semanticscholar.org",
         "api.jstage.jst.go.jp",
         "export.arxiv.org",
+        "arxiv.org",
     }
     
     @property
@@ -60,6 +61,11 @@ class BaseAPIClient(ABC):
         """Dynamically retrieves the timeout from settings using api_prefix."""
         return getattr(settings, f"{self.api_prefix}_timeout", 10)
 
+    @property
+    def allows_generated_bibtex_fallback(self) -> bool:
+        """Whether metadata may be converted to a locally generated entry."""
+        return True
+
     def search(self, input_data: InputData) -> Tuple[Optional[VerifiedCitationInfo], Optional[str]]:
         """
         Executes the common search pipeline including validation, rate limiting, and BibTeX retrieval.
@@ -92,7 +98,7 @@ class BaseAPIClient(ABC):
             if not raw_bibtex and metadata.doi:
                 raw_bibtex = self._fetch_bibtex_from_doi(metadata.doi)  # Fetch from DOI if not provided by the specific API logic
                 
-            if not raw_bibtex:
+            if not raw_bibtex and self.allows_generated_bibtex_fallback:
                 raw_bibtex = self._generate_fallback_bibtex(metadata, self.api_prefix)  # Fallback if still missing
 
             return metadata, raw_bibtex
