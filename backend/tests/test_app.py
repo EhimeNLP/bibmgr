@@ -151,17 +151,17 @@ def test_apply_requires_the_analyzed_source_revision() -> None:
     assert engine.calls == []
 
 
-def test_registration_uses_the_native_decision() -> None:
+def test_registration_uses_the_archive_policy_by_default() -> None:
     client, engine = client_and_engine()
 
     response = client.post(
         "/bibtex/registration/validate",
-        json={"source": "", "policy": "laboratory"},
+        json={"source": ""},
     )
 
     assert response.status_code == 200
     assert response.json()["accepted"] is True
-    assert engine.calls == [("validate", ("", "laboratory"))]
+    assert engine.calls == [("validate", ("", "archive"))]
 
 
 def test_storage_canonicalization_uses_the_native_decision() -> None:

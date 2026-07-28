@@ -623,7 +623,7 @@ fn apply_fixes(
     PyApplyFixResult::from_serializable(&result)
 }
 
-#[pyfunction(name = "validate_for_registration", signature = (source, policy="laboratory"))]
+#[pyfunction(name = "validate_for_registration", signature = (source, policy="archive"))]
 fn py_validate_for_registration(
     py: Python<'_>,
     source: String,
@@ -635,7 +635,7 @@ fn py_validate_for_registration(
     PyRegistrationValidation::from_serializable(&result)
 }
 
-#[pyfunction(name = "canonicalize_for_storage", signature = (source, policy="laboratory"))]
+#[pyfunction(name = "canonicalize_for_storage", signature = (source, policy="archive"))]
 fn py_canonicalize_for_storage(
     py: Python<'_>,
     source: String,

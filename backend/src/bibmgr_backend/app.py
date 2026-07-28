@@ -155,7 +155,7 @@ def create_app(
     selected_registration_policy = (
         registration_policy
         if registration_policy is not None
-        else os.environ.get("BIBMGR_REGISTRATION_POLICY", "laboratory")
+        else os.environ.get("BIBMGR_REGISTRATION_POLICY", "archive")
     )
     request_counts: Counter[tuple[str, str, int]] = Counter()
     request_duration_seconds: Counter[tuple[str, str]] = Counter()

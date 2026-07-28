@@ -27,7 +27,7 @@ class ApplyFixesRequest(StrictRequest):
 
 class RegistrationRequest(StrictRequest):
     source: str
-    policy: str = "laboratory"
+    policy: str = "archive"
 
 
 class ExportRequest(StrictRequest):

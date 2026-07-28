@@ -162,6 +162,18 @@ impl Default for ValidationPolicy {
 }
 
 impl ValidationPolicy {
+    pub fn archive() -> Self {
+        Self::builtin("archive").unwrap_or_else(|_| {
+            let mut policy = Self::baseline();
+            policy.profile = ProfileId::new("archive");
+            policy.field_case = FieldCase::Preserve;
+            policy.field_order.clear();
+            policy.citation_key_pattern = String::from(r"^.+$");
+            policy.required_fields.clear();
+            policy
+        })
+    }
+
     pub fn modern() -> Self {
         Self::builtin("modern").unwrap_or_else(|_| Self::baseline())
     }
@@ -209,6 +221,7 @@ impl ValidationPolicy {
 
     pub fn builtin(profile: &str) -> Result<Self, ConfigurationError> {
         match profile {
+            "archive" => Self::from_toml(include_str!("../../../config/policies/archive.toml")),
             "default" | "modern" => {
                 Self::from_toml(include_str!("../../../config/policies/modern.toml"))
             }
@@ -653,6 +666,17 @@ impl Default for RegistrationPolicy {
 }
 
 impl RegistrationPolicy {
+    pub fn archive() -> Self {
+        Self {
+            schema_version: String::from(bibmgr_model::SCHEMA_VERSION),
+            validation_profile: ProfileId::new("archive"),
+            minimum_severity: None,
+            blocking_rules: RuleSelector::default(),
+            allow_unresolved_semantics: true,
+            apply_safe_fixes: false,
+        }
+    }
+
     pub fn laboratory() -> Self {
         Self {
             schema_version: String::from(bibmgr_model::SCHEMA_VERSION),
@@ -666,6 +690,7 @@ impl RegistrationPolicy {
 
     pub fn for_profile(profile: &ProfileId) -> Result<Self, ConfigurationError> {
         match profile.as_str() {
+            "archive" => Ok(Self::archive()),
             "default" | "modern" | "acl" | "classical-bst" => Ok(Self {
                 validation_profile: profile.clone(),
                 ..Self::default()
@@ -3622,6 +3647,7 @@ mod tests {
     #[test]
     fn bundled_policy_files_are_accepted() {
         for source in [
+            include_str!("../../../config/policies/archive.toml"),
             include_str!("../../../config/policies/modern.toml"),
             include_str!("../../../config/policies/laboratory.toml"),
             include_str!("../../../config/policies/acl.toml"),
@@ -3634,6 +3660,7 @@ mod tests {
     #[test]
     fn convenience_profiles_match_the_embedded_policy_files() {
         for (profile, convenience) in [
+            ("archive", ValidationPolicy::archive()),
             ("modern", ValidationPolicy::modern()),
             ("laboratory", ValidationPolicy::laboratory()),
             ("acl", ValidationPolicy::acl()),

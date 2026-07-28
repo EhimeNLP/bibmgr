@@ -1146,6 +1146,36 @@ kind = "conference"
     }
 
     #[test]
+    fn archive_registration_preserves_rich_sources_without_profile_gating() {
+        let source = "@inproceedings{Gong_2023,\n  title = {{D}iffu{S}eq-v2},\n  year = unknownYear,\n  archivePrefix = {arXiv},\n  primaryClass = {cs.CL},\n  url = {https://example.test/paper},\n  abstract = {A long abstract\n    kept across lines.},\n}\n";
+
+        let result = validate_for_registration(source, &RegistrationPolicy::archive());
+
+        assert!(result.accepted);
+        assert_eq!(result.source, source);
+        assert_eq!(result.bibliography.records.len(), 1);
+        assert!(result.unresolved_semantics);
+        assert!(result
+            .diagnostics
+            .iter()
+            .all(|diagnostic| !diagnostic.blocking));
+        assert!(result.applied_fix_ids.is_empty());
+    }
+
+    #[test]
+    fn archive_registration_still_rejects_structurally_invalid_bibtex() {
+        let source = "@misc{key, title={Unclosed}\n";
+
+        let result = validate_for_registration(source, &RegistrationPolicy::archive());
+
+        assert!(!result.accepted);
+        assert!(result
+            .diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.blocking));
+    }
+
+    #[test]
     fn registration_accepts_an_external_validated_policy_snapshot() {
         let source = "@article{key, title={T}, author={Doe, Jane}, journal={J}, year={2024},}\n";
         let mut validation_policy = ValidationPolicy::modern();
