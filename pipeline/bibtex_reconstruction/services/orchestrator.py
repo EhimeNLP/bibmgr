@@ -30,7 +30,7 @@ from models import (
     RustValidationResult,
 )
 from services.semantic_reconstructor import (
-    GeminiSemanticReconstructor,
+    ConfiguredSemanticReconstructor,
     SemanticReconstructionUnavailable,
     SemanticReconstructor,
 )
@@ -61,7 +61,7 @@ class ReconstructionOrchestrator:
         self.validator = validator or NativeBibtexValidator(
             policy=settings.registration_policy
         )
-        self.reconstructor = reconstructor or GeminiSemanticReconstructor()
+        self.reconstructor = reconstructor or ConfiguredSemanticReconstructor()
 
     def reconstruct_reference(self, input_data: InputData) -> ProcessedReference:
         """Reconstruct one reference without accepting unvalidated output."""

@@ -5,11 +5,15 @@ from __future__ import annotations
 import json
 from typing import Protocol
 
-from core.config import settings
 from models import (
     EvidenceBundle,
     LLMReconstruction,
     RustValidationResult,
+)
+from services.llm_providers import (
+    LLMProvider,
+    LLMProviderError,
+    create_llm_provider,
 )
 
 
@@ -28,8 +32,11 @@ class SemanticReconstructor(Protocol):
         """Produce one evidence-grounded BibTeX candidate."""
 
 
-class GeminiSemanticReconstructor:
-    """Use Gemini structured output to repair one bibliographic record."""
+class ConfiguredSemanticReconstructor:
+    """Use the configured LLM provider to repair one bibliographic record."""
+
+    def __init__(self, provider: LLMProvider | None = None) -> None:
+        self.provider = provider
 
     def reconstruct(
         self,
@@ -38,45 +45,16 @@ class GeminiSemanticReconstructor:
         previous_candidate: str | None = None,
         validation: RustValidationResult | None = None,
     ) -> LLMReconstruction:
-        if not settings.gemini_api_key:
-            raise SemanticReconstructionUnavailable(
-                "GEMINI_API_KEY is not configured"
-            )
-
-        try:
-            from google import genai
-            from google.genai import types
-        except ImportError as exc:
-            raise SemanticReconstructionUnavailable(
-                "google-genai is not installed"
-            ) from exc
-
         prompt = self._build_prompt(
             evidence,
             previous_candidate=previous_candidate,
             validation=validation,
         )
-        client = genai.Client(api_key=settings.gemini_api_key)
-        response = client.models.generate_content(
-            model=settings.model_name,
-            contents=prompt,
-            config=types.GenerateContentConfig(
-                temperature=settings.temperature,
-                max_output_tokens=settings.max_output_tokens,
-                response_mime_type="application/json",
-                response_schema=LLMReconstruction,
-            ),
-        )
-
-        if isinstance(response.parsed, LLMReconstruction):
-            return response.parsed
-        if response.parsed:
-            return LLMReconstruction.model_validate(response.parsed)
-        if response.text:
-            return LLMReconstruction.model_validate_json(response.text)
-        raise SemanticReconstructionUnavailable(
-            "Gemini returned no structured reconstruction"
-        )
+        try:
+            provider = self.provider or create_llm_provider()
+            return provider.generate(prompt)
+        except LLMProviderError as exc:
+            raise SemanticReconstructionUnavailable(str(exc)) from exc
 
     @staticmethod
     def _build_prompt(
@@ -99,6 +77,7 @@ class GeminiSemanticReconstructor:
             ]
 
         task = {
+            "output_schema": LLMReconstruction.model_json_schema(),
             "evidence_bundle": evidence.model_dump(mode="json"),
             "previous_candidate": previous_candidate,
             "rust_diagnostics": diagnostics,

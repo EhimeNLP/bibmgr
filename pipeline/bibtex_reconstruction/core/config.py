@@ -1,3 +1,4 @@
+import os
 import yaml
 from pathlib import Path
 from dotenv import load_dotenv
@@ -15,11 +16,26 @@ class Settings(BaseSettings):
     trusted_doi_threshold: float = 0.97
     max_parallel_requests: int = 5
     # --- LLM Settings ---
-    model_name: str = "gemini-2.5-pro"
-    gemini_api_key: str = Field("", validation_alias="GEMINI_API_KEY")
+    llm_provider: str = Field(
+        "",
+        validation_alias="BIBTEX_RECONSTRUCTION_LLM_PROVIDER",
+    )
+    llm_model: str = Field(
+        "",
+        validation_alias="BIBTEX_RECONSTRUCTION_LLM_MODEL",
+    )
+    llm_api_key: str = Field(
+        "",
+        validation_alias="BIBTEX_RECONSTRUCTION_LLM_API_KEY",
+    )
+    llm_base_url: str = Field(
+        "",
+        validation_alias="BIBTEX_RECONSTRUCTION_LLM_BASE_URL",
+    )
     temperature: float = 0.1
     max_output_tokens: int = 2048
     max_llm_attempts: int = 3
+    llm_timeout: int = 120
     # --- Rust validation ---
     registration_policy: str = "laboratory"
     rewrite_citation_keys: bool = True
@@ -64,7 +80,16 @@ class Settings(BaseSettings):
             with open(CONFIG_PATH, "r", encoding="utf-8") as f:
                 raw_data = yaml.safe_load(f) or {}
                 conf_data.update(raw_data.get("search", {}))
-                conf_data.update(raw_data.get("llm", {}))
+                llm_data = raw_data.get("llm", {})
+                conf_data.update({
+                    "llm_provider": llm_data.get("provider"),
+                    "llm_model": llm_data.get("model"),
+                    "llm_base_url": llm_data.get("base_url"),
+                    "temperature": llm_data.get("temperature"),
+                    "max_output_tokens": llm_data.get("max_output_tokens"),
+                    "max_llm_attempts": llm_data.get("max_llm_attempts"),
+                    "llm_timeout": llm_data.get("timeout"),
+                })
                 conf_data.update(raw_data.get("validation", {}))
                 
                 api_section = raw_data.get("api", {})
@@ -78,6 +103,16 @@ class Settings(BaseSettings):
                         conf_data[f"{service}_base_url"] = detail.get("base_url")
                         conf_data[f"{service}_timeout"] = detail.get("timeout", 10)
                         conf_data[f"{service}_wait_sec"] = detail.get("wait_sec", 0)
+
+        environment_names = {
+            "llm_provider": "BIBTEX_RECONSTRUCTION_LLM_PROVIDER",
+            "llm_model": "BIBTEX_RECONSTRUCTION_LLM_MODEL",
+            "llm_api_key": "BIBTEX_RECONSTRUCTION_LLM_API_KEY",
+            "llm_base_url": "BIBTEX_RECONSTRUCTION_LLM_BASE_URL",
+        }
+        for field_name, environment_name in environment_names.items():
+            if environment_name in os.environ:
+                conf_data[field_name] = os.environ[environment_name]
 
         return cls(**{k: v for k, v in conf_data.items() if v is not None})
 
