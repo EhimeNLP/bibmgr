@@ -22,7 +22,11 @@ class SemanticScholarClient(BaseAPIClient):
             "fields": "title,authors,year,venue,externalIds,url"
         }
         
-        response = self._make_request(params=params, headers=headers)
+        response = self._make_request(
+            params=params,
+            headers=headers,
+            operation="metadata_search",
+        )
         if not response:
             return None, None
 

@@ -15,6 +15,7 @@ from ..clients import (
     JStageClient,
     SemanticScholarClient,
 )
+from ..clients.base import APIClientError
 from ..config import settings
 from ..domain import (
     CandidateResult,
@@ -263,6 +264,20 @@ class ReconstructionOrchestrator:
                             confidence_score=score,
                             verified_info=metadata,
                             bibtex=bibtex,
+                        )
+                    )
+                except APIClientError as exc:
+                    logger.warning(
+                        "search failed ref_id=%s api=%s %s",
+                        input_data.parsed_data.id,
+                        api_name,
+                        exc.safe_summary,
+                    )
+                    candidates.append(
+                        CandidateResult(
+                            source_api=api_name,
+                            status=CandidateStatus.API_ERROR,
+                            error=exc.safe_summary,
                         )
                     )
                 except Exception as exc:

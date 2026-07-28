@@ -2,6 +2,9 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+import pytest
+
+from bibtex_reconstruction.clients.base import APIClientError
 from bibtex_reconstruction.clients.jstage import JStageClient
 from bibtex_reconstruction.domain import InputData, ReferenceData
 
@@ -91,7 +94,12 @@ def test_jstage_rejects_service_error_with_empty_entry(monkeypatch):
         lambda **kwargs: FakeResponse(JSTAGE_ERROR),
     )
 
-    assert client.search(input_data()) == (None, None)
+    with pytest.raises(APIClientError) as raised:
+        client.search(input_data())
+
+    assert raised.value.safe_summary == (
+        "error_type=ProviderResponseError operation=metadata_search"
+    )
 
 
 def test_jstage_rejects_malformed_xml(monkeypatch):
@@ -102,4 +110,9 @@ def test_jstage_rejects_malformed_xml(monkeypatch):
         lambda **kwargs: FakeResponse(b"<feed><entry>"),
     )
 
-    assert client.search(input_data()) == (None, None)
+    with pytest.raises(APIClientError) as raised:
+        client.search(input_data())
+
+    assert raised.value.safe_summary == (
+        "error_type=XMLSyntaxError operation=search_pipeline"
+    )

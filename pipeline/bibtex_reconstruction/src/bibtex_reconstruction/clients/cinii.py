@@ -22,7 +22,11 @@ class CiNiiClient(BaseAPIClient):
         if settings.cinii_appid:
             params["appid"] = settings.cinii_appid
 
-        response = self._make_request(url=endpoint_url, params=params)
+        response = self._make_request(
+            url=endpoint_url,
+            params=params,
+            operation="metadata_search",
+        )
         if not response:
             return None, None
 
@@ -65,7 +69,11 @@ class CiNiiClient(BaseAPIClient):
             crid_url = ""
 
         if crid_url:
-            bib_resp = self._make_request(url=f"{crid_url}.bib")
+            bib_resp = self._make_request(
+                url=f"{crid_url}.bib",
+                operation="citation_export",
+                required=False,
+            )
             if bib_resp:
                 custom_bibtex = bib_resp.text
                 extracted_doi = extract_bibtex_field(custom_bibtex, "doi")

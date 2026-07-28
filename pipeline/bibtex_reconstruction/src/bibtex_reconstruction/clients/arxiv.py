@@ -38,7 +38,10 @@ class ArxivClient(BaseAPIClient):
         search_query = f'ti:"{input_data.parsed_data.title}"'
         params = {"search_query": search_query, "start": 0, "max_results": 1}
 
-        response = self._make_request(params=params)
+        response = self._make_request(
+            params=params,
+            operation="metadata_search",
+        )
         if not response:
             return None, None
 
@@ -110,6 +113,8 @@ class ArxivClient(BaseAPIClient):
             headers={"Accept": "application/x-bibtex"},
             timeout=self.timeout,
             max_retries=1,
+            operation="citation_export",
+            required=False,
         )
         if not response or response.status_code != 200:
             return None

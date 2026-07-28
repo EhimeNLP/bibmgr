@@ -1,15 +1,43 @@
 import logging
 import re
-import time
 import requests
 from abc import ABC, abstractmethod
 from typing import Optional, Tuple
 from urllib.parse import urlparse
 from ..config import settings
 from ..domain import InputData, VerifiedCitationInfo
+from .rate_limit import ProviderRateLimiter
 
 
 logger = logging.getLogger(__name__)
+
+
+class APIClientError(RuntimeError):
+    """A non-sensitive error propagated to the reconstruction audit report."""
+
+    def __init__(
+        self,
+        *,
+        api_name: str,
+        operation: str,
+        error_type: str,
+        status_code: int | None = None,
+    ) -> None:
+        self.api_name = api_name
+        self.operation = operation
+        self.error_type = error_type
+        self.status_code = status_code
+        super().__init__(self.safe_summary)
+
+    @property
+    def safe_summary(self) -> str:
+        parts = [
+            f"error_type={self.error_type}",
+            f"operation={self.operation}",
+        ]
+        if self.status_code is not None:
+            parts.append(f"http_status={self.status_code}")
+        return " ".join(parts)
 
 
 class BaseAPIClient(ABC):
@@ -28,6 +56,9 @@ class BaseAPIClient(ABC):
         "export.arxiv.org",
         "arxiv.org",
     }
+
+    def __init__(self) -> None:
+        self._rate_limiter = ProviderRateLimiter.for_provider(self.api_prefix)
     
     @property
     @abstractmethod
@@ -88,11 +119,8 @@ class BaseAPIClient(ABC):
 
         ref_id = input_data.parsed_data.id
         logger.debug("API search started api=%s ref_id=%s", self.api_name, ref_id)
-        if self.wait_sec > 0:
-            time.sleep(self.wait_sec)   # 2. Rate Limiting (Throttling)
-
         try:
-            metadata, custom_bibtex = self._execute_search(input_data)  # 3. Delegate specific search logic to subclasses
+            metadata, custom_bibtex = self._execute_search(input_data)
             
             if not metadata or not metadata.title.strip():
                 return None, None
@@ -110,6 +138,8 @@ class BaseAPIClient(ABC):
 
             return metadata, raw_bibtex
 
+        except APIClientError:
+            raise
         except Exception as exc:
             logger.warning(
                 "API search pipeline failed api=%s ref_id=%s error_type=%s",
@@ -117,7 +147,11 @@ class BaseAPIClient(ABC):
                 ref_id,
                 exc.__class__.__name__,
             )
-            return None, None
+            raise APIClientError(
+                api_name=self.api_name,
+                operation="search_pipeline",
+                error_type=exc.__class__.__name__,
+            ) from exc
 
     @abstractmethod
     def _execute_search(self, input_data: InputData) -> Tuple[Optional[VerifiedCitationInfo], Optional[str]]:
@@ -209,8 +243,17 @@ class BaseAPIClient(ABC):
             )
             return False
 
-    def _make_request(self, url: Optional[str] = None, params: dict = None, headers: dict = None, 
-                      timeout: Optional[int] = None, max_retries: Optional[int] = None) -> Optional[requests.Response]:
+    def _make_request(
+        self,
+        url: Optional[str] = None,
+        params: dict = None,
+        headers: dict = None,
+        timeout: Optional[int] = None,
+        max_retries: Optional[int] = None,
+        *,
+        operation: str = "request",
+        required: bool = True,
+    ) -> Optional[requests.Response]:
         """
         Helper method to make HTTP requests with exponential backoff.
 
@@ -230,49 +273,147 @@ class BaseAPIClient(ABC):
 
         if not req_url:
             logger.error("request failed api=%s reason=missing_base_url", self.api_name)
+            if required:
+                raise APIClientError(
+                    api_name=self.api_name,
+                    operation=operation,
+                    error_type="MissingBaseUrl",
+                )
             return None
 
         if req_url.startswith("http://"):
             req_url = req_url.replace("http://", "https://", 1)
 
         if not self._is_safe_url(req_url):
+            if required:
+                raise APIClientError(
+                    api_name=self.api_name,
+                    operation=operation,
+                    error_type="UnsafeRequestUrl",
+                )
             return None
 
-        for attempt in range(retries):
+        parsed_url = urlparse(req_url)
+        if parsed_url.hostname == "doi.org":
+            rate_limiter = ProviderRateLimiter.for_provider("doi")
+            minimum_interval = settings.doi_wait_sec
+        else:
+            rate_limiter = self._rate_limiter
+            minimum_interval = self.wait_sec
+
+        for attempt_index in range(retries):
+            attempt = attempt_index + 1
             try:
-                response = requests.get(req_url, params=params, headers=headers, timeout=req_timeout)
-                
-                if response.status_code == 429:
-                    if attempt < retries - 1:
-                        sleep_time = settings.retry_backoff_sec ** (attempt + 1)
-                        logger.warning(
-                            (
-                                "rate limited api=%s retry=%d/%d "
-                                "wait_seconds=%s"
-                            ),
-                            self.api_name,
-                            attempt + 1,
-                            retries,
-                            sleep_time,
+                response = rate_limiter.call(
+                    minimum_interval,
+                    lambda: requests.get(
+                        req_url,
+                        params=params,
+                        headers=headers,
+                        timeout=req_timeout,
+                    ),
+                    cooldown_after=lambda result: (
+                        self._retry_delay(attempt, response=result)
+                        if (
+                            result.status_code == 429
+                            or result.status_code >= 500
                         )
-                        time.sleep(sleep_time)
-                        continue
-                    return None
-                    
-                response.raise_for_status()
-                return response
-                
+                        and attempt < retries
+                        else 0
+                    ),
+                    error_cooldown=(
+                        self._retry_delay(attempt)
+                        if attempt < retries
+                        else 0
+                    ),
+                )
             except requests.exceptions.RequestException as exc:
                 logger.warning(
-                    "network request failed api=%s attempt=%d/%d error_type=%s",
+                    (
+                        "network request failed api=%s operation=%s "
+                        "attempt=%d/%d error_type=%s"
+                    ),
                     self.api_name,
-                    attempt + 1,
+                    operation,
+                    attempt,
                     retries,
                     exc.__class__.__name__,
                 )
-                if attempt == retries - 1:
-                    return None
+                if attempt < retries:
+                    continue
+                error = APIClientError(
+                    api_name=self.api_name,
+                    operation=operation,
+                    error_type=exc.__class__.__name__,
+                )
+                if required:
+                    raise error from exc
+                return None
+
+            status_code = response.status_code
+            if 200 <= status_code < 400:
+                return response
+
+            retryable = status_code == 429 or status_code >= 500
+            wait_seconds = self._retry_delay(attempt, response=response)
+            if status_code == 429:
+                logger.warning(
+                    (
+                        "rate limited api=%s operation=%s http_status=%d "
+                        "attempt=%d/%d retryable=%s wait_seconds=%s"
+                    ),
+                    self.api_name,
+                    operation,
+                    status_code,
+                    attempt,
+                    retries,
+                    retryable and attempt < retries,
+                    wait_seconds,
+                )
+            else:
+                logger.warning(
+                    (
+                        "HTTP request failed api=%s operation=%s "
+                        "http_status=%d attempt=%d/%d retryable=%s"
+                    ),
+                    self.api_name,
+                    operation,
+                    status_code,
+                    attempt,
+                    retries,
+                    retryable and attempt < retries,
+                )
+
+            if retryable and attempt < retries:
+                continue
+
+            error = APIClientError(
+                api_name=self.api_name,
+                operation=operation,
+                error_type=(
+                    "RateLimited" if status_code == 429 else "HTTPError"
+                ),
+                status_code=status_code,
+            )
+            if required:
+                raise error
+            return None
         return None
+
+    @staticmethod
+    def _retry_delay(
+        attempt: int,
+        *,
+        response: requests.Response | None = None,
+    ) -> float:
+        if response is not None:
+            retry_after = response.headers.get("Retry-After")
+            if retry_after:
+                try:
+                    return max(float(retry_after), 0.0)
+                except ValueError:
+                    pass
+        return float(settings.retry_backoff_sec ** attempt)
 
     def _extract_year(self, date_str: str) -> Optional[int]:
         """
@@ -306,7 +447,14 @@ class BaseAPIClient(ABC):
         url = f"{settings.doi_base_url}{clean_doi}"
         headers = {"Accept": "application/x-bibtex"}
         
-        response = self._make_request(url, headers=headers, timeout=timeout, max_retries=1)
+        response = self._make_request(
+            url,
+            headers=headers,
+            timeout=timeout,
+            max_retries=1,
+            operation="doi_content_negotiation",
+            required=False,
+        )
         if response and response.status_code == 200:
             return response.text
         return None

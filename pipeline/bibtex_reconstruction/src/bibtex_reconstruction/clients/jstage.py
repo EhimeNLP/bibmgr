@@ -2,6 +2,7 @@ from typing import Optional, Tuple
 
 from lxml import etree
 
+from .base import APIClientError
 from ..domain import InputData, VerifiedCitationInfo
 from ..parsing.xml import element_text, parse_xml
 from .base import BaseAPIClient
@@ -35,7 +36,10 @@ class JStageClient(BaseAPIClient):
             "count": 1,
         }
 
-        response = self._make_request(params=params)
+        response = self._make_request(
+            params=params,
+            operation="metadata_search",
+        )
         if not response:
             return None, None
 
@@ -44,7 +48,11 @@ class JStageClient(BaseAPIClient):
             root.find("atom:result/atom:status", namespaces=NAMESPACES)
         )
         if status and status != "0":
-            return None, None
+            raise APIClientError(
+                api_name=self.api_name,
+                operation="metadata_search",
+                error_type="ProviderResponseError",
+            )
 
         entry = root.find("atom:entry", namespaces=NAMESPACES)
         if entry is None:

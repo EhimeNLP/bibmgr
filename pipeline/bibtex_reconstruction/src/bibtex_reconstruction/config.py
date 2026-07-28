@@ -60,6 +60,7 @@ class Settings(BaseSettings):
     retry_backoff_sec: int = Field(2, ge=1)
     doi_base_url: str = "https://doi.org/"
     doi_timeout: int = Field(15, ge=1)
+    doi_wait_sec: float = Field(0, ge=0)
 
     # Crossref
     crossref_base_url: str = "https://api.crossref.org/works"

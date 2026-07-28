@@ -19,7 +19,10 @@ class CrossrefClient(BaseAPIClient):
         if settings.crossref_mailto:
             params["mailto"] = settings.crossref_mailto
 
-        response = self._make_request(params=params)
+        response = self._make_request(
+            params=params,
+            operation="metadata_search",
+        )
         if not response: 
             return None, None
 

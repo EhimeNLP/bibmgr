@@ -51,6 +51,8 @@ flowchart LR
 
 検索結果からDOIを採用する場合は，タイトル類似度が`trusted_doi_threshold`以上であり，既知の発行年と矛盾せず，入力と候補の著者トークンが少なくとも一つ一致することを要求します．
 
+外部検索はreference単位では並列実行しますが，同一providerへのHTTP requestはprovider共通のrate limiterで直列化します．providerごとの`wait_sec`をrequest開始間隔として適用し，429の`Retry-After`またはbackoff時間は待機中の全threadで共有します．
+
 DOI候補とLLM候補は，`modern` policyの`bibmgr_native.validate_for_registration()`へ元sourceのまま渡します．このpipelineでは登録前の再serialize，safe fix，citation key変更を行いません．Rustのstrict parserとsemantic modelで保持可能かを確認し，候補のfield，大小文字，順序，delimiter，未知fieldを可能な限り保持します．
 
 Rust検証で解決できない場合は，抽出済みfield，`raw_text`，全API候補とdiagnosticを出典付きの証拠bundleとしてLLMへ戻します．LLMによる明示的な再生成が`max_llm_attempts`回で合格しなければ手動確認対象にします．研究室ルールへの準拠やfieldの選択・順序・表記はこのpipelineの登録判定では扱わず，登録後の`laboratory` export profileによる検証・整形へ委ねます．
@@ -148,7 +150,9 @@ pipeline/bibtex_reconstruction/data/logs/reconstruction-YYYYMMDD-HHMMSS-PID.log
 tail -f pipeline/bibtex_reconstruction/data/logs/latest.log
 ```
 
-詳細ログには`DEBUG`以上の情報を保存し，利用したAPI，照合status，reference ID，処理threadを後から確認できます．API keyやreferenceの本文は出力しません．端末にも詳細を表示したい場合は次のように実行します．
+詳細ログには`DEBUG`以上の情報を保存し，利用したAPI，照合status，reference ID，処理threadを後から確認できます．API検索の開始・終了は件数が多く，通常運用では不要なため`DEBUG`が適切なlevelです．実行後の詳細ファイルに多数の`DEBUG`行が含まれるのは意図した動作であり，通常の端末には表示されません．
+
+HTTP失敗時はAPI key，URL query，response bodyを記録せず，処理段階，HTTP status，retry可否だけを保存します．端末にも詳細を表示したい場合は次のように実行します．
 
 ```bash
 pipeline/bibtex_reconstruction/run.sh --log-level DEBUG
@@ -184,7 +188,7 @@ uv run --project pipeline/bibtex_reconstruction \
 }
 ```
 
-`reconstruction-report.json`には元文書metadataと，全referenceの結果，検索証拠，候補，LLM試行，Rust diagnostic，必要な場合は手動確認理由が保存されます．`processed_references`に成功・失敗の両方を残すため，入力IDから各entryの処理経路を追跡できます．生成されたBibTeX entry自体をGitへ追加する必要はありません．
+`reconstruction-report.json`には元文書metadataと，全referenceの結果，検索証拠，候補，LLM試行，Rust diagnostic，必要な場合は手動確認理由が保存されます．`processed_references`に成功・失敗の両方を残すため，入力IDから各entryの処理経路を追跡できます．検索結果が存在しない場合は`not_found`，通信・認証・provider応答の異常は`api_error`として区別し，後者には秘密情報を含まないerror summaryを保存します．生成されたBibTeX entry自体をGitへ追加する必要はありません．
 
 ```json
 {
@@ -218,6 +222,7 @@ uv run --project pipeline/bibtex_reconstruction \
 - `BIBTEX_RECONSTRUCTION_TRUSTED_DOI_THRESHOLD`: 検索で発見したDOIをLLM省略経路へ送るためのタイトル類似度です．
 - `BIBTEX_RECONSTRUCTION_MAX_PARALLEL_REQUESTS`: 同時に処理するreferenceまたは外部検索の上限です．
 - `BIBTEX_RECONSTRUCTION_LLM_MAX_ATTEMPTS`: Rust diagnosticを使ったLLM修正の最大回数です．
+- `BIBTEX_RECONSTRUCTION_<PROVIDER>_WAIT_SEC`: providerごとのHTTP request開始間隔です．`CROSSREF`，`CINII`，`SEMANTICSCHOLAR`，`JSTAGE`，`ARXIV`，`DOI`を指定できます．
 API endpointやtimeoutも`BIBTEX_RECONSTRUCTION_`に`Settings`のfield名を大文字で続けることで上書きできますが，通常は変更不要です．
 
 venueの省略名やexport形式はこのCLIでハードコードしません．登録後の出力はRustのexport profileと`config/registries/venues.toml`が担当します．

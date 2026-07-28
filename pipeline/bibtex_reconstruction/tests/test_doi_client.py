@@ -1,3 +1,6 @@
+import pytest
+
+from bibtex_reconstruction.clients.base import APIClientError
 from bibtex_reconstruction.clients.doi import DoiContentNegotiationClient
 
 
@@ -47,3 +50,19 @@ def test_fetch_bibtex_treats_missing_metadata_as_no_candidate():
         )
         is None
     )
+
+
+def test_fetch_bibtex_reports_http_status_without_response_content():
+    session = FakeSession(FakeResponse(503, "sensitive response body"))
+
+    with pytest.raises(APIClientError) as raised:
+        DoiContentNegotiationClient(session=session).fetch_bibtex(
+            "10.1000/unavailable"
+        )
+
+    assert raised.value.safe_summary == (
+        "error_type=HTTPError "
+        "operation=doi_content_negotiation "
+        "http_status=503"
+    )
+    assert "sensitive response body" not in str(raised.value)

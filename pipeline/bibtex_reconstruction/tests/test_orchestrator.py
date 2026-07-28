@@ -6,6 +6,7 @@ from bibtex_reconstruction.application.orchestrator import (
 from bibtex_reconstruction.application.semantic_reconstructor import (
     SemanticReconstructionUnavailable,
 )
+from bibtex_reconstruction.clients.base import APIClientError
 from bibtex_reconstruction.config import settings
 from bibtex_reconstruction.domain import (
     InputData,
@@ -16,6 +17,7 @@ from bibtex_reconstruction.domain import (
     VerifiedCitationInfo,
 )
 from bibtex_reconstruction.domain.enums import (
+    CandidateStatus,
     ReconstructionOutcome,
     ReconstructionPath,
 )
@@ -146,6 +148,18 @@ class FakeSearchClient:
         )
 
 
+class FailingSearchClient:
+    api_name = "Unavailable API"
+
+    def search(self, input_data):
+        raise APIClientError(
+            api_name=self.api_name,
+            operation="metadata_search",
+            error_type="HTTPError",
+            status_code=503,
+        )
+
+
 def orchestrator(**kwargs) -> ReconstructionOrchestrator:
     return ReconstructionOrchestrator(
         external_clients=kwargs.pop("external_clients", []),
@@ -224,6 +238,22 @@ def test_search_doi_with_conflicting_authors_is_not_trusted():
     assert result.reconstruction_path == ReconstructionPath.LLM
     assert result.evidence.trusted_doi is None
     assert len(reconstructor.calls) == 1
+
+
+def test_api_failure_is_reported_separately_from_not_found():
+    service = orchestrator(
+        external_clients=[FailingSearchClient()],
+        doi_client=FakeDoiClient(None),
+        validator=FakeValidator([True]),
+        reconstructor=FakeReconstructor(),
+    )
+
+    result = service.reconstruct_reference(input_data())
+
+    assert result.candidates[0].status == CandidateStatus.API_ERROR
+    assert result.candidates[0].error == (
+        "error_type=HTTPError operation=metadata_search http_status=503"
+    )
 
 
 def test_rejected_doi_candidate_is_repaired_with_rust_feedback():
