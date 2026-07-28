@@ -1,18 +1,40 @@
+# Python bytecode
 __pycache__/
 *.py[cod]
 *$py.class
 
+# Packaging and build artifacts
+build/
+dist/
+*.egg-info/
+.eggs/
+
+# Virtual environments
 venv/
 env/
 .venv/
 
+# Local configuration and secrets
 .env
+!.env.sample
+
+# Reconstruction outputs
 /reconstructed.bib
+/reconstruction-report.json
 /reconstruction-review.json
 
+# Test, coverage, and tool caches
 *.log
 .pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+.mypy_cache/
+.pyright/
+.ruff_cache/
+.hatch/
 
+# Local datasets and editor files
 test_data/
 .vscode/
 .idea/
