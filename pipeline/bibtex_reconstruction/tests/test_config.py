@@ -9,6 +9,8 @@ def test_settings_defaults_are_valid_without_yaml(monkeypatch):
         "BIBTEX_RECONSTRUCTION_SIMILARITY_THRESHOLD",
         "BIBTEX_RECONSTRUCTION_MAX_RETRIES",
         "BIBTEX_RECONSTRUCTION_ARXIV_WAIT_SEC",
+        "BIBTEX_RECONSTRUCTION_REFERENCE_THREADS",
+        "BIBTEX_RECONSTRUCTION_API_THREADS",
         "BIBTEX_RECONSTRUCTION_LLM_PROVIDER",
         "BIBTEX_RECONSTRUCTION_LLM_MODEL",
     ):
@@ -18,7 +20,9 @@ def test_settings_defaults_are_valid_without_yaml(monkeypatch):
 
     assert configured.similarity_threshold == 0.95
     assert configured.max_retries == 2
-    assert configured.arxiv_wait_sec == 1
+    assert configured.reference_threads == 2
+    assert configured.api_threads == 3
+    assert configured.arxiv_wait_sec == 3
     assert configured.llm_provider == "gemini"
     assert configured.llm_model
 
@@ -29,8 +33,12 @@ def test_prefixed_environment_overrides_runtime_tuning(monkeypatch):
         "0.98",
     )
     monkeypatch.setenv(
-        "BIBTEX_RECONSTRUCTION_MAX_PARALLEL_REQUESTS",
-        "8",
+        "BIBTEX_RECONSTRUCTION_REFERENCE_THREADS",
+        "4",
+    )
+    monkeypatch.setenv(
+        "BIBTEX_RECONSTRUCTION_API_THREADS",
+        "2",
     )
     monkeypatch.setenv(
         "BIBTEX_RECONSTRUCTION_LLM_MAX_ATTEMPTS",
@@ -40,7 +48,8 @@ def test_prefixed_environment_overrides_runtime_tuning(monkeypatch):
     configured = Settings(_env_file=None)
 
     assert configured.similarity_threshold == 0.98
-    assert configured.max_parallel_requests == 8
+    assert configured.reference_threads == 4
+    assert configured.api_threads == 2
     assert configured.max_llm_attempts == 5
 
 

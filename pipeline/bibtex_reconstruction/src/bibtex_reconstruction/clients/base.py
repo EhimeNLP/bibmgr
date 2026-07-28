@@ -118,7 +118,7 @@ class BaseAPIClient(ABC):
             return None, None   # 1. Validation
 
         ref_id = input_data.parsed_data.id
-        logger.debug("API search started api=%s ref_id=%s", self.api_name, ref_id)
+        logger.info("API search started api=%s ref_id=%s", self.api_name, ref_id)
         try:
             metadata, custom_bibtex = self._execute_search(input_data)
             

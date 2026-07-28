@@ -134,9 +134,19 @@ pipeline/bibtex_reconstruction/run.sh
 pipeline/bibtex_reconstruction/run.sh --fail-on-review
 ```
 
+referenceと各reference内のprovider検索は，それぞれthread数を指定できます．
+
+```bash
+pipeline/bibtex_reconstruction/run.sh \
+  --threads 2 \
+  --api-threads 3
+```
+
+`--threads`は同時に復元するreference数，`--api-threads`は一つのreferenceについて同時に検索するprovider数です．既定値はそれぞれ`2`と`3`です．同一providerへの実際のHTTP requestは，これらのthread数にかかわらずprovider単位で直列化されます．
+
 ### Execution logs
 
-端末には処理開始，各referenceの進捗・結果，完了件数を`INFO` levelで表示します．複数referenceを並列処理しても，`progress=3/28 ref_id=b2 outcome=ready`のように全体の進捗を確認できます．
+端末には処理開始，各API検索の開始・終了・status・score，各referenceの進捗・結果，完了件数を`INFO` levelで表示します．複数referenceを並列処理しても，`progress=3/28 ref_id=b2 outcome=ready`のように全体の進捗を確認できます．
 
 詳細ログは実行ごとに次の場所へ保存されます．
 
@@ -150,7 +160,7 @@ pipeline/bibtex_reconstruction/data/logs/reconstruction-YYYYMMDD-HHMMSS-PID.log
 tail -f pipeline/bibtex_reconstruction/data/logs/latest.log
 ```
 
-詳細ログには`DEBUG`以上の情報を保存し，利用したAPI，照合status，reference ID，処理threadを後から確認できます．API検索の開始・終了は件数が多く，通常運用では不要なため`DEBUG`が適切なlevelです．実行後の詳細ファイルに多数の`DEBUG`行が含まれるのは意図した動作であり，通常の端末には表示されません．
+詳細ログには`DEBUG`以上の情報を保存し，reference IDと処理threadを含む全経路を後から確認できます．API検索の開始・終了・status・scoreは初期化結果の根拠なので`INFO`とし，parser内部の回復可能な失敗など，通常の処理確認には不要な情報だけを`DEBUG`とします．
 
 HTTP失敗時はAPI key，URL query，response bodyを記録せず，処理段階，HTTP status，retry可否だけを保存します．端末にも詳細を表示したい場合は次のように実行します．
 
@@ -220,10 +230,22 @@ uv run --project pipeline/bibtex_reconstruction \
 
 - `BIBTEX_RECONSTRUCTION_SIMILARITY_THRESHOLD`: 外部API候補を高類似候補とみなす閾値です．
 - `BIBTEX_RECONSTRUCTION_TRUSTED_DOI_THRESHOLD`: 検索で発見したDOIをLLM省略経路へ送るためのタイトル類似度です．
-- `BIBTEX_RECONSTRUCTION_MAX_PARALLEL_REQUESTS`: 同時に処理するreferenceまたは外部検索の上限です．
+- `BIBTEX_RECONSTRUCTION_REFERENCE_THREADS`: 同時に復元するreference数です．既定値は`2`です．
+- `BIBTEX_RECONSTRUCTION_API_THREADS`: 一つのreferenceについて同時に検索するprovider数です．既定値は`3`です．
 - `BIBTEX_RECONSTRUCTION_LLM_MAX_ATTEMPTS`: Rust diagnosticを使ったLLM修正の最大回数です．
 - `BIBTEX_RECONSTRUCTION_<PROVIDER>_WAIT_SEC`: providerごとのHTTP request開始間隔です．`CROSSREF`，`CINII`，`SEMANTICSCHOLAR`，`JSTAGE`，`ARXIV`，`DOI`を指定できます．
 API endpointやtimeoutも`BIBTEX_RECONSTRUCTION_`に`Settings`のfield名を大文字で続けることで上書きできますが，通常は変更不要です．
+
+WAIT_SECの既定値は，実行ログとproviderの利用方針から次のように設定しています．
+
+| provider | WAIT_SEC | 根拠 |
+|---|---:|---|
+| DOI | `0.1` | 旧ログではrate limitがなく，同時接続の直列化を主対策とするため |
+| Crossref | `1.0` | title検索はlist queryであり，public poolの上限1 request/秒に合わせるため |
+| CiNii | `1.0` | 数値上限は公開されていないが，短時間の大量accessが禁止されているため |
+| Semantic Scholar | `1.0` | API keyの初期上限が1 request/秒であるため |
+| J-STAGE | `0.5` | 旧ログのHTTP errorが1回だけで，軽い抑制で十分と判断したため |
+| arXiv | `3.0` | legacy APIは3秒に1 requestかつ同時接続1と指定されているため |
 
 venueの省略名やexport形式はこのCLIでハードコードしません．登録後の出力はRustのexport profileと`config/registries/venues.toml`が担当します．
 

@@ -25,16 +25,29 @@ def reconstruct_file(
     report_path: Path,
     *,
     orchestrator: ReconstructionOrchestrator | None = None,
+    reference_threads: int | None = None,
+    api_threads: int | None = None,
 ) -> tuple[list[str], ReconstructionReport]:
     """Reconstruct all extracted references and write BibTeX plus an audit report."""
 
     document = load_metadata_document(input_path)
     references = document.references
-    service = orchestrator or ReconstructionOrchestrator()
-    logger.info("loaded extracted references count=%d", len(references))
+    effective_reference_threads = (
+        reference_threads or settings.reference_threads
+    )
+    effective_api_threads = api_threads or settings.api_threads
+    service = orchestrator or ReconstructionOrchestrator(
+        search_workers=effective_api_threads,
+    )
+    logger.info(
+        "loaded extracted references count=%d reference_threads=%d api_threads=%d",
+        len(references),
+        effective_reference_threads,
+        effective_api_threads,
+    )
 
     results: list[ProcessedReference | None] = [None] * len(references)
-    with ThreadPoolExecutor(max_workers=settings.max_parallel_requests) as executor:
+    with ThreadPoolExecutor(max_workers=effective_reference_threads) as executor:
         future_to_index = {
             executor.submit(
                 service.reconstruct_reference,
@@ -105,6 +118,13 @@ def reconstruct_file(
     return entries, report
 
 
+def _positive_int(value: str) -> int:
+    parsed = int(value)
+    if parsed < 1:
+        raise argparse.ArgumentTypeError("must be at least 1")
+    return parsed
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description=(
@@ -138,6 +158,26 @@ def build_parser() -> argparse.ArgumentParser:
         help="Exit with status 2 when any reference requires manual review",
     )
     parser.add_argument(
+        "--threads",
+        "--reference-threads",
+        dest="reference_threads",
+        type=_positive_int,
+        default=settings.reference_threads,
+        help=(
+            "Concurrent reference workers "
+            f"(default: {settings.reference_threads})"
+        ),
+    )
+    parser.add_argument(
+        "--api-threads",
+        type=_positive_int,
+        default=settings.api_threads,
+        help=(
+            "Concurrent provider searches per reference "
+            f"(default: {settings.api_threads})"
+        ),
+    )
+    parser.add_argument(
         "--log-file",
         type=Path,
         help="Detailed execution log file (DEBUG and above)",
@@ -169,6 +209,8 @@ def main() -> int:
         args.input,
         args.output,
         args.report_output,
+        reference_threads=args.reference_threads,
+        api_threads=args.api_threads,
     )
     logger.info(
         "initialization completed reconstructed=%d manual_review=%d output=%s",

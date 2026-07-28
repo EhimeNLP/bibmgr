@@ -55,6 +55,7 @@ class ReconstructionOrchestrator:
         doi_client: DoiContentNegotiationClient | None = None,
         validator: NativeBibtexValidator | None = None,
         reconstructor: SemanticReconstructor | None = None,
+        search_workers: int | None = None,
     ) -> None:
         self.external_clients = list(external_clients) if external_clients is not None else [
             CrossrefClient(),
@@ -66,6 +67,7 @@ class ReconstructionOrchestrator:
         self.doi_client = doi_client or DoiContentNegotiationClient()
         self.validator = validator or NativeBibtexValidator()
         self.reconstructor = reconstructor or ConfiguredSemanticReconstructor()
+        self.search_workers = search_workers or settings.api_threads
 
     def reconstruct_reference(self, input_data: InputData) -> ProcessedReference:
         """Reconstruct one reference without accepting unvalidated output."""
@@ -214,7 +216,7 @@ class ReconstructionOrchestrator:
         if not clients:
             return []
 
-        max_workers = min(len(clients), settings.max_parallel_requests)
+        max_workers = min(len(clients), self.search_workers)
         candidates: list[CandidateResult] = []
         with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
             future_to_client = {
@@ -227,7 +229,7 @@ class ReconstructionOrchestrator:
                 try:
                     metadata, bibtex = future.result()
                     if metadata is None:
-                        logger.debug(
+                        logger.info(
                             "API search completed ref_id=%s api=%s status=%s",
                             input_data.parsed_data.id,
                             api_name,
@@ -247,7 +249,7 @@ class ReconstructionOrchestrator:
                         if score >= settings.similarity_threshold
                         else CandidateStatus.WEAK_MATCH
                     )
-                    logger.debug(
+                    logger.info(
                         (
                             "API search completed ref_id=%s api=%s "
                             "status=%s score=%.3f"

@@ -51,10 +51,16 @@ def test_cli_accepts_log_controls():
         "run.log",
         "--log-level",
         "DEBUG",
+        "--threads",
+        "1",
+        "--api-threads",
+        "2",
     ])
 
     assert args.log_file.name == "run.log"
     assert args.log_level == "DEBUG"
+    assert args.reference_threads == 1
+    assert args.api_threads == 2
 
 
 def test_cli_writes_only_validated_entries_and_separate_review_report(tmp_path):

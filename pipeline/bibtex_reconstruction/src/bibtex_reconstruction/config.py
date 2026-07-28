@@ -15,7 +15,8 @@ class Settings(BaseSettings):
     # Search
     similarity_threshold: float = Field(0.95, ge=0.0, le=1.0)
     trusted_doi_threshold: float = Field(0.97, ge=0.0, le=1.0)
-    max_parallel_requests: int = Field(5, ge=1)
+    reference_threads: int = Field(2, ge=1)
+    api_threads: int = Field(3, ge=1)
 
     # Semantic reconstruction LLM
     llm_provider: str = Field(
@@ -60,12 +61,12 @@ class Settings(BaseSettings):
     retry_backoff_sec: int = Field(2, ge=1)
     doi_base_url: str = "https://doi.org/"
     doi_timeout: int = Field(15, ge=1)
-    doi_wait_sec: float = Field(0, ge=0)
+    doi_wait_sec: float = Field(0.1, ge=0)
 
     # Crossref
     crossref_base_url: str = "https://api.crossref.org/works"
     crossref_timeout: int = Field(10, ge=1)
-    crossref_wait_sec: float = Field(0, ge=0)
+    crossref_wait_sec: float = Field(1.0, ge=0)
     crossref_mailto: str = Field(
         "",
         validation_alias="CROSSREF_MAILTO",
@@ -74,7 +75,7 @@ class Settings(BaseSettings):
     # CiNii
     cinii_base_url: str = "https://cir.nii.ac.jp/opensearch/v2"
     cinii_timeout: int = Field(10, ge=1)
-    cinii_wait_sec: float = Field(0.5, ge=0)
+    cinii_wait_sec: float = Field(1.0, ge=0)
     cinii_appid: str = Field(
         "",
         validation_alias="CINII_APPID",
@@ -94,13 +95,13 @@ class Settings(BaseSettings):
     # J-STAGE
     jstage_base_url: str = "https://api.jstage.jst.go.jp/searchapi/do"
     jstage_timeout: int = Field(10, ge=1)
-    jstage_wait_sec: float = Field(0, ge=0)
+    jstage_wait_sec: float = Field(0.5, ge=0)
 
     # arXiv
     arxiv_base_url: str = "https://export.arxiv.org/api/query"
     arxiv_bibtex_base_url: str = "https://arxiv.org/bibtex"
     arxiv_timeout: int = Field(10, ge=1)
-    arxiv_wait_sec: float = Field(1, ge=0)
+    arxiv_wait_sec: float = Field(3.0, ge=0)
 
     model_config = SettingsConfigDict(
         env_file=ENV_PATH,

@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import threading
+import time
+
 from bibtex_reconstruction.application.orchestrator import (
     ReconstructionOrchestrator,
 )
@@ -160,6 +163,31 @@ class FailingSearchClient:
         )
 
 
+class SearchConcurrencyTracker:
+    def __init__(self) -> None:
+        self.lock = threading.Lock()
+        self.active = 0
+        self.maximum_active = 0
+
+
+class CountingSearchClient:
+    def __init__(self, api_name: str, tracker: SearchConcurrencyTracker):
+        self.api_name = api_name
+        self.tracker = tracker
+
+    def search(self, input_data):
+        with self.tracker.lock:
+            self.tracker.active += 1
+            self.tracker.maximum_active = max(
+                self.tracker.maximum_active,
+                self.tracker.active,
+            )
+        time.sleep(0.01)
+        with self.tracker.lock:
+            self.tracker.active -= 1
+        return None, None
+
+
 def orchestrator(**kwargs) -> ReconstructionOrchestrator:
     return ReconstructionOrchestrator(
         external_clients=kwargs.pop("external_clients", []),
@@ -254,6 +282,23 @@ def test_api_failure_is_reported_separately_from_not_found():
     assert result.candidates[0].error == (
         "error_type=HTTPError operation=metadata_search http_status=503"
     )
+
+
+def test_api_search_worker_count_is_bounded():
+    tracker = SearchConcurrencyTracker()
+    clients = [
+        CountingSearchClient(f"API {index}", tracker)
+        for index in range(4)
+    ]
+    service = orchestrator(
+        external_clients=clients,
+        search_workers=2,
+    )
+
+    candidates = service._search_candidates(input_data())
+
+    assert len(candidates) == 4
+    assert tracker.maximum_active == 2
 
 
 def test_rejected_doi_candidate_is_repaired_with_rust_feedback():
