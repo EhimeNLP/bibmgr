@@ -520,7 +520,7 @@ def create_app(
             key=selected_authentication.cookie_name,
             value=authenticated.token,
             max_age=int(SESSION_LIFETIME.total_seconds()),
-            path="/",
+            path=selected_authentication.cookie_path,
             secure=selected_authentication.secure_cookie,
             httponly=True,
             samesite="lax",
@@ -558,7 +558,7 @@ def create_app(
         response = Response(status_code=204)
         response.delete_cookie(
             key=selected_authentication.cookie_name,
-            path="/",
+            path=selected_authentication.cookie_path,
             secure=selected_authentication.secure_cookie,
             httponly=True,
             samesite="lax",

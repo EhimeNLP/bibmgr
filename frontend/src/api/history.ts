@@ -10,11 +10,8 @@ import {
   authenticatedWriteHeaders,
   handleAuthenticationFailure,
 } from "./auth";
+import { API_BASE_URL } from "./base";
 import { BibtexApiError } from "./bibtex";
-
-const API_BASE_URL = (
-  (import.meta.env.VITE_API_BASE_URL as string | undefined) ?? "/api"
-).replace(/\/$/, "");
 
 const HISTORY_ACTIONS = new Set<ReferenceHistoryAction>([
   "baseline",

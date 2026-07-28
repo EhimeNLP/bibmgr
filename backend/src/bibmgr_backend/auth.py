@@ -172,6 +172,7 @@ class AuthenticationManager:
         code_generator: Callable[[], str] | None = None,
         session_token_generator: Callable[[], str] | None = None,
         secure_cookie: bool | None = None,
+        cookie_path: str | None = None,
     ) -> None:
         self.mailer = mailer or SmtpLoginCodeMailer.from_environment()
         self.secret = secret or authentication_secret()
@@ -208,6 +209,19 @@ class AuthenticationManager:
         self.cookie_name = os.environ.get(
             "BIBMGR_SESSION_COOKIE", DEFAULT_SESSION_COOKIE
         )
+        configured_cookie_path = (
+            cookie_path
+            if cookie_path is not None
+            else os.environ.get("BIBMGR_COOKIE_PATH", "/")
+        )
+        if not configured_cookie_path.startswith("/") or any(
+            character in configured_cookie_path
+            for character in ("\r", "\n", ";", ",")
+        ):
+            raise RuntimeError(
+                "BIBMGR_COOKIE_PATH must be an absolute URL path."
+            )
+        self.cookie_path = configured_cookie_path.rstrip("/") or "/"
 
     def request_login(
         self,

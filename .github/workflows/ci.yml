@@ -60,6 +60,44 @@ jobs:
       - run: uv run --frozen --no-default-groups poe check-frontend
       - run: uv run --frozen --no-default-groups poe test-frontend
       - run: uv run --frozen --no-default-groups poe build-frontend
+      - name: Build frontend for a proxy subpath
+        run: BIBMGR_BASE_PATH=/bibmgr uv run --frozen --no-default-groups poe build-frontend
+
+  deployment:
+    name: Production deployment configuration
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate direct-HTTPS Compose mode
+        run: >-
+          docker compose --env-file .env.production.example
+          -f compose.production.yaml
+          -f compose.production.direct.yaml
+          config
+      - name: Validate external-proxy Compose mode
+        run: >-
+          docker compose --env-file .env.production.example
+          -f compose.production.yaml
+          -f compose.production.proxy.yaml
+          config
+      - name: Validate direct-HTTPS Caddy configuration
+        run: >-
+          docker run --rm
+          -e BIBMGR_SITE_ADDRESS=bibmgr.example.edu
+          -v "$PWD/deploy/caddy:/etc/caddy/bibmgr:ro"
+          caddy:2.10-alpine
+          caddy validate
+          --config /etc/caddy/bibmgr/direct.Caddyfile
+          --adapter caddyfile
+      - name: Validate external-proxy Caddy configuration
+        run: >-
+          docker run --rm
+          -e BIBMGR_BASE_PATH=/bibmgr
+          -v "$PWD/deploy/caddy:/etc/caddy/bibmgr:ro"
+          caddy:2.10-alpine
+          caddy validate
+          --config /etc/caddy/bibmgr/proxy.Caddyfile
+          --adapter caddyfile
 
   python-parity:
     name: Python binding and adapter parity

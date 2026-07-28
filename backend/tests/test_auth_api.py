@@ -88,6 +88,7 @@ class MutableClock:
 def build_client(
     *,
     allowed_emails: set[str] | None = None,
+    cookie_path: str = "/",
 ) -> tuple[
     TestClient,
     CapturingMailer,
@@ -113,6 +114,7 @@ def build_client(
         session_token_generator=lambda: "opaque-test-session-token",
         secure_cookie=False,
         allowed_emails=allowed_emails,
+        cookie_path=cookie_path,
     )
     client = TestClient(
         create_app(
@@ -184,6 +186,24 @@ def test_email_login_creates_session_and_logout_revokes_it() -> None:
         assert stored_session is not None
         assert stored_session.token_digest != "opaque-test-session-token"
         assert stored_session.revoked_at is not None
+
+
+def test_session_cookie_can_be_scoped_to_a_proxy_subpath() -> None:
+    client, _mailer, _clock, _sessions = build_client(
+        cookie_path="/bibmgr/"
+    )
+    email = "member@ai.cs.ehime-u.ac.jp"
+    assert client.post(
+        "/auth/email/start", json={"email": email}
+    ).status_code == 202
+
+    verified = client.post(
+        "/auth/email/verify",
+        json={"email": email, "code": "12345678"},
+    )
+
+    assert verified.status_code == 200
+    assert "Path=/bibmgr" in verified.headers["set-cookie"]
 
 
 def test_login_code_is_rate_limited_and_expires() -> None:

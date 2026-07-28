@@ -7,13 +7,10 @@ import {
   authenticatedWriteHeaders,
   handleAuthenticationFailure,
 } from "./auth";
+import { API_BASE_URL } from "./base";
 import { bibtexTitleForDisplay } from "../utils/bibtexDisplay";
 
 type ApiRecord = Record<string, unknown>;
-
-const API_BASE_URL = (
-  (import.meta.env.VITE_API_BASE_URL as string | undefined) ?? "/api"
-).replace(/\/$/, "");
 
 export async function registerBibtexToDatabase(
   payload: RegisterBibtexPayload,

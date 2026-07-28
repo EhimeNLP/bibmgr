@@ -10,10 +10,7 @@ import type {
   RegistrationValidationResult,
   ValidateRegistrationRequest,
 } from "../types/bibtex";
-
-const API_BASE_URL = (
-  (import.meta.env.VITE_API_BASE_URL as string | undefined) ?? "/api"
-).replace(/\/$/, "");
+import { API_BASE_URL } from "./base";
 
 export type BibtexRequestOptions = {
   signal?: AbortSignal;

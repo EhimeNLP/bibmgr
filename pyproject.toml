@@ -95,6 +95,30 @@ cmd = "bibmgr-admin users"
 help = "Create a private PostgreSQL custom-format backup under backups/."
 cmd = "bibmgr-ops backup"
 
+[tool.poe.tasks.prod-direct-config]
+help = "Render the direct-HTTPS production Compose configuration."
+cmd = "docker compose --env-file .env.production -f compose.production.yaml -f compose.production.direct.yaml config"
+
+[tool.poe.tasks.prod-direct-up]
+help = "Deploy production with Caddy-managed public HTTPS."
+cmd = "docker compose --env-file .env.production -f compose.production.yaml -f compose.production.direct.yaml up --detach --build --wait"
+
+[tool.poe.tasks.prod-direct-down]
+help = "Stop the direct-HTTPS production deployment."
+cmd = "docker compose --env-file .env.production -f compose.production.yaml -f compose.production.direct.yaml down"
+
+[tool.poe.tasks.prod-proxy-config]
+help = "Render the external-proxy production Compose configuration."
+cmd = "docker compose --env-file .env.production -f compose.production.yaml -f compose.production.proxy.yaml config"
+
+[tool.poe.tasks.prod-proxy-up]
+help = "Deploy production behind an external reverse proxy."
+cmd = "docker compose --env-file .env.production -f compose.production.yaml -f compose.production.proxy.yaml up --detach --build --wait"
+
+[tool.poe.tasks.prod-proxy-down]
+help = "Stop the external-proxy production deployment."
+cmd = "docker compose --env-file .env.production -f compose.production.yaml -f compose.production.proxy.yaml down"
+
 [tool.poe.tasks.test]
 help = "Run all Rust, backend, frontend, and adapter parity tests."
 sequence = [

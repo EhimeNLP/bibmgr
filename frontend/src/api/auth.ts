@@ -2,10 +2,7 @@ import type {
   AuthenticationSession,
   EmailLoginStartResult,
 } from "../types/auth";
-
-const API_BASE_URL = (
-  (import.meta.env.VITE_API_BASE_URL as string | undefined) ?? "/api"
-).replace(/\/$/, "");
+import { API_BASE_URL } from "./base";
 
 let currentCsrfToken: string | undefined;
 export const AUTHENTICATION_REQUIRED_EVENT =

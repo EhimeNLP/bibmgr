@@ -9,12 +9,9 @@ import {
   authenticatedWriteHeaders,
   handleAuthenticationFailure,
 } from "./auth";
+import { API_BASE_URL } from "./base";
 import { BibtexApiError } from "./bibtex";
 import { bibtexTitleForDisplay } from "../utils/bibtexDisplay";
-
-const API_BASE_URL = (
-  (import.meta.env.VITE_API_BASE_URL as string | undefined) ?? "/api"
-).replace(/\/$/, "");
 
 export async function searchReferences(query: string): Promise<Reference[]> {
   const parameters = new URLSearchParams({

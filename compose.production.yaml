@@ -79,18 +79,9 @@ services:
       dockerfile: frontend/Dockerfile
     image: bibmgr-web:${BIBMGR_IMAGE_TAG:-local}
     restart: unless-stopped
-    environment:
-      BIBMGR_SITE_ADDRESS: ${BIBMGR_SITE_ADDRESS}
     depends_on:
       backend:
         condition: service_healthy
-    ports:
-      - "80:80"
-      - "443:443"
-      - "443:443/udp"
-    volumes:
-      - caddy-data:/data
-      - caddy-config:/config
 
 secrets:
   database_password:
@@ -105,5 +96,3 @@ secrets:
 volumes:
   bibmgr-postgres-data:
   bibmgr-backups:
-  caddy-data:
-  caddy-config:

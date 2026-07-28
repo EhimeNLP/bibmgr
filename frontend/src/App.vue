@@ -47,6 +47,7 @@ const pageNumber = computed(() =>
 const pageCount = computed(() =>
   Math.max(1, Math.ceil(totalReferences.value / pageLimit))
 );
+const faviconUrl = `${import.meta.env.BASE_URL}favicon.svg`;
 
 onMounted(() => {
   window.addEventListener(
@@ -192,7 +193,7 @@ async function changePage(direction: -1 | 1) {
     <header class="app-header">
       <div class="app-shell app-header__inner">
         <div class="brand-mark" aria-hidden="true">
-          <img src="/favicon.svg" alt="" width="44" height="44" />
+          <img :src="faviconUrl" alt="" width="44" height="44" />
         </div>
         <div class="brand-copy">
           <h1 class="brand-wordmark" aria-label="BibMgR">
