@@ -55,10 +55,6 @@ class Settings(BaseSettings):
         validation_alias="BIBTEX_RECONSTRUCTION_LLM_TIMEOUT",
     )
 
-    # Rust validation
-    registration_policy: str = "laboratory"
-    rewrite_citation_keys: bool = True
-
     # Shared API behavior
     max_retries: int = Field(2, ge=1)
     retry_backoff_sec: int = Field(2, ge=1)

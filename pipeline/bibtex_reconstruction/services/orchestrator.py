@@ -58,9 +58,7 @@ class ReconstructionOrchestrator:
             ArxivClient(),
         ]
         self.doi_client = doi_client or DoiContentNegotiationClient()
-        self.validator = validator or NativeBibtexValidator(
-            policy=settings.registration_policy
-        )
+        self.validator = validator or NativeBibtexValidator()
         self.reconstructor = reconstructor or ConfiguredSemanticReconstructor()
 
     def reconstruct_reference(self, input_data: InputData) -> ProcessedReference:

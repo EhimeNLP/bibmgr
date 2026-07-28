@@ -4,8 +4,6 @@ from __future__ import annotations
 
 from typing import Any
 
-from core.candidate_normalization import normalize_candidate_source
-from core.config import settings
 from models import RustValidationResult, ValidationDiagnostic
 
 
@@ -14,10 +12,7 @@ class NativeValidationUnavailable(RuntimeError):
 
 
 class NativeBibtexValidator:
-    """Normalize candidates, apply allowed Rust fixes, and make the final decision."""
-
-    def __init__(self, policy: str = "laboratory") -> None:
-        self.policy = policy
+    """Validate candidates without rewriting their source representation."""
 
     def validate(self, source: str) -> RustValidationResult:
         try:
@@ -28,43 +23,10 @@ class NativeBibtexValidator:
                 "pipeline/bibtex_reconstruction --group dev` from the repository root"
             ) from exc
 
-        normalized = normalize_candidate_source(source)
-        applied_fix_ids: list[str] = []
-
-        safe_fix_result = bibmgr_native.apply_fixes(
-            normalized,
-            profile=self.policy,
-        )
-        normalized = safe_fix_result.source
-        applied_fix_ids.extend(safe_fix_result.applied_fix_ids)
-
         decision = bibmgr_native.validate_for_registration(
-            normalized,
-            policy=self.policy,
+            source,
+            policy="modern",
         )
-        if not decision.accepted and settings.rewrite_citation_keys:
-            key_fix_ids = [
-                diagnostic.fixes[0]
-                for diagnostic in decision.diagnostics
-                if (
-                    diagnostic.blocking
-                    and diagnostic.code == "LAB-KEY-002"
-                    and diagnostic.fixes
-                )
-            ]
-            if key_fix_ids:
-                key_fix_result = bibmgr_native.apply_fixes(
-                    normalized,
-                    fix_ids=key_fix_ids,
-                    profile=self.policy,
-                    source_revision=decision.source_revision,
-                )
-                normalized = key_fix_result.source
-                applied_fix_ids.extend(key_fix_result.applied_fix_ids)
-                decision = bibmgr_native.validate_for_registration(
-                    normalized,
-                    policy=self.policy,
-                )
 
         diagnostics = [
             self._diagnostic_from_native(diagnostic)
@@ -75,7 +37,7 @@ class NativeBibtexValidator:
             source=decision.source,
             unresolved_semantics=decision.unresolved_semantics,
             diagnostics=diagnostics,
-            applied_fix_ids=applied_fix_ids,
+            applied_fix_ids=[],
         )
 
     @staticmethod
