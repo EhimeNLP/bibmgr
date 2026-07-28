@@ -43,8 +43,7 @@ const emit = defineEmits<{
           >
             <span>Open source</span>
             <svg aria-hidden="true" viewBox="0 0 16 16" fill="none">
-              <path d="M6 3h7v7M13 3 5 11" />
-              <path d="M11 9v3a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1h3" />
+              <path d="m4.5 11.5 7-7M6.5 4.5h5v5" />
             </svg>
           </a>
           <ReferenceActions

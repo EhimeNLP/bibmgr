@@ -1140,12 +1140,12 @@ svg {
 }
 
 .source-link svg {
-  width: 14px;
-  height: 14px;
+  width: 15px;
+  height: 15px;
   stroke: currentColor;
   stroke-linecap: round;
   stroke-linejoin: round;
-  stroke-width: 1.4;
+  stroke-width: 1.55;
 }
 
 .detail-section {
