@@ -18,10 +18,8 @@ env/
 .env
 !.env.sample
 
-# Reconstruction outputs
-/reconstructed.bib
-/reconstruction-report.json
-/reconstruction-review.json
+# Local input and reconstruction outputs
+/data/
 
 # Test, coverage, and tool caches
 *.log

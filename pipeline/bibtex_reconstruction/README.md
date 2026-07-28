@@ -119,12 +119,27 @@ cp pipeline/bibtex_reconstruction/.env.sample pipeline/bibtex_reconstruction/.en
 
 ## Run
 
+入力JSONを`pipeline/bibtex_reconstruction/data/input.json`へ配置し，リポジトリルートから実行scriptを起動します．
+
+```bash
+pipeline/bibtex_reconstruction/run.sh
+```
+
+`data/reconstructed.bib`と`data/reconstruction-report.json`が生成されます．
+`data/`は入力・生成物を含めてGitの追跡対象外です．scriptへ渡した追加引数はCLIへそのまま渡されるため，完全自動処理の成否を終了statusで確認する場合は次のように実行できます．
+
+```bash
+pipeline/bibtex_reconstruction/run.sh --fail-on-review
+```
+
+CLIを直接起動する場合は次のコマンドと同等です．
+
 ```bash
 uv run --project pipeline/bibtex_reconstruction \
   bibtex-reconstruction \
-  pipeline/bibtex_reconstruction/tests/test_input.json \
-  --output reconstructed.bib \
-  --report-output reconstruction-report.json
+  pipeline/bibtex_reconstruction/data/input.json \
+  --output pipeline/bibtex_reconstruction/data/reconstructed.bib \
+  --report-output pipeline/bibtex_reconstruction/data/reconstruction-report.json
 ```
 
 同じCLIは`python -m bibtex_reconstruction`でも起動できます．
