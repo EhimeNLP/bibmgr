@@ -2,8 +2,7 @@
 
 `bibtex_reconstruction`は，`metadata_extraction`が出力した文書・参考文献JSONから，外部APIとLLMで`.bib`を復元し，Rust検証と重要fieldの品質gateを通過したBibTeX entryの集合を作る初期化専用CLIです．
 
-一般利用のアプリ，backend，frontendとは独立しています．
-このCLIはデータベースへ登録せず，entry単位の検証に合格した`.bib`と，全参考文献の処理経路・証拠・診断を含む監査用JSONを生成します．
+一般利用のアプリ，backend，frontendとは独立しています．このCLIはデータベースへ登録せず，entry単位の検証に合格した`.bib`と，全参考文献の処理経路・証拠・診断を含む監査用JSONを生成します．
 
 ## Architecture
 
@@ -143,11 +142,9 @@ flowchart LR
 
 ## Independence from the application
 
-一般利用時の検索，登録，exportはこのdirectoryをimportしません．
-通常登録で不正なBibTeXを拒否する責務は，アプリが利用する`bibmgr-*`のRust実装にあります．
+一般利用時の検索，登録，exportはこのdirectoryをimportしません．通常登録で不正なBibTeXを拒否する責務は，アプリが利用する`bibmgr-*`のRust実装にあります．
 
-初期化CLI内では`ready`と`manual_review`を処理結果として使いますが，これは初期化成果物の振り分け専用です．
-一般アプリのrecordやAPI schemaへ`needs_review` flagを追加するものではありません．
+初期化CLI内では`ready`と`manual_review`を処理結果として使いますが，これは初期化成果物の振り分け専用です．一般アプリのrecordやAPI schemaへ`needs_review` flagを追加するものではありません．
 
 ## Directory responsibilities
 
@@ -211,8 +208,7 @@ cp pipeline/bibtex_reconstruction/.env.sample pipeline/bibtex_reconstruction/.en
 pipeline/bibtex_reconstruction/run.sh
 ```
 
-`data/reconstructed.bib`と`data/reconstruction-report.json`が生成されます．
-`data/`は入力・生成物を含めてGitの追跡対象外です．scriptへ渡した追加引数はCLIへそのまま渡されるため，完全自動処理の成否を終了statusで確認する場合は次のように実行できます．
+`data/reconstructed.bib`と`data/reconstruction-report.json`が生成されます．`data/`は入力・生成物を含めてGitの追跡対象外です．scriptへ渡した追加引数はCLIへそのまま渡されるため，完全自動処理の成否を終了statusで確認する場合は次のように実行できます．
 
 ```bash
 pipeline/bibtex_reconstruction/run.sh --fail-on-review
@@ -265,8 +261,7 @@ uv run --project pipeline/bibtex_reconstruction \
 
 同じCLIは`python -m bibtex_reconstruction`でも起動できます．
 
-`--fail-on-review`を指定すると，手動確認対象が一件以上ある場合に終了status `2`を返します．CIや初期化scriptから完全自動処理できたかを判定する場合に利用できます．
-従来の`--review-output`も`--report-output`のaliasとして利用できます．
+`--fail-on-review`を指定すると，手動確認対象が一件以上ある場合に終了status `2`を返します．CIや初期化scriptから完全自動処理できたかを判定する場合に利用できます．従来の`--review-output`も`--report-output`のaliasとして利用できます．
 
 ## Outputs
 
@@ -329,8 +324,7 @@ uv run --project pipeline/bibtex_reconstruction \
 
 ## Configuration
 
-設定の既定値と型は`src/bibtex_reconstruction/config.py`の`Settings`へ集約しています．
-秘密情報や実行環境ごとの差分だけを`.env`で指定し，リポジトリ内の設定YAMLは使用しません．
+設定の既定値と型は`src/bibtex_reconstruction/config.py`の`Settings`へ集約しています．秘密情報や実行環境ごとの差分だけを`.env`で指定し，リポジトリ内の設定YAMLは使用しません．
 
 主な調整項目は次のとおりです．
 
@@ -342,7 +336,7 @@ uv run --project pipeline/bibtex_reconstruction \
 - `BIBTEX_RECONSTRUCTION_CITATION_SITE_MAX_BYTES`: 公式Cite探索で受け取る一responseの最大byte数です．
 - `BIBTEX_RECONSTRUCTION_CITATION_SITE_MAX_LINKS`: 一つの公式ページから試すBibTeX候補linkの上限です．
 - `BIBTEX_RECONSTRUCTION_<PROVIDER>_WAIT_SEC`: providerごとのHTTP request開始間隔です．`CROSSREF`，`CINII`，`SEMANTICSCHOLAR`，`JSTAGE`，`ARXIV`，`DOI`，`CITATION_SITE`を指定できます．
-API endpointやtimeoutも`BIBTEX_RECONSTRUCTION_`に`Settings`のfield名を大文字で続けることで上書きできますが，通常は変更不要です．
+- API endpointやtimeoutも`BIBTEX_RECONSTRUCTION_`に`Settings`のfield名を大文字で続けることで上書きできますが，通常は変更不要です．
 
 WAIT_SECの既定値は，実行ログとproviderの利用方針から次のように設定しています．
 
