@@ -65,15 +65,31 @@ Rust検証で解決できない場合は，抽出済みfield，`raw_text`，全A
 
 ## Directory responsibilities
 
-- `main.py`: `metadata_extraction` JSONの入力，referenceの並列処理，合格entry集合と監査JSONの保存を行うCLIです．
-- `services/source_loader.py`: JSONを読み込み，公開入力modelに適合するか検証します．
-- `services/orchestrator.py`: DOI直通，並列検索，証拠bundle，LLM再試行，Rust検証を制御します．
-- `services/semantic_reconstructor.py`: providerに依存しない証拠promptと修正promptを管理します．
-- `services/llm_providers/`: Gemini，OpenAI，OpenAI互換APIへの接続差分とstructured outputを管理します．
-- `api_clients/`: Crossref，Semantic Scholar，CiNii，J-STAGE，arXiv，doi.orgなどからmetadataまたはBibTeXを取得します．
-- `core/source_clues.py`: 抽出済みfieldを検索手掛かりとして保持し，`raw_text`がBibTeXとして解釈できる場合だけ既存parserで欠損fieldを補完します．
-- `core/native_validation.py`: Python側で検証規則や整形を再実装せず，Rustのsource-preservingな`modern`登録判定を呼び出します．
-- `models/`: `metadata_extraction`との公開入出力契約と，API候補，証拠bundle，LLM結果，Rust diagnostic，各試行の監査情報を定義します．
+実装は標準的なsrc layoutで`src/bibtex_reconstruction`へ集約しています．`tests`はpackage外から公開interfaceを利用する形で独立させています．
+
+```text
+bibtex_reconstruction/
+├── src/bibtex_reconstruction/
+│   ├── application/
+│   ├── clients/
+│   │   └── llm/
+│   ├── domain/
+│   ├── parsing/
+│   ├── validation/
+│   ├── cli.py
+│   ├── config.py
+│   └── matching.py
+└── tests/
+```
+
+- `cli.py`: `metadata_extraction` JSONの入力，referenceの並列処理，合格entry集合と監査JSONの保存を行います．
+- `application/`: source読込，DOI直通，並列検索，証拠bundle，LLM再試行，Rust検証というuse case全体を制御します．
+- `clients/`: Crossref，Semantic Scholar，CiNii，J-STAGE，arXiv，doi.orgおよびLLM providerとの外部通信を担当します．
+- `domain/`: `metadata_extraction`との公開入出力契約，処理状態，API候補，証拠bundle，LLM結果，Rust diagnostic，監査情報を定義します．
+- `parsing/`: DOIなどの識別子抽出，XML処理，限定的なBibTeX field読取，検索手掛かりの補完を担当します．
+- `validation/`: Python側で規則や整形を再実装せず，Rustのsource-preservingな`modern`登録判定を呼び出します．
+- `config.py`: 環境変数を含むruntime設定を一か所で管理します．
+- `matching.py`: 外部metadata候補の類似度計算を提供します．
 
 ## Setup
 
@@ -105,11 +121,13 @@ cp pipeline/bibtex_reconstruction/.env.sample pipeline/bibtex_reconstruction/.en
 
 ```bash
 uv run --project pipeline/bibtex_reconstruction \
-  python pipeline/bibtex_reconstruction/main.py \
+  bibtex-reconstruction \
   pipeline/bibtex_reconstruction/tests/test_input.json \
   --output reconstructed.bib \
   --report-output reconstruction-report.json
 ```
+
+同じCLIは`python -m bibtex_reconstruction`でも起動できます．
 
 `--fail-on-review`を指定すると，手動確認対象が一件以上ある場合に終了status `2`を返します．CIや初期化scriptから完全自動処理できたかを判定する場合に利用できます．
 従来の`--review-output`も`--report-output`のaliasとして利用できます．
@@ -153,7 +171,7 @@ uv run --project pipeline/bibtex_reconstruction \
 
 ## Configuration
 
-設定の既定値と型は`core/config.py`の`Settings`へ集約しています．
+設定の既定値と型は`src/bibtex_reconstruction/config.py`の`Settings`へ集約しています．
 秘密情報や実行環境ごとの差分だけを`.env`で指定し，リポジトリ内の設定YAMLは使用しません．
 
 主な調整項目は次のとおりです．
