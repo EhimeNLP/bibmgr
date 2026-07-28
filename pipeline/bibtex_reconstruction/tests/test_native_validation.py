@@ -1,3 +1,5 @@
+import bibmgr_native
+
 from core.native_validation import NativeBibtexValidator
 
 
@@ -24,7 +26,7 @@ def test_native_validator_preserves_blocking_diagnostics():
     assert result.diagnostics[0].blocking is True
 
 
-def test_native_validator_normalizes_doi_bibtex_before_final_decision():
+def test_native_validator_preserves_doi_bibtex_before_final_decision():
     source = (
         "@article{Atkins_2002, title={Selective anticancer drugs}, "
         "volume={1}, ISSN={1474-1784}, "
@@ -38,6 +40,29 @@ def test_native_validator_normalizes_doi_bibtex_before_final_decision():
     result = NativeBibtexValidator().validate(source)
 
     assert result.accepted is True
-    assert result.source.startswith("@article{atkins-2002,")
-    assert "month = {jul}" in result.source
-    assert "LAB-KEY-002:0" in result.applied_fix_ids
+    assert result.source == source
+    assert result.applied_fix_ids == []
+
+
+def test_native_validator_defers_laboratory_rules_without_losing_source():
+    source = """@misc{Mixed_Key,
+  TITLE = "Preserve {This}",
+  file = {/tmp/private.pdf},
+  url = {https://example.test/paper}
+}
+"""
+
+    result = NativeBibtexValidator().validate(source)
+    laboratory = bibmgr_native.validate_for_registration(
+        source,
+        policy="laboratory",
+    )
+
+    assert result.accepted is True
+    assert result.source == source
+    assert result.applied_fix_ids == []
+    assert laboratory.accepted is False
+    assert any(
+        diagnostic.code.startswith("LAB-") and diagnostic.blocking
+        for diagnostic in laboratory.diagnostics
+    )

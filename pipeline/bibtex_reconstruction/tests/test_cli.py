@@ -139,7 +139,7 @@ def test_cli_produces_a_rust_validated_bibliography_without_network(tmp_path):
     output = output_path.read_text(encoding="utf-8")
     decision = bibmgr_native.validate_for_registration(
         output,
-        policy="laboratory",
+        policy="modern",
     )
     assert len(entries) == 1
     assert report.manual_review_count == 0
