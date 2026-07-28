@@ -82,7 +82,7 @@ The validation engine receives both CST and semantic bibliography plus a resolve
 - `severity` is how prominently a consumer presents the issue.
 - `blocking` is whether the active registration/export policy rejects it.
 
-Registration invokes this engine through `bibmgr-core`; neither the backend nor frontend interprets BibTeX to decide eligibility. A policy may allow an error or block on a warning without changing the rule implementation. Acceptance and storage canonicalization are separate core operations: validation does not mutate the submitted bytes, while `canonicalize_for_storage` applies safe CST edits to a fixed point, revalidates, and verifies that the document inventory was not reduced.
+Registration invokes this engine through `bibmgr-core`; neither the backend nor frontend interprets BibTeX to decide eligibility. Persistence uses the `archive` policy: strict parser diagnostics remain blocking, while profile conventions, incomplete metadata, and unresolved semantics are advisory. The accepted CST source is stored without applying fixes. `canonicalize_for_storage` remains an explicit utility for callers that deliberately request safe CST normalization, but it is not part of database registration or editing.
 
 ## Fixes and export
 
@@ -90,7 +90,7 @@ A fix is an atomic, ordered set of non-overlapping `TextEdit` values tied to a c
 
 Bulk safe fixing may require several atomic plans. The core deterministically selects a non-conflicting batch, applies it, reanalyzes, and plans the next batch against the new revision until reaching a fixed point. Thus overlapping safe suggestions are never forced into one invalid plan.
 
-Export is separate. It serializes the semantic bibliography with an explicit target profile and may choose an entirely different representation, such as `@misc`/`eprint` versus `@misc`/`howpublished`. It is never used for storage canonicalization or a source-preserving quick fix. Conversely, validation never offers deletion of valid metadata merely because an export profile omits that field. For example, a URL remains in the submitted source, canonical laboratory source, and stored semantic record while a target-specific external export may exclude it from generated BibTeX. Ambiguous or conflicting semantics stop export, and the generated representation is revalidated with the export profile's explicit target validation policy.
+Export is separate. It serializes the semantic bibliography with an explicit target profile and may choose an entirely different representation, such as `@misc`/`eprint` versus `@misc`/`howpublished`. It never mutates the stored source. Conversely, validation never offers deletion of valid metadata merely because an export profile omits that field. For example, a URL remains in the stored source and semantic record while a target-specific external export may exclude it from generated BibTeX. Ambiguous or conflicting semantics stop export, and the generated representation is revalidated with the export profile's explicit target validation policy.
 
 ## Adapter boundary
 

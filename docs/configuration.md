@@ -23,6 +23,7 @@ config/
 |  |- natbib-full-author-names.toml
 |  `- springer-lncs.toml
 |- policies/
+|  |- archive.toml
 |  |- laboratory.toml
 |  |- modern.toml
 |  |- acl.toml
@@ -69,7 +70,7 @@ The syntax style catalog includes `BIB-SYNTAX-006`, which normalizes each simple
 
 The TeX-special rule excludes raw identifier fields used for URLs, repository identifiers, and publication identifiers, plus literal content only inside complete braced arguments of `\url{...}`, `\nolinkurl{...}`, and `\path{...}`. Complete delimiter forms of `\verb`, `\verb*`, `\Verb`, and `\lstinline` are treated as verbatim and are not diagnosed, while incomplete or ambiguous literal forms and ordinary TeX command arguments require confirmation. Referenced `@string` definitions are followed recursively in the context of every consuming field; simple aliases retain the leaf applicability, command or math context that crosses a macro or concatenation boundary requires confirmation, a definition used only by excluded fields is not diagnosed, and a definition shared by prose and excluded fields is diagnosed without an automatic fix. Macro traversal is bounded by global visit and expansion-depth limits; if either limit is reached before traversal completes, an incomplete-analysis diagnostic is emitted and automatic fixes for all referenced `@string` values are disabled.
 
-The `laboratory` profile treats field spelling, field order, trailing commas, value delimiters, whitespace around `=`, and field-value line normalization as non-blocking presentation guidance. Safe storage canonicalization applies these fixes, so internal line boundaries become spaces without changing title case-protection groups. Laboratory storage retains valid bibliographic metadata such as `abstract`, `keywords`, and `url`; only local `file` and generated `timestamp` fields are forbidden. An export profile may project retained metadata out of generated BibTeX without changing the stored source. No URL policy offers a metadata-deleting fix. Correctness, identity, required-data, malformed URLs, entry-internal percent comments that require parser recovery, unsafe raw TeX-special characters in text values, and explicit laboratory-convention rules remain blocking.
+The `archive` profile is the database-ingest boundary. It preserves field spelling and order, has no required or forbidden fields, accepts unresolved semantics, and leaves only strict parser diagnostics blocking. It never applies fixes. The `laboratory` validation profile remains available for linting and for validating generated laboratory output; its field spelling, field order, required-data, and representation rules do not decide whether source may be archived. No URL policy offers a metadata-deleting fix.
 
 The duplicate semantic analyzer codes `BIB-SEMANTIC-103`, `BIB-SEMANTIC-104`, and `BIB-SEMANTIC-105` are retired in favor of the canonical DOI, arXiv, and date codes `BIB-SEMANTIC-001`, `BIB-SEMANTIC-002`, and `BIB-SEMANTIC-007`. TOML loaders migrate the retired codes to their canonical replacements and reject conflicting settings.
 
@@ -79,22 +80,13 @@ Parse mode is an analysis option rather than policy content: editors use toleran
 
 ## Registration policy
 
-Registration resolves one validation profile and then applies independent acceptance settings:
+Registration resolves one validation profile and then applies independent acceptance settings. The application default is the built-in Rust policy:
 
-```toml
-schema_version = "1"
-validation_profile = "laboratory"
-minimum_severity = "error"
-allow_unresolved_semantics = false
-apply_safe_fixes = false
-
-[blocking_rules]
-all = false
-include = ["LAB-KEY-002", "LAB-ENTRY-003"]
-exclude = []
+```rust
+let policy = RegistrationPolicy::archive();
 ```
 
-An empty `blocking_rules.include` list does not disable per-diagnostic blocking or the optional severity threshold. The built-in `laboratory` registration policy blocks all errors plus rules explicitly marked blocking, rejects unresolved semantics, and does not promote every warning to blocking. The core returns the final `accepted` decision; adapters do not re-evaluate these fields.
+This selects validation profile `archive`, sets `minimum_severity` to `None`, allows unresolved semantics, applies no fixes, and adds no blocking-rule selectors. Severity alone therefore cannot block archival. Diagnostics already marked blocking by the `archive` validation profile are still honored; those are strict parser diagnostics. The core returns the final `accepted` decision, and adapters do not re-evaluate these fields. The stricter `laboratory` registration policy remains selectable for deployments that intentionally want profile-gated ingest, but it is not the application default.
 
 ## Export profile
 
@@ -104,7 +96,7 @@ Export profiles are typed separately and include serialization-only fields such 
 - `misc-howpublished`: `@misc` and `howpublished`;
 - `article-journal`: legacy `@article` and `journal`.
 
-Venue styles are `full`, `short`, and `as-recorded`. The validation catalog contains `modern`, `laboratory`, `acl`, and `classical-bst`; export profiles with one of those IDs still resolve to a separate typed value. Artifact-derived export profiles explicitly reuse the closest validation policy: `aaai`, `acm-publications`, `ieee-publications`, `ml-conferences`, and `springer-lncs` use `modern`; `lrec` uses `acl`; `eamt`, both IPSJ profiles, `jnlp-japanese`, `jsai-journal`, and `natbib-full-author-names` use `classical-bst`. `legacy-arxiv-article` also uses `modern`.
+Venue styles are `full`, `short`, and `as-recorded`. The validation catalog contains `archive`, `modern`, `laboratory`, `acl`, and `classical-bst`; `archive` is reserved for ingest and is not an export profile. Export profiles with another matching ID still resolve to a separate typed value. Artifact-derived export profiles explicitly reuse the closest validation policy: `aaai`, `acm-publications`, `ieee-publications`, `ml-conferences`, and `springer-lncs` use `modern`; `lrec` uses `acl`; `eamt`, both IPSJ profiles, `jnlp-japanese`, `jsai-journal`, and `natbib-full-author-names` use `classical-bst`. `legacy-arxiv-article` also uses `modern`.
 
 These reused validation policies are general readiness baselines rather than complete validators for each referenced BST; target-specific field and entry-type compatibility is enforced by the export profile, while the selected validation policy checks the generated document's shared syntax and semantic requirements.
 

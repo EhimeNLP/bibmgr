@@ -2,7 +2,7 @@
 
 ## Storage model
 
-PostgreSQL is the source of truth. Stable query and identity fields are relational, the information-preserving canonical laboratory BibTeX entry is stored as `TEXT`, and the complete semantic record returned by `bibmgr-core` is stored as `JSONB`. The JSONB snapshot retains provenance, confidence, unresolved values, and additive fields without making them the only query representation. The physical text column retains the legacy name `raw_bibtex` for migration compatibility, while application code exposes it as `canonical_bibtex`.
+PostgreSQL is the source of truth. Stable query and identity fields are relational, the accepted BibTeX entry is stored without profile-driven rewriting as `TEXT`, and the complete semantic record returned by `bibmgr-core` is stored as `JSONB`. The JSONB snapshot retains provenance, confidence, unresolved values, and additive fields without making them the only query representation. The physical text column retains the legacy name `raw_bibtex`, while application code and history DTOs retain the legacy name `canonical_bibtex`; both names now refer to the lossless stored source rather than laboratory-formatted output.
 
 ```mermaid
 erDiagram
@@ -67,11 +67,11 @@ Candidate-level title and author duplicate review can be added separately withou
 
 ## Search and pagination
 
-The compatibility list endpoint searches title, citation key, venue, canonical laboratory BibTeX, contributor display name, and identifier values. The primary `GET /references/page` endpoint adds `year`, `author`, `venue`, `identifier`, `entry_type`, `created_by`, `updated_from`, `updated_to`, and stable sorting filters, and returns `items`, `total`, `limit`, and `offset`. PostgreSQL uses `pg_trgm` GIN indexes for partial and multilingual text matching. Every ordering includes a stable UUID tie-breaker, and `limit` is bounded to 100.
+The compatibility list endpoint searches title, citation key, venue, stored BibTeX, contributor display name, and identifier values. The primary `GET /references/page` endpoint adds `year`, `author`, `venue`, `identifier`, `entry_type`, `created_by`, `updated_from`, `updated_to`, and stable sorting filters, and returns `items`, `total`, `limit`, and `offset`. PostgreSQL uses `pg_trgm` GIN indexes for partial and multilingual text matching. Every ordering includes a stable UUID tie-breaker, and `limit` is bounded to 100.
 
 ## Registration transaction
 
-`POST /references` opens a transaction before invoking the authoritative server-side registration validation. After acceptance, the backend invokes the separate native `canonicalize_for_storage` operation, which applies only safe CST edits, revalidates the result, and rejects a rewrite if its entry, field, string-definition, preamble, or comment inventory changes. The canonical source and its semantic records become the current database value; the submitted source is retained in the audit revision. For a multi-entry document, UTF-8 byte ranges from the submitted and canonical semantic records select the corresponding exact entries. Any invalid native result, information-loss guard, duplicate strong identifier, or database failure rolls back every entry in the request.
+`POST /references` opens a transaction before invoking authoritative strict registration validation with the `archive` policy. Parser failures and a source without bibliographic records are rejected; profile conventions, incomplete metadata, and unresolved semantics remain non-blocking so the database can retain as much supplied information as possible. The backend never invokes `canonicalize_for_storage` during persistence. It stores the submitted entry bytes and uses the semantic result only for searchable relational projections. For a multi-entry document, UTF-8 byte ranges from the semantic records select the corresponding exact entries. Any invalid native result, duplicate strong identifier, or database failure rolls back every entry in the request.
 
 The active registration policy comes from `BIBMGR_REGISTRATION_POLICY`. The persistence request cannot choose a weaker policy.
 
@@ -85,7 +85,7 @@ The active registration policy comes from `BIBMGR_REGISTRATION_POLICY`. The pers
 
 All persistence operations require an authenticated user. Creation and update store the current actor on the reference row. Creation, update, citation-context addition, deletion, and restoration advance `reference_history_heads.latest_revision` and append the same numbered `reference_audit_events` row in one transaction.
 
-History snapshot version 2 contains all restorable relational state plus `submitted_bibtex`, `canonical_bibtex`, and the complete semantic snapshot. A delete appends a tombstone whose `after_data` is null while preserving the complete state in `before_data`. Restore accepts both version 2 and legacy version 1 snapshots, where the old `raw_bibtex` value serves as both submitted and canonical source. Because the history head has no foreign key to the live reference, it remains discoverable after deletion.
+History snapshot version 2 contains all restorable relational state plus `submitted_bibtex`, `canonical_bibtex`, and the complete semantic snapshot. New revisions place the same exact stored source in both compatibility fields; older revisions may still contain a submitted/canonical pair from the previous storage policy. A delete appends a tombstone whose `after_data` is null while preserving the complete state in `before_data`. Restore accepts both version 2 and legacy version 1 snapshots. Because the history head has no foreign key to the live reference, it remains discoverable after deletion.
 
 `POST /references/{id}/revert` accepts a target revision and the caller's observed head revision. It locks the persistent history head, rejects a stale head with HTTP 409, restores the exact target snapshot under the original reference UUID, and appends a new `restore` revision identifying its source revision. Strong DOI and arXiv uniqueness constraints are checked again, so restoration cannot overwrite a conflicting live reference.
 

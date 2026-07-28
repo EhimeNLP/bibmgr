@@ -55,7 +55,7 @@ if !decision.accepted {
 }
 ```
 
-Registration eligibility is a policy result, not `severity == Error`. Consumers must use the returned `accepted`/`blocking` decision and preserve diagnostics. Hosts that load policies and registries externally can call `validate_for_registration_with_options`; the supplied validation profile must match `RegistrationPolicy.validation_profile`. The core validates both configurations and forces strict parsing before deciding.
+Registration eligibility is a policy result, not `severity == Error`. Consumers must use the returned `accepted`/`blocking` decision and preserve diagnostics. Database ingest uses `RegistrationPolicy::archive()`, which forces strict parsing but leaves profile conventions, profile-required metadata, and unresolved semantics non-blocking. Hosts that load policies and registries externally can call `validate_for_registration_with_options`; the supplied validation profile must match `RegistrationPolicy.validation_profile`. The core validates both configurations and forces strict parsing before deciding.
 
 ## Export
 

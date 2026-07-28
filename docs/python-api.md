@@ -41,15 +41,10 @@ Omitting `fix_ids` (or passing `None`) applies every available safe fix. The cor
 ```python
 decision = bibmgr_native.validate_for_registration(
     source,
-    policy="laboratory",
+    policy="archive",
 )
 if decision.accepted:
-    canonical = bibmgr_native.canonicalize_for_storage(
-        source,
-        policy="laboratory",
-    )
-    if canonical.accepted:
-        persist(canonical.records, canonical.source)
+    persist(decision.bibliography.records, source)
 
 output = bibmgr_native.export_source(source, profile="classical-bst")
 print(output.source)
@@ -59,7 +54,7 @@ for profile in catalog.profiles:
     print(profile["id"], profile["display_name"])
 ```
 
-Use `decision.accepted`; do not infer registration from diagnostic severity in Python. `canonicalize_for_storage` is the separate information-preserving laboratory storage operation: it applies safe CST fixes, revalidates, and refuses structural field loss. Export returns newly generated target BibTeX and never edits `source`. `export_profiles()` returns canonical built-in profile metadata in stable display order, so applications do not hardcode the selectable targets or their descriptions.
+Use `decision.accepted`; do not infer registration from diagnostic severity in Python. The default `archive` policy rejects structural parse failures but accepts profile differences, incomplete metadata, and unresolved semantic values without rewriting `source`. `canonicalize_for_storage` remains an explicit opt-in CST normalization utility; database persistence does not call it. Export returns newly generated target BibTeX and never edits `source`. `export_profiles()` returns canonical built-in profile metadata in stable display order, so applications do not hardcode the selectable targets or their descriptions.
 
 ## Sessions
 

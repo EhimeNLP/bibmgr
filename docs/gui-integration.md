@@ -17,7 +17,7 @@ The example backend exposes schema-v1 JSON:
 | `POST /bibtex/analyze` | Strict/tolerant lint and available fixes |
 | `POST /bibtex/fixes/apply` | Apply selected revision-bound fix IDs and reanalyze |
 | `POST /bibtex/registration/validate` | Authoritative registration decision |
-| `POST /bibtex/registration/canonicalize` | Information-preserving laboratory storage preview |
+| `POST /bibtex/registration/canonicalize` | Explicit opt-in CST normalization utility |
 | `GET /bibtex/export/profiles` | Server-owned output profile catalog |
 | `POST /bibtex/export` | Profile-driven semantic export preview |
 | `POST /auth/email/start` | Send a passwordless login code |
@@ -67,19 +67,19 @@ Use `severity` for icon/color/order and `blocking` for the registration state. D
 
 ## Registration
 
-Before persistence, the backend calls `validate_for_registration` with the server-selected policy and then calls `canonicalize_for_storage` inside the same transaction boundary as registration. Client-side validation and canonicalization previews are advisory because a source or policy can change. When either result has `accepted = false`, return the authoritative diagnostics and keep the editor content. When canonicalization changes the bytes, the registration UI shows the laboratory result and requires a second confirmation; persistence still sends the submitted source so history can retain it. Do not rebuild a decision from HTTP status or severity.
+Before persistence, the backend calls `validate_for_registration` with the server-selected `archive` policy. This forces strict parsing while leaving profile conventions, missing metadata, and unresolved semantics non-blocking. The registration and edit UIs run tolerant `archive` analysis for advisory diagnostics and show one read-only output preview generated through the export endpoint. That preview selects `laboratory` by default and regenerates when the user chooses another profile. Saving remains a single action and sends the current editor bytes directly; neither the selected output profile nor its preview changes the persistence payload. The backend does not call `canonicalize_for_storage`. Authoritative structural rejection is returned by the persistence endpoint, and the editor keeps its content.
 
-`POST /references` accepts the complete submitted source and stores every canonical semantic record in one transaction. The compatibility field `reference` contains the first stored record, while `references` contains the complete batch. DOI and arXiv conflicts reject and roll back the complete batch. Each history revision retains the submitted UTF-8 entry slice, canonical laboratory source, and full semantic snapshot.
+`POST /references` accepts the complete submitted source and stores every exact UTF-8 entry slice plus its semantic projection in one transaction. The compatibility field `reference` contains the first stored record, while `references` contains the complete batch. DOI and arXiv conflicts reject and roll back the complete batch. Each history revision retains the stored source and full semantic snapshot.
 
 `PUT /references/{id}` accepts exactly one entry and requires the current `source_revision`. A mismatch returns `stale_reference` with the current revision, so clients must reload instead of overwriting a concurrent edit.
 
-The reference detail groups `Edit…` and `Delete…` in a compact More menu instead of giving secondary and destructive actions permanent emphasis in the header. The menu lists Edit first and visually distinguishes Delete after a separator. An unauthenticated action opens login instead of attempting a write. Edit first fetches the latest reference, runs the shared validation and information-preserving canonicalization preview, and sends the submitted source with that latest `source_revision`. Delete uses a concise confirmation dialog before calling the endpoint. After either operation, the application updates the selected reference and library list without a full-page reload. A deleted item remains restorable from History.
+The reference detail groups `Edit…` and `Delete…` in a compact More menu instead of giving secondary and destructive actions permanent emphasis in the header. The menu lists Edit first and visually distinguishes Delete after a separator. An unauthenticated action opens login instead of attempting a write. Edit first fetches the latest reference, shows advisory archive diagnostics, and sends the exact edited source with that latest `source_revision`. Delete uses a concise confirmation dialog before calling the endpoint. After either operation, the application updates the selected reference and library list without a full-page reload. A deleted item remains restorable from History.
 
 Sign out also requires explicit confirmation. Opening the confirmation does not revoke the session; only its final `Sign out` action calls `POST /auth/logout`.
 
 ## BibTeX preview and profiles
 
-The reference detail has one BibTeX preview and selects the `laboratory` profile by default. In that profile, the preview, Copy action, and download use the exact canonical source returned with the stored reference; the frontend does not send it through the export endpoint again. Selecting another profile generates its representation through the export endpoint and replaces the contents of the same preview. Returning to `laboratory` immediately restores the stored canonical source. Export warnings never change that source. Profile and source generations are checked when each request completes, so a stale response cannot replace a newer preview. The authenticated history view exposes both submitted and canonical BibTeX when storage normalization changed the source.
+The reference detail has one BibTeX preview and selects the `laboratory` profile by default. Every selected profile, including `laboratory`, is rendered through the export endpoint from the stored source. Selecting another profile replaces the contents of the same preview; returning to `laboratory` generates the laboratory representation again. Export warnings never change the database value. Profile and source generations are checked when each request completes, so a stale response cannot replace a newer preview. The authenticated history view labels the persisted value as Stored BibTeX and can still show separate submitted/stored values for legacy normalized revisions.
 
 ## Frontend modules
 

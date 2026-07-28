@@ -7,9 +7,9 @@ The Vue 3 + TypeScript client provides public reference search, BibTeX validatio
 The interface currently supports:
 
 - paginated free-text and structured search by year, author, venue, identifier, entry type, creator, updated range, and sort order;
-- canonical laboratory BibTeX as the default single preview, with another export profile rendered into the same preview when selected;
+- one profile-controlled preview that exports with the laboratory profile by default;
 - citation-context display;
-- manual and `.bib` batch registration with information-preserving canonicalization review;
+- manual and `.bib` batch registration that stores accepted source without profile-driven rewriting while showing an independent profile-selectable output preview;
 - revision-checked edit and delete actions;
 - paginated append-only history and confirmation-based restore;
 - login through the laboratory domain or an exact operator-approved external address;

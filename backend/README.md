@@ -1,6 +1,6 @@
 # bibmgr backend
 
-The backend exposes the shared Rust BibTeX engine and a PostgreSQL-backed reference library through FastAPI. BibTeX interpretation, registration policy decisions, and information-preserving storage canonicalization remain owned by `bibmgr_native`; the Python layer maps canonical semantic records into relational storage and retains submitted source in append-only history.
+The backend exposes the shared Rust BibTeX engine and a PostgreSQL-backed reference library through FastAPI. BibTeX interpretation and structural registration decisions remain owned by `bibmgr_native`; the Python layer stores the accepted BibTeX without rewriting it, maps semantic projections into relational storage, and retains complete snapshots in append-only history.
 
 ## Database
 
@@ -29,7 +29,7 @@ BIBMGR_ENV=development bibmgr-db reset --yes
 postgresql+psycopg://bibmgr:bibmgr@127.0.0.1:5432/bibmgr
 ```
 
-`BIBMGR_REGISTRATION_POLICY` selects the server-owned registration policy and defaults to `laboratory`. API clients cannot override this policy during persistence.
+`BIBMGR_REGISTRATION_POLICY` selects the server-owned registration policy and defaults to `archive`. That policy uses strict parsing but does not reject profile conventions, missing profile-required metadata, or unresolved semantic values. API clients cannot override the policy during persistence.
 
 Production startup must run `bibmgr-db upgrade` before starting the application. Migrations are packaged in the backend wheel; the service intentionally does not create or migrate tables at import time.
 
@@ -75,7 +75,7 @@ Stale edits return HTTP 409 with the current revision in `error.details.source_r
 
 Deletion requires the latest `sourceRevision` in an `If-Match` header. Stale deletes return HTTP 409 instead of deleting a concurrently edited record.
 
-Every successful reference write appends a per-reference, monotonically increasing history revision containing submitted BibTeX, canonical laboratory BibTeX, semantic data, and a complete relational snapshot. Citation-context additions are recorded as `context` revisions. Deletion leaves a permanent history head and tombstone, so a preceding revision can recreate the same reference ID. Restore requires the history head revision observed by the caller and returns HTTP 409 if another write has advanced it. The PostgreSQL audit table rejects `UPDATE` and `DELETE` through a database trigger.
+Every successful reference write appends a per-reference, monotonically increasing history revision containing the exact stored BibTeX, semantic data, and a complete relational snapshot. Legacy snapshot field names `submitted_bibtex` and `canonical_bibtex` remain for compatibility; new writes contain the same source in both. Citation-context additions are recorded as `context` revisions. Deletion leaves a permanent history head and tombstone, so a preceding revision can recreate the same reference ID. Restore requires the history head revision observed by the caller and returns HTTP 409 if another write has advanced it. The PostgreSQL audit table rejects `UPDATE` and `DELETE` through a database trigger.
 
 ## Native BibTeX API
 

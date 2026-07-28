@@ -87,12 +87,13 @@ Response:
 - 登録時のポリシーはサーバー側の`BIBMGR_REGISTRATION_POLICY`で固定し, クライアントから変更できない.
 - DOIとarXiv IDはDBの一意インデックスで強い重複として扱う. BibTeX keyとtitleはグローバルな一意条件にしない.
 - 複数BibTeX entryは1トランザクションで登録する. 1件でも検証または一意制約に失敗した場合は全件をロールバックする.
-- 登録検証と保存正規化を分離する. `POST /bibtex/registration/canonicalize`はsafeなCST編集だけを適用し, entry・field・comment等のinventoryが減少した場合は拒否する.
-- 正規化結果が入力と異なる場合, フロントエンドは保存予定の`Laboratory BibTeX`を表示して再確認を求める. 永続化APIには入力原文を送り, バックエンドが同じ正規化を再実行する.
-- DBの現在値は研究室標準BibTeXとsemantic snapshotとし, revision履歴には入力原文, 研究室標準BibTeX, semantic snapshotを保存する.
+- 既定の`archive`登録ポリシーはstrict parse failureのみを拒否し, 研究室ルール, field不足, 未解決semantic valueは登録を妨げない.
+- フロントエンドの検査とfixは任意の補助機能とし, 登録ボタンは現在の入力を1回で永続化APIへ送る. 保存前のcanonical previewや再確認は行わない.
+- 登録・ファイル登録・編集画面には保存処理から独立したoutput previewを1つ表示する. 既定は`laboratory`で, profile選択時は同じpreviewをexport APIで再生成する. 選択profileと生成結果は保存payloadへ反映しない.
+- DBの現在値は入力BibTeXをprofileで書き換えず保存し, semantic snapshotを検索用projectionとして併記する. revision履歴も正確な保存sourceとsemantic snapshotを保持する.
 - 編集は`PUT /references/{id}`で行い, 保存済み`sourceRevision`を`source_revision`として要求する.
 - 削除は`DELETE /references/{id}`で行い, 関連する著者, 識別子, URL, 引用文脈も削除する.
 - 削除は読み込み時の`sourceRevision`をquoted `If-Match` headerとして送り, staleな削除をHTTP 409で拒否する.
-- 編集・削除は完全な関係データを連番revisionとして保持する. `GET /reference-history`は削除済み文献も返し, `GET /references/{id}/history`は入力原文と研究室標準BibTeXを返し, `POST /references/{id}/revert`は選択した過去状態を新しいrevisionとして復元する.
+- 編集・削除は完全な関係データを連番revisionとして保持する. `GET /reference-history`は削除済み文献も返し, `GET /references/{id}/history`は保存BibTeXを返し, `POST /references/{id}/revert`は選択した過去状態を新しいrevisionとして復元する.
 - 検索, 詳細取得, BibTeX検査・出力は未ログインでも利用できる.
 - 登録, 編集, 削除はメール認証済みセッションを要求する. フロントエンドはHttpOnly Cookieを`credentials: "include"`で送信し, セッションAPIから取得したCSRFトークンを`X-CSRF-Token`へ設定する.

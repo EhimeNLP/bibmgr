@@ -80,11 +80,11 @@ Dockerは必須ではありません. macOSではPostgreSQL 18とMailpitをHomeb
 uv run poe db-reset
 ```
 
-接続先は`BIBMGR_DATABASE_URL`で変更できます. 未設定時は`postgresql+psycopg://bibmgr:bibmgr@127.0.0.1:5432/bibmgr`を使用します. 登録ポリシーはサーバー側の`BIBMGR_REGISTRATION_POLICY`で選択し, 未設定時は`laboratory`です. ログイン可能なメールドメインは未設定時に`ai.cs.ehime-u.ac.jp`です.
+接続先は`BIBMGR_DATABASE_URL`で変更できます. 未設定時は`postgresql+psycopg://bibmgr:bibmgr@127.0.0.1:5432/bibmgr`を使用します. 登録ポリシーはサーバー側の`BIBMGR_REGISTRATION_POLICY`で選択し, 未設定時は原文保存用の`archive`です. 研究室ルールは登録時ではなくexport時に適用します. ログイン可能なメールドメインは未設定時に`ai.cs.ehime-u.ac.jp`です.
 
 ```bash
 BIBMGR_DATABASE_URL=postgresql+psycopg://user:password@db.example/bibmgr \
-BIBMGR_REGISTRATION_POLICY=laboratory \
+BIBMGR_REGISTRATION_POLICY=archive \
 uv run poe db-migrate
 ```
 
