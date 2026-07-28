@@ -50,6 +50,7 @@ describe("SearchBar", () => {
     expect(wrapper.get(".search-filter-panel").text()).toContain(
       "Library activity",
     );
+    expect(wrapper.get(".search-filter-panel").text()).not.toContain("Order");
 
     const year = wrapper.get<HTMLInputElement>('input[placeholder="Any year"]');
     const author = wrapper.get<HTMLInputElement>(
@@ -69,6 +70,45 @@ describe("SearchBar", () => {
     expect(wrapper.findAll(".search-token")).toHaveLength(2);
     expect(wrapper.get(".search-filter-trigger").attributes("aria-label")).toBe(
       "Show search filters, 2 active",
+    );
+
+    wrapper.unmount();
+  });
+
+  it("applies sorting independently from filters", async () => {
+    const wrapper = mount(SearchBar, {
+      props: { modelValue: "vision" },
+      attachTo: document.body,
+    });
+
+    const trigger = wrapper.get(".search-sort-trigger");
+    expect(trigger.attributes("aria-label")).toBe(
+      "Sort references: Recently Updated",
+    );
+
+    await trigger.trigger("click");
+
+    const menu = wrapper.get('[role="menu"][aria-label="Sort references"]');
+    const options = menu.findAll('[role="menuitemradio"]');
+    expect(options.map((option) => option.text())).toEqual([
+      "Recently Updated",
+      "Oldest Update",
+      "Newest Publication",
+      "Oldest Publication",
+      "Title A–Z",
+    ]);
+    expect(options[0]?.attributes("aria-checked")).toBe("true");
+
+    await options[2]?.trigger("click");
+
+    expect(wrapper.emitted("search")?.at(-1)?.[0]).toMatchObject({
+      query: "vision",
+      sort: "year_desc",
+    });
+    expect(wrapper.find('[role="menu"]').exists()).toBe(false);
+    expect(wrapper.find(".search-token").exists()).toBe(false);
+    expect(trigger.attributes("aria-label")).toBe(
+      "Sort references: Newest Publication",
     );
 
     wrapper.unmount();

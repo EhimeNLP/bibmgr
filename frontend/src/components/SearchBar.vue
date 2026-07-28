@@ -31,8 +31,7 @@ type AdvancedFilterKey =
   | "entryType"
   | "createdBy"
   | "updatedFrom"
-  | "updatedTo"
-  | "sort";
+  | "updatedTo";
 
 type FilterToken = {
   key: AdvancedFilterKey;
@@ -48,14 +47,17 @@ type AdvancedFilters = {
   createdBy: string;
   updatedFrom: string;
   updatedTo: string;
-  sort: ReferenceSort;
 };
 
 const defaultSort: ReferenceSort = "updated_desc";
 const root = ref<HTMLFormElement | null>(null);
 const filterButton = ref<HTMLButtonElement | null>(null);
 const filterPanel = ref<HTMLElement | null>(null);
+const sortButton = ref<HTMLButtonElement | null>(null);
+const sortMenu = ref<HTMLElement | null>(null);
 const filtersOpen = ref(false);
+const sortOpen = ref(false);
+const selectedSort = ref<ReferenceSort>(defaultSort);
 const advanced = reactive<AdvancedFilters>(initialAdvancedFilters());
 const applied = reactive<AdvancedFilters>(initialAdvancedFilters());
 
@@ -64,8 +66,11 @@ const sortLabels: Record<ReferenceSort, string> = {
   updated_asc: "Oldest Update",
   year_desc: "Newest Publication",
   year_asc: "Oldest Publication",
-  title_asc: "Title",
+  title_asc: "Title A–Z",
 };
+const sortOptions = (
+  Object.entries(sortLabels) as Array<[ReferenceSort, string]>
+).map(([value, label]) => ({ value, label }));
 
 const activeTokens = computed<FilterToken[]>(() => filterTokens(applied));
 const draftTokens = computed<FilterToken[]>(() => filterTokens(advanced));
@@ -80,7 +85,6 @@ function initialAdvancedFilters(): AdvancedFilters {
     createdBy: "",
     updatedFrom: "",
     updatedTo: "",
-    sort: defaultSort,
   };
 }
 
@@ -94,9 +98,6 @@ function filterTokens(filters: AdvancedFilters): FilterToken[] {
   addToken(tokens, "createdBy", "Created by", filters.createdBy);
   addToken(tokens, "updatedFrom", "Updated after", filters.updatedFrom);
   addToken(tokens, "updatedTo", "Updated before", filters.updatedTo);
-  if (filters.sort !== defaultSort) {
-    tokens.push({ key: "sort", label: sortLabels[filters.sort] });
-  }
   return tokens;
 }
 
@@ -105,6 +106,9 @@ const filterButtonLabel = computed(() => {
   if (count === 0) return "Show search filters";
   return `Show search filters, ${count} active`;
 });
+const sortButtonLabel = computed(
+  () => `Sort references: ${sortLabels[selectedSort.value]}`,
+);
 
 onMounted(() => {
   document.addEventListener("pointerdown", closeWhenClickingOutside);
@@ -140,13 +144,14 @@ function buildFilters(filters: AdvancedFilters): ReferenceSearchFilters {
     updatedTo: filters.updatedTo
       ? new Date(`${filters.updatedTo}T23:59:59.999`).toISOString()
       : undefined,
-    sort: filters.sort,
+    sort: selectedSort.value,
   };
 }
 
 function onSubmit() {
   Object.assign(applied, advanced);
   filtersOpen.value = false;
+  sortOpen.value = false;
   emit("search", buildFilters(applied));
 }
 
@@ -156,6 +161,7 @@ function toggleFilters() {
     return;
   }
 
+  closeSort();
   filtersOpen.value = true;
   Object.assign(advanced, applied);
   void nextTick(() => {
@@ -174,9 +180,79 @@ function closeFilters({ restoreFocus = false } = {}) {
   }
 }
 
+function toggleSort() {
+  if (sortOpen.value) {
+    closeSort();
+    return;
+  }
+
+  closeFilters();
+  sortOpen.value = true;
+  void nextTick(() => {
+    sortMenu.value
+      ?.querySelector<HTMLButtonElement>('[aria-checked="true"]')
+      ?.focus({ preventScroll: true });
+  });
+}
+
+function closeSort({ restoreFocus = false } = {}) {
+  if (!sortOpen.value) return;
+  sortOpen.value = false;
+  if (restoreFocus) {
+    void nextTick(() => sortButton.value?.focus({ preventScroll: true }));
+  }
+}
+
+function closeOpenPopover({ restoreFocus = false } = {}) {
+  if (filtersOpen.value) {
+    closeFilters({ restoreFocus });
+  } else if (sortOpen.value) {
+    closeSort({ restoreFocus });
+  }
+}
+
 function closeWhenClickingOutside(event: PointerEvent) {
-  if (!filtersOpen.value || !(event.target instanceof Node)) return;
-  if (!root.value?.contains(event.target)) closeFilters();
+  if (
+    (!filtersOpen.value && !sortOpen.value) ||
+    !(event.target instanceof Node)
+  ) {
+    return;
+  }
+  if (!root.value?.contains(event.target)) {
+    closeFilters();
+    closeSort();
+  }
+}
+
+function applySort(sort: ReferenceSort) {
+  selectedSort.value = sort;
+  closeSort({ restoreFocus: true });
+  emit("search", buildFilters(applied));
+}
+
+function navigateSortMenu(event: KeyboardEvent) {
+  if (!["ArrowDown", "ArrowUp", "Home", "End"].includes(event.key)) return;
+  const options = Array.from(
+    sortMenu.value?.querySelectorAll<HTMLButtonElement>(
+      '[role="menuitemradio"]',
+    ) ?? [],
+  );
+  if (options.length === 0) return;
+
+  event.preventDefault();
+  const currentIndex = options.findIndex(
+    (option) => option === document.activeElement,
+  );
+  let nextIndex = currentIndex;
+  if (event.key === "Home") nextIndex = 0;
+  if (event.key === "End") nextIndex = options.length - 1;
+  if (event.key === "ArrowDown") {
+    nextIndex = currentIndex < options.length - 1 ? currentIndex + 1 : 0;
+  }
+  if (event.key === "ArrowUp") {
+    nextIndex = currentIndex > 0 ? currentIndex - 1 : options.length - 1;
+  }
+  options[nextIndex]?.focus({ preventScroll: true });
 }
 
 function clearFilter(key: AdvancedFilterKey) {
@@ -211,9 +287,6 @@ function resetFilter(filters: AdvancedFilters, key: AdvancedFilterKey) {
     case "updatedTo":
       filters.updatedTo = "";
       break;
-    case "sort":
-      filters.sort = defaultSort;
-      break;
   }
 }
 
@@ -231,7 +304,7 @@ function clearAllFilters() {
     role="search"
     :aria-busy="props.loading"
     @submit.prevent="onSubmit"
-    @keydown.esc="closeFilters({ restoreFocus: true })"
+    @keydown.esc.stop.prevent="closeOpenPopover({ restoreFocus: true })"
   >
     <div class="search-bar__controls">
       <label class="sr-only" for="reference-search">Search references</label>
@@ -286,6 +359,23 @@ function clearAllFilters() {
         >
           {{ activeTokens.length }}
         </span>
+      </button>
+      <button
+        ref="sortButton"
+        type="button"
+        class="search-sort-trigger"
+        :class="{ active: sortOpen || selectedSort !== defaultSort }"
+        :disabled="props.disabled"
+        :aria-expanded="sortOpen"
+        :aria-label="sortButtonLabel"
+        aria-controls="reference-search-sort"
+        aria-haspopup="menu"
+        :title="sortButtonLabel"
+        @click="toggleSort"
+      >
+        <svg aria-hidden="true" viewBox="0 0 20 20" fill="none">
+          <path d="M3 5h8M3 10h6M3 15h4M14.5 4v12m-2.5-2 2.5 2 2.5-2" />
+        </svg>
       </button>
     </div>
 
@@ -406,19 +496,6 @@ function clearAllFilters() {
           </div>
         </fieldset>
 
-        <fieldset class="search-filter-group">
-          <legend>Order</legend>
-          <label class="search-filter-field">
-            <span class="sr-only">Sort references</span>
-            <select v-model="advanced.sort">
-              <option value="updated_desc">Recently Updated</option>
-              <option value="updated_asc">Oldest Update</option>
-              <option value="year_desc">Newest Publication</option>
-              <option value="year_asc">Oldest Publication</option>
-              <option value="title_asc">Title</option>
-            </select>
-          </label>
-        </fieldset>
       </div>
 
       <div class="search-filter-panel__actions">
@@ -434,6 +511,36 @@ function clearAllFilters() {
           Show Results
         </button>
       </div>
+    </section>
+
+    <section
+      v-if="sortOpen"
+      id="reference-search-sort"
+      ref="sortMenu"
+      class="search-sort-menu"
+      role="menu"
+      aria-label="Sort references"
+      @keydown="navigateSortMenu"
+    >
+      <p>Sort by</p>
+      <button
+        v-for="option in sortOptions"
+        :key="option.value"
+        type="button"
+        role="menuitemradio"
+        :aria-checked="selectedSort === option.value"
+        @click="applySort(option.value)"
+      >
+        <span>{{ option.label }}</span>
+        <svg
+          v-if="selectedSort === option.value"
+          aria-hidden="true"
+          viewBox="0 0 16 16"
+          fill="none"
+        >
+          <path d="m3.5 8 3 3 6-6" />
+        </svg>
+      </button>
     </section>
   </form>
 </template>

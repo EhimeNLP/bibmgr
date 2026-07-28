@@ -23,6 +23,7 @@
   --color-border: rgb(60 60 67 / 16%);
   --color-border-strong: rgb(60 60 67 / 24%);
   --color-primary: #0071e3;
+  --color-accent-text: #0068d1;
   --color-primary-hover: #0077ed;
   --color-primary-soft: rgb(0 122 255 / 12%);
   --color-selection: #0062cc;
@@ -71,6 +72,7 @@
   --color-border: rgb(84 84 88 / 52%);
   --color-border-strong: rgb(99 99 102 / 72%);
   --color-primary: #0a84ff;
+  --color-accent-text: #409cff;
   --color-primary-hover: #409cff;
   --color-primary-soft: rgb(10 132 255 / 20%);
   --color-selection: #0a70d8;
@@ -421,7 +423,8 @@ svg {
   gap: 7px;
 }
 
-.search-filter-trigger {
+.search-filter-trigger,
+.search-sort-trigger {
   position: relative;
   display: inline-flex;
   width: 40px;
@@ -434,21 +437,26 @@ svg {
   color: var(--color-text-secondary);
 }
 
-.search-filter-trigger.active {
+.search-filter-trigger.active,
+.search-sort-trigger.active {
   background: var(--color-primary-soft);
   color: var(--color-primary);
 }
 
-.search-filter-trigger:disabled {
+.search-filter-trigger:disabled,
+.search-sort-trigger:disabled {
   color: var(--color-text-muted);
   opacity: 0.65;
 }
 
-.search-filter-trigger > svg {
+.search-filter-trigger > svg,
+.search-sort-trigger > svg {
   width: 18px;
   height: 18px;
+  fill: none;
   stroke: currentColor;
   stroke-linecap: round;
+  stroke-linejoin: round;
   stroke-width: 1.65;
 }
 
@@ -550,6 +558,79 @@ svg {
     opacity: 0;
     transform: translateY(-5px) scale(0.985);
   }
+}
+
+.search-sort-menu {
+  position: absolute;
+  z-index: 31;
+  top: calc(100% + 8px);
+  right: 0;
+  width: min(232px, 100%);
+  padding: 6px;
+  border: 0.5px solid var(--color-border-strong);
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--color-surface) 96%, transparent);
+  box-shadow:
+    0 16px 40px rgb(0 0 0 / 16%),
+    0 2px 8px rgb(0 0 0 / 8%);
+  color: var(--color-text);
+  opacity: 1;
+  transform: translateY(0) scale(1);
+  transform-origin: top right;
+  transition:
+    opacity 140ms ease-out,
+    transform 200ms var(--ease-out);
+  -webkit-backdrop-filter: blur(28px) saturate(180%);
+  backdrop-filter: blur(28px) saturate(180%);
+}
+
+@starting-style {
+  .search-sort-menu {
+    opacity: 0;
+    transform: translateY(-4px) scale(0.985);
+  }
+}
+
+.search-sort-menu > p {
+  margin: 0;
+  padding: 7px 10px 6px;
+  color: var(--color-text-muted);
+  font-size: 10.5px;
+  font-weight: 650;
+  letter-spacing: 0.015em;
+  line-height: 1;
+}
+
+.search-sort-menu > button {
+  display: flex;
+  width: 100%;
+  min-height: 38px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 0 10px;
+  border-radius: 9px;
+  background: transparent;
+  color: var(--color-text);
+  font-size: 12.5px;
+  font-weight: 500;
+  text-align: left;
+}
+
+.search-sort-menu > button[aria-checked="true"] {
+  color: var(--color-accent-text);
+  font-weight: 600;
+}
+
+.search-sort-menu > button svg {
+  width: 16px;
+  height: 16px;
+  flex: 0 0 auto;
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.8;
 }
 
 .search-filter-panel__header {
@@ -2693,15 +2774,21 @@ pre {
     background: var(--color-fill-hover);
   }
 
-  .search-filter-trigger:hover:not(:disabled) {
+  .search-filter-trigger:hover:not(:disabled),
+  .search-sort-trigger:hover:not(:disabled) {
     background: var(--color-fill-hover);
     color: var(--color-text);
   }
 
   .search-filter-trigger.active:hover:not(:disabled),
+  .search-sort-trigger.active:hover:not(:disabled),
   .search-token:hover:not(:disabled) {
     background: color-mix(in srgb, var(--color-primary-soft) 72%, var(--color-primary) 12%);
     color: var(--color-primary);
+  }
+
+  .search-sort-menu > button:hover {
+    background: var(--color-fill-hover);
   }
 
   .search-filter-clear:hover:not(:disabled) {
@@ -2736,7 +2823,7 @@ pre {
   }
 }
 
-:where(.button-primary, .button-secondary, .button-danger, .source-link, .registration-trigger, .history-trigger, .registration-close, .mode-tabs button, .mobile-back, .search-filter-trigger, .search-token, .search-filter-panel__close):active:not(:focus-visible):not(:disabled) {
+:where(.button-primary, .button-secondary, .button-danger, .source-link, .registration-trigger, .history-trigger, .registration-close, .mode-tabs button, .mobile-back, .search-filter-trigger, .search-sort-trigger, .search-token, .search-filter-panel__close):active:not(:focus-visible):not(:disabled) {
   transform: scale(0.97);
   transition-duration: 100ms;
 }
@@ -3049,6 +3136,7 @@ pre {
   .history-sheet,
   .reference-actions-menu,
   .search-filter-panel,
+  .search-sort-menu,
   .search-filter-panel__actions {
     background: var(--color-surface);
     -webkit-backdrop-filter: none;
@@ -3074,6 +3162,7 @@ pre {
   .registration-sheet,
   .auth-sheet,
   .search-filter-panel,
+  .search-sort-menu,
   .search-filter-panel__actions {
     background: var(--color-surface);
     -webkit-backdrop-filter: none;
@@ -3094,7 +3183,8 @@ pre {
   .auth-backdrop,
   .auth-sheet,
   .reference-actions-menu,
-  .search-filter-panel {
+  .search-filter-panel,
+  .search-sort-menu {
     transition:
       background-color 120ms ease,
       border-color 120ms ease,
@@ -3102,7 +3192,7 @@ pre {
       opacity 120ms ease;
   }
 
-  :where(.button-primary, .button-secondary, .button-danger, .source-link, .registration-trigger, .registration-close, .mode-tabs button, .mobile-back, .search-filter-trigger, .search-token, .search-filter-panel__close):active:not(:focus-visible):not(:disabled) {
+  :where(.button-primary, .button-secondary, .button-danger, .source-link, .registration-trigger, .registration-close, .mode-tabs button, .mobile-back, .search-filter-trigger, .search-sort-trigger, .search-token, .search-filter-panel__close):active:not(:focus-visible):not(:disabled) {
     transform: none;
   }
 
