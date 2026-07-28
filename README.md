@@ -17,16 +17,31 @@ uv run poe --help
 
 ## CLIのインストール (Optional)
 
-BibTeX検証をCLIツールとして使用したい場合は, 以下でインストールしてください. CLIの実行ファイル名は `bibmgr` です.
+BibTeX検証をCLIツールとして使用したい場合は, GitHubから直接インストールできます. repositoryのcloneは不要です. CLIの実行ファイル名は`bibmgr`です.
 
 ```bash
-cargo install --locked --path crates/bibmgr-cli
+cargo install --git https://github.com/EhimeNLP/bibmgr.git --locked bibmgr-cli
 bibmgr --version
 ```
 
-更新時はチェックアウトを更新してから再インストールします.
+更新時は`--force`を付けて再インストールします.
 
 ```bash
+cargo install --git https://github.com/EhimeNLP/bibmgr.git --locked --force bibmgr-cli
+```
+
+開発や内容確認のためにrepositoryをcloneする場合は, ローカルpathからもインストールできます.
+
+```bash
+git clone https://github.com/EhimeNLP/bibmgr.git
+cd bibmgr
+cargo install --locked --path crates/bibmgr-cli
+```
+
+ローカルcheckoutから更新する場合は, checkoutを更新してから再インストールします.
+
+```bash
+git pull
 cargo install --locked --force --path crates/bibmgr-cli
 ```
 
