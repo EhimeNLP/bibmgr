@@ -34,10 +34,6 @@ class RegistrationEngine(Protocol):
         self, source: str, policy: str
     ) -> dict[str, Any]: ...
 
-    def canonicalize_for_storage(
-        self, source: str, policy: str
-    ) -> dict[str, Any]: ...
-
 
 class LibraryError(RuntimeError):
     code = "library_error"
@@ -497,41 +493,19 @@ class ReferenceLibrary:
                 },
             )
 
-        submitted_bibliography = validation.get("bibliography")
-        submitted_records = (
-            submitted_bibliography.get("records")
-            if isinstance(submitted_bibliography, dict)
-            else None
-        )
-        if not isinstance(submitted_records, list):
-            raise InvalidRegistrationResultError(
-                "Native registration returned an incomplete submitted bibliography."
-            )
-
-        canonicalization = self.engine.canonicalize_for_storage(
-            bibtex, policy
-        )
-        _require_accepted_registration(canonicalization)
-        effective_source = canonicalization.get("source")
-        bibliography = canonicalization.get("bibliography")
+        bibliography = validation.get("bibliography")
         records = (
             bibliography.get("records")
             if isinstance(bibliography, dict)
             else None
         )
-        if not isinstance(effective_source, str) or not isinstance(
-            records, list
-        ):
+        if not isinstance(records, list):
             raise InvalidRegistrationResultError(
                 "Native registration returned an incomplete bibliography."
             )
         if not records:
             raise RegistrationRejectedError(
                 "BibTeX does not contain a bibliographic entry."
-            )
-        if len(records) != len(submitted_records):
-            raise InvalidRegistrationResultError(
-                "Storage canonicalization changed the number of bibliographic entries."
             )
         contexts = citation_contexts or []
         if contexts and len(records) != 1:
@@ -540,31 +514,24 @@ class ReferenceLibrary:
             )
 
         created: list[tuple[ReferenceRecord, str]] = []
-        for submitted_record, semantic_record in zip(
-            submitted_records, records, strict=True
-        ):
-            if not isinstance(submitted_record, dict) or not isinstance(
-                semantic_record, dict
-            ):
+        for semantic_record in records:
+            if not isinstance(semantic_record, dict):
                 raise InvalidRegistrationResultError(
                     "Native registration returned a non-object record."
                 )
-            submitted_entry = _record_source(
-                bibtex, submitted_record, len(submitted_records)
-            )
-            canonical_entry = _record_source(
-                effective_source, semantic_record, len(records)
+            stored_entry = _record_source(
+                bibtex, semantic_record, len(records)
             )
             record = _new_record(
                 semantic_record,
-                canonical_bibtex=canonical_entry,
+                canonical_bibtex=stored_entry,
                 registration_source=source,
                 actor_user_id=actor_user_id,
             )
             if contexts:
                 _append_citation_contexts(record, contexts)
             session.add(record)
-            created.append((record, submitted_entry))
+            created.append((record, stored_entry))
 
         self._flush_or_duplicate(session)
         for record, submitted_entry in created:
@@ -619,35 +586,14 @@ class ReferenceLibrary:
                 },
             )
 
-        submitted_bibliography = validation.get("bibliography")
-        submitted_records = (
-            submitted_bibliography.get("records")
-            if isinstance(submitted_bibliography, dict)
-            else None
-        )
-        if (
-            not isinstance(submitted_records, list)
-            or len(submitted_records) != 1
-            or not isinstance(submitted_records[0], dict)
-        ):
-            raise RegistrationRejectedError(
-                "Editing requires exactly one bibliographic entry."
-            )
-
-        canonicalization = self.engine.canonicalize_for_storage(
-            bibtex, policy
-        )
-        _require_accepted_registration(canonicalization)
-        effective_source = canonicalization.get("source")
-        bibliography = canonicalization.get("bibliography")
+        bibliography = validation.get("bibliography")
         semantic_records = (
             bibliography.get("records")
             if isinstance(bibliography, dict)
             else None
         )
         if (
-            not isinstance(effective_source, str)
-            or not isinstance(semantic_records, list)
+            not isinstance(semantic_records, list)
             or len(semantic_records) != 1
             or not isinstance(semantic_records[0], dict)
         ):
@@ -662,7 +608,7 @@ class ReferenceLibrary:
         _apply_semantic_record(
             record,
             semantic_records[0],
-            canonical_bibtex=effective_source,
+            canonical_bibtex=bibtex,
             registration_source="edit",
         )
         record.updated_by_user_id = actor_user_id
@@ -749,24 +695,6 @@ class ReferenceLibrary:
             raise DuplicateReferenceError(
                 "A reference with the same DOI or arXiv identifier already exists."
             ) from error
-
-
-def _require_accepted_registration(
-    validation: dict[str, Any],
-) -> None:
-    if validation.get("accepted", False):
-        return
-    raise RegistrationRejectedError(
-        "BibTeX could not be canonicalized for storage.",
-        details={
-            "diagnostics": validation.get("diagnostics", []),
-            "source_revision": validation.get("source_revision"),
-            "unresolved_semantics": validation.get(
-                "unresolved_semantics", False
-            ),
-        },
-    )
-
 
 def reference_response(record: ReferenceRecord) -> ReferenceResponse:
     authors = [

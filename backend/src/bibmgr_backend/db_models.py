@@ -157,7 +157,7 @@ class ReferenceRecord(Base):
     venue_id: Mapped[str | None] = mapped_column(Text)
     venue_name: Mapped[str | None] = mapped_column(Text)
     # The physical column keeps its original name for migration compatibility;
-    # application code treats it as the canonical laboratory representation.
+    # application code treats it as the lossless stored BibTeX representation.
     canonical_bibtex: Mapped[str] = mapped_column(
         "raw_bibtex", Text, nullable=False
     )

@@ -251,7 +251,7 @@ def build_test_client() -> tuple[
         create_app(
             registration_engine,
             session_factory=sessions,
-            registration_policy="laboratory",
+            registration_policy="archive",
             authentication=build_authentication(mailer),
         )
     )
@@ -346,8 +346,8 @@ def test_register_search_edit_and_delete_reference() -> None:
     assert payload["reference"]["bibtex"] == original
     reference_id = payload["reference"]["id"]
     original_revision = payload["reference"]["sourceRevision"]
-    assert engine.calls == [(original, "laboratory")]
-    assert engine.canonicalization_calls == [(original, "laboratory")]
+    assert engine.calls == [(original, "archive")]
+    assert engine.canonicalization_calls == []
 
     searched = client.get("/references", params={"query": "山田"})
     assert searched.status_code == 200
@@ -395,6 +395,8 @@ def test_register_search_edit_and_delete_reference() -> None:
     assert updated.json()["title"] == "日本語意味解析"
     assert updated.json()["doi"] == "10.1000/edited"
     assert updated.json()["sourceRevision"] == revision(edited)
+    assert updated.json()["bibtex"] == edited
+    assert engine.canonicalization_calls == []
 
     stale_delete = client.delete(
         f"/references/{reference_id}",
@@ -450,7 +452,7 @@ def test_register_search_edit_and_delete_reference() -> None:
         assert events[2].after_data is None
 
 
-def test_registration_stores_canonical_bibtex_and_audits_submitted_source() -> None:
+def test_registration_stores_submitted_bibtex_without_canonicalization() -> None:
     client, engine, sessions = build_test_client()
     submitted = "@article{canonical,Title={Canonical paper}}\n"
     canonical = (
@@ -464,14 +466,7 @@ def test_registration_stores_canonical_bibtex_and_audits_submitted_source() -> N
         authors=[],
         end=len(submitted.rstrip("\n").encode()),
     )
-    canonical_record = semantic_record(
-        key="canonical",
-        title="Canonical paper",
-        authors=[],
-        end=len(canonical.rstrip("\n").encode()),
-    )
     engine.add(submitted, [submitted_record])
-    engine.add(canonical, [canonical_record])
     engine.canonical_sources[submitted] = canonical
 
     response = client.post(
@@ -481,18 +476,19 @@ def test_registration_stores_canonical_bibtex_and_audits_submitted_source() -> N
 
     assert response.status_code == 201
     reference = response.json()["reference"]
-    assert reference["bibtex"] == canonical
-    assert reference["sourceRevision"] == revision(canonical)
+    assert reference["bibtex"] == submitted
+    assert reference["sourceRevision"] == revision(submitted)
+    assert engine.canonicalization_calls == []
 
     with sessions() as session:
         stored = session.scalar(select(ReferenceRecord))
         event_record = session.scalar(select(ReferenceAuditEvent))
         assert stored is not None
-        assert stored.canonical_bibtex == canonical
+        assert stored.canonical_bibtex == submitted
         assert event_record is not None
         assert event_record.after_data is not None
         assert event_record.after_data["submitted_bibtex"] == submitted
-        assert event_record.after_data["canonical_bibtex"] == canonical
+        assert event_record.after_data["canonical_bibtex"] == submitted
         assert event_record.after_data["semantic_data"]["title"]["value"] == (
             "Canonical paper"
         )
@@ -930,7 +926,7 @@ def test_real_native_registration_dto_maps_to_relational_storage() -> None:
         create_app(
             NativeEngine(native_module),
             session_factory=sessions,
-            registration_policy="laboratory",
+            registration_policy="archive",
             authentication=build_authentication(mailer),
         )
     )
@@ -951,17 +947,11 @@ def test_real_native_registration_dto_maps_to_relational_storage() -> None:
     assert reference["title"] == "日本語解析"
     assert reference["authors"] == ["太郎 山田"]
     assert reference["doi"] == "10.1000/native-example"
-    assert reference["bibtex"] != source
-    assert reference["bibtex"].index("title =") < reference["bibtex"].index(
-        "author ="
-    )
+    assert reference["bibtex"] == source
 
     with sessions() as session:
         event_record = session.scalar(select(ReferenceAuditEvent))
         assert event_record is not None
         assert event_record.after_data is not None
         assert event_record.after_data["submitted_bibtex"] == source
-        assert (
-            event_record.after_data["canonical_bibtex"]
-            == reference["bibtex"]
-        )
+        assert event_record.after_data["canonical_bibtex"] == source
