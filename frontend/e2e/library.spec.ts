@@ -41,7 +41,7 @@ test("login, CRUD, restore, and public accessibility", async ({
       "",
     ].join("\n"),
   );
-  await clickUntilRegistered(page);
+  await registerAndWaitForCompletion(page);
   await page.getByRole("button", { name: "Close add references" }).click();
 
   await page
@@ -63,7 +63,7 @@ test("login, CRUD, restore, and public accessibility", async ({
       "Edited End-to-End Reference",
     ),
   );
-  await clickUntilDialogCloses(page, /Save( normalized)? changes/);
+  await saveAndWaitForDialogToClose(page);
   await expect(
     page
       .getByRole("region", { name: "Reference details" })
@@ -89,35 +89,27 @@ test("login, CRUD, restore, and public accessibility", async ({
   await assertNoSeriousAccessibilityViolations(page);
 });
 
-async function clickUntilRegistered(page: Page) {
-  for (let attempt = 0; attempt < 2; attempt += 1) {
-    await page
-      .getByRole("button", {
-        name: /Register (normalized )?BibTeX/,
-      })
-      .click();
-    if (await page.getByText("Registered.").isVisible()) return;
-  }
-  await expect(page.getByText("Registered.")).toBeVisible();
-}
-
-async function clickUntilDialogCloses(page: Page, label: RegExp) {
-  const dialog = page.getByRole("dialog", { name: "Edit reference" });
-  const normalizedSave = page.getByRole("button", {
-    name: "Save normalized changes",
+async function registerAndWaitForCompletion(page: Page) {
+  const editor = page.getByRole("textbox", { name: "BibTeX entry" });
+  const register = page.getByRole("button", {
+    name: "Register BibTeX",
     exact: true,
   });
-  for (let attempt = 0; attempt < 2; attempt += 1) {
-    await page.getByRole("button", { name: label }).click();
-    await expect
-      .poll(async () => {
-        if ((await dialog.count()) === 0) return "closed";
-        if (await normalizedSave.isVisible()) return "preview";
-        return "waiting";
-      })
-      .not.toBe("waiting");
-    if ((await dialog.count()) === 0) return;
-  }
+
+  await expect(register).toBeEnabled();
+  await register.click();
+  await expect(editor).toHaveValue("");
+}
+
+async function saveAndWaitForDialogToClose(page: Page) {
+  const dialog = page.getByRole("dialog", { name: "Edit reference" });
+  const save = dialog.getByRole("button", {
+    name: "Save changes",
+    exact: true,
+  });
+
+  await expect(save).toBeEnabled();
+  await save.click();
   await expect(dialog).toHaveCount(0);
 }
 
