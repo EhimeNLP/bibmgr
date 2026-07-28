@@ -119,7 +119,7 @@ cp pipeline/bibtex_reconstruction/.env.sample pipeline/bibtex_reconstruction/.en
 
 ## Run
 
-入力JSONを`pipeline/bibtex_reconstruction/data/input.json`へ配置し，リポジトリルートから実行scriptを起動します．
+入力JSONを`pipeline/bibtex_reconstruction/data/input.json`へ配置して実行scriptを起動します．scriptは自身の位置からGit repository rootを特定して移動するため，呼び出し元のworking directoryには依存しません．
 
 ```bash
 pipeline/bibtex_reconstruction/run.sh
