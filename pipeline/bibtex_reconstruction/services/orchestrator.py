@@ -294,9 +294,9 @@ class ReconstructionOrchestrator:
             if not doi or doi in excluded:
                 continue
             if (
-                reference.year
+                reference.comparison_year
                 and metadata.year
-                and str(reference.year) != str(metadata.year)
+                and reference.comparison_year != metadata.year
             ):
                 continue
             if not self._authors_are_consistent(

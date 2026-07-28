@@ -1,7 +1,12 @@
 # models/output_models.py
-from typing import List, Optional
-from pydantic import BaseModel, Field
-from .input_models import ReferenceData
+from __future__ import annotations
+
+from pathlib import Path
+from typing import List, Literal, Optional
+
+from pydantic import BaseModel, ConfigDict, Field, model_validator
+
+from .input_models import DocumentMetadata, ReferenceData
 from core.constants import CandidateStatus, ReconstructionOutcome, ReconstructionPath
 
 
@@ -71,9 +76,15 @@ class ReconstructionAttempt(BaseModel):
 
 
 class ProcessedReference(BaseModel):
-    ref_id: str = Field(..., description="Stable fragment ID assigned during initialization")
+    ref_id: str = Field(
+        ...,
+        description="Stable reference ID supplied by metadata_extraction",
+    )
     outcome: ReconstructionOutcome
-    original_data: ReferenceData = Field(..., description="The source fragment before clue enrichment")
+    original_data: ReferenceData = Field(
+        ...,
+        description="The extracted reference before clue enrichment",
+    )
     candidates: List[CandidateResult] = Field(default_factory=list, description="List of all matching results from various APIs, sorted by score")
     evidence: Optional[EvidenceBundle] = None
     reconstruction_path: Optional[ReconstructionPath] = None
@@ -81,3 +92,42 @@ class ProcessedReference(BaseModel):
     validation: Optional[RustValidationResult] = None
     attempts: List[ReconstructionAttempt] = Field(default_factory=list)
     review_reason: Optional[str] = None
+
+
+class ReconstructionReport(BaseModel):
+    """Typed audit report for one metadata_extraction document."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    schema_version: Literal["1"] = "1"
+    input_path: Path
+    bibtex_output_path: Path
+    document: DocumentMetadata
+    total_reference_count: int = Field(ge=0)
+    reconstructed_count: int = Field(ge=0)
+    manual_review_count: int = Field(ge=0)
+    processed_references: List[ProcessedReference]
+
+    @model_validator(mode="after")
+    def validate_counts(self) -> ReconstructionReport:
+        if self.total_reference_count != len(self.processed_references):
+            raise ValueError(
+                "total_reference_count must equal processed_references length"
+            )
+        reconstructed = sum(
+            result.outcome == ReconstructionOutcome.READY
+            for result in self.processed_references
+        )
+        manual_review = sum(
+            result.outcome == ReconstructionOutcome.MANUAL_REVIEW
+            for result in self.processed_references
+        )
+        if self.reconstructed_count != reconstructed:
+            raise ValueError(
+                "reconstructed_count does not match processed references"
+            )
+        if self.manual_review_count != manual_review:
+            raise ValueError(
+                "manual_review_count does not match processed references"
+            )
+        return self

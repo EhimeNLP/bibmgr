@@ -10,9 +10,9 @@ from pathlib import Path
 
 from core.config import settings
 from core.constants import ReconstructionOutcome
-from models import InputData, ProcessedReference
+from models import InputData, ProcessedReference, ReconstructionReport
 from services.orchestrator import ReconstructionOrchestrator
-from services.source_loader import load_bibliography_fragments
+from services.source_loader import load_metadata_document
 
 
 logger = logging.getLogger(__name__)
@@ -21,17 +21,16 @@ logger = logging.getLogger(__name__)
 def reconstruct_file(
     input_path: Path,
     output_path: Path,
-    review_path: Path,
+    report_path: Path,
     *,
     orchestrator: ReconstructionOrchestrator | None = None,
-) -> tuple[list[str], list[ProcessedReference]]:
-    """Reconstruct all fragments and write accepted entries plus a review report."""
+) -> tuple[list[str], ReconstructionReport]:
+    """Reconstruct all extracted references and write BibTeX plus an audit report."""
 
+    document = load_metadata_document(input_path)
+    references = document.references
     service = orchestrator or ReconstructionOrchestrator()
-    references = load_bibliography_fragments(
-        input_path.read_text(encoding="utf-8")
-    )
-    logger.info("loaded bibliography fragments count=%d", len(references))
+    logger.info("loaded extracted references count=%d", len(references))
 
     results: list[ProcessedReference | None] = [None] * len(references)
     with ThreadPoolExecutor(max_workers=settings.max_parallel_requests) as executor:
@@ -67,34 +66,40 @@ def reconstruct_file(
         output_text += "\n"
     output_path.write_text(output_text, encoding="utf-8")
 
-    review_path.parent.mkdir(parents=True, exist_ok=True)
-    review_payload = {
-        "schema_version": "1",
-        "input": str(input_path),
-        "bibtex_output": str(output_path),
-        "total_fragments": len(processed),
-        "reconstructed_count": len(entries),
-        "manual_review_count": len(reviews),
-        "manual_review": [
-            result.model_dump(mode="json", exclude_none=True)
-            for result in reviews
-        ],
-    }
-    review_path.write_text(
-        json.dumps(review_payload, ensure_ascii=False, indent=2) + "\n",
+    report_path.parent.mkdir(parents=True, exist_ok=True)
+    report = ReconstructionReport(
+        input_path=input_path,
+        bibtex_output_path=output_path,
+        document=document.document_metadata(),
+        total_reference_count=len(processed),
+        reconstructed_count=len(entries),
+        manual_review_count=len(reviews),
+        processed_references=processed,
+    )
+    report_path.write_text(
+        json.dumps(
+            report.model_dump(mode="json", exclude_none=True),
+            ensure_ascii=False,
+            indent=2,
+        )
+        + "\n",
         encoding="utf-8",
     )
-    return entries, reviews
+    return entries, report
 
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description=(
-            "Reconstruct a damaged BibTeX file into Rust-validated entries. "
-            "Unresolved fragments are written to a separate review report."
+            "Reconstruct metadata_extraction JSON references into "
+            "Rust-validated BibTeX entries and an audit report."
         )
     )
-    parser.add_argument("input", type=Path, help="Damaged input .bib file")
+    parser.add_argument(
+        "input",
+        type=Path,
+        help="metadata_extraction JSON file",
+    )
     parser.add_argument(
         "-o",
         "--output",
@@ -103,15 +108,17 @@ def build_parser() -> argparse.ArgumentParser:
         help="Rust-validated BibTeX output",
     )
     parser.add_argument(
+        "--report-output",
         "--review-output",
+        dest="report_output",
         type=Path,
-        default=Path("reconstruction-review.json"),
-        help="Evidence and diagnostics for unresolved fragments",
+        default=Path("reconstruction-report.json"),
+        help="Audit report with outcomes and evidence for every reference",
     )
     parser.add_argument(
         "--fail-on-review",
         action="store_true",
-        help="Exit with status 2 when any fragment requires manual review",
+        help="Exit with status 2 when any reference requires manual review",
     )
     return parser
 
@@ -122,18 +129,18 @@ def main() -> int:
         format="%(asctime)s %(levelname)s %(name)s: %(message)s",
     )
     args = build_parser().parse_args()
-    entries, reviews = reconstruct_file(
+    entries, report = reconstruct_file(
         args.input,
         args.output,
-        args.review_output,
+        args.report_output,
     )
     logger.info(
         "initialization completed reconstructed=%d manual_review=%d output=%s",
         len(entries),
-        len(reviews),
+        report.manual_review_count,
         args.output,
     )
-    if args.fail_on_review and reviews:
+    if args.fail_on_review and report.manual_review_count:
         return 2
     return 0
 

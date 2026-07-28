@@ -1,4 +1,4 @@
-"""Conservative search-clue extraction from a reference's raw BibTeX."""
+"""Conservative clue enrichment for extracted references."""
 
 from __future__ import annotations
 
@@ -10,7 +10,7 @@ from models import ReferenceData
 
 
 def enrich_search_clues(reference: ReferenceData) -> ReferenceData:
-    """Fill missing search fields using bibtexparser without gating the input."""
+    """Fill fields when raw_text contains parseable BibTeX; otherwise preserve it."""
 
     if not reference.raw_text.strip():
         return reference.model_copy(deep=True)

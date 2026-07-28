@@ -5,12 +5,18 @@ Data Models Package.
 Exposes both input and output Pydantic models for easy access.
 """
 
-from .input_models import ReferenceData, InputData
+from .input_models import (
+    DocumentMetadata,
+    InputData,
+    ReconstructionDocumentInput,
+    ReferenceData,
+)
 from .output_models import (
     CandidateResult,
     EvidenceBundle,
     LLMReconstruction,
     ProcessedReference,
+    ReconstructionReport,
     ReconstructionAttempt,
     RustValidationResult,
     ValidationDiagnostic,
@@ -19,6 +25,8 @@ from .output_models import (
 
 __all__ = [
     "ReferenceData",
+    "DocumentMetadata",
+    "ReconstructionDocumentInput",
     "InputData",
     "VerifiedCitationInfo",
     "CandidateResult",
@@ -28,4 +36,5 @@ __all__ = [
     "RustValidationResult",
     "ValidationDiagnostic",
     "ProcessedReference",
+    "ReconstructionReport",
 ]
