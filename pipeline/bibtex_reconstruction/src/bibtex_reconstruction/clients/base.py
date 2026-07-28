@@ -1,3 +1,4 @@
+import logging
 import re
 import time
 import requests
@@ -6,6 +7,10 @@ from typing import Optional, Tuple
 from urllib.parse import urlparse
 from ..config import settings
 from ..domain import InputData, VerifiedCitationInfo
+
+
+logger = logging.getLogger(__name__)
+
 
 class BaseAPIClient(ABC):
     """
@@ -81,6 +86,8 @@ class BaseAPIClient(ABC):
         if not input_data.parsed_data or not input_data.parsed_data.title:
             return None, None   # 1. Validation
 
+        ref_id = input_data.parsed_data.id
+        logger.debug("API search started api=%s ref_id=%s", self.api_name, ref_id)
         if self.wait_sec > 0:
             time.sleep(self.wait_sec)   # 2. Rate Limiting (Throttling)
 
@@ -103,8 +110,13 @@ class BaseAPIClient(ABC):
 
             return metadata, raw_bibtex
 
-        except Exception as e:
-            print(f"[{self.api_name}] Error during search pipeline: {e}")
+        except Exception as exc:
+            logger.warning(
+                "API search pipeline failed api=%s ref_id=%s error_type=%s",
+                self.api_name,
+                ref_id,
+                exc.__class__.__name__,
+            )
             return None, None
 
     @abstractmethod
@@ -143,16 +155,25 @@ class BaseAPIClient(ABC):
             bool: True if metadata passes all checks, False otherwise.
         """
         if not metadata.title or not metadata.title.strip():
-            print(f"[{self.api_name}] Validation failed: title is empty.")
+            logger.debug(
+                "API metadata rejected api=%s reason=empty_title",
+                self.api_name,
+            )
             return False
 
         if metadata.year is not None:
             if not isinstance(metadata.year, int) or not (1000 <= metadata.year <= 2999):
-                print(f"[{self.api_name}] Validation failed: year '{metadata.year}' is not a valid 4-digit year.")
+                logger.debug(
+                    "API metadata rejected api=%s reason=invalid_year",
+                    self.api_name,
+                )
                 return False
 
         if any(not isinstance(a, str) or not a.strip() for a in metadata.authors):
-            print(f"[{self.api_name}] Validation failed: authors list contains empty or non-string entries.")
+            logger.debug(
+                "API metadata rejected api=%s reason=invalid_authors",
+                self.api_name,
+            )
             return False
 
         return True
@@ -164,16 +185,28 @@ class BaseAPIClient(ABC):
         try:
             parsed = urlparse(url)
             if parsed.scheme not in self._ALLOWED_SCHEMES:
-                print(f"[{self.api_name}] SSRF Blocked: Disallowed scheme '{parsed.scheme}'")
+                logger.warning(
+                    "request blocked api=%s reason=disallowed_scheme scheme=%s",
+                    self.api_name,
+                    parsed.scheme,
+                )
                 return False
             
             if parsed.hostname not in self._ALLOWED_HOSTS:
-                print(f"[{self.api_name}] SSRF Blocked: Disallowed host '{parsed.hostname}'")
+                logger.warning(
+                    "request blocked api=%s reason=disallowed_host host=%s",
+                    self.api_name,
+                    parsed.hostname,
+                )
                 return False
                 
             return True
-        except Exception as e:
-            print(f"[{self.api_name}] URL parsing error during SSRF validation: {e}")
+        except Exception as exc:
+            logger.warning(
+                "request URL validation failed api=%s error_type=%s",
+                self.api_name,
+                exc.__class__.__name__,
+            )
             return False
 
     def _make_request(self, url: Optional[str] = None, params: dict = None, headers: dict = None, 
@@ -196,7 +229,7 @@ class BaseAPIClient(ABC):
         retries = max_retries if max_retries is not None else settings.max_retries
 
         if not req_url:
-            print(f"[{self.api_name}] Error: Base URL is not defined.")
+            logger.error("request failed api=%s reason=missing_base_url", self.api_name)
             return None
 
         if req_url.startswith("http://"):
@@ -212,7 +245,16 @@ class BaseAPIClient(ABC):
                 if response.status_code == 429:
                     if attempt < retries - 1:
                         sleep_time = settings.retry_backoff_sec ** (attempt + 1)
-                        print(f"[{self.api_name}] Rate limit reached. Retrying in {sleep_time}s...")
+                        logger.warning(
+                            (
+                                "rate limited api=%s retry=%d/%d "
+                                "wait_seconds=%s"
+                            ),
+                            self.api_name,
+                            attempt + 1,
+                            retries,
+                            sleep_time,
+                        )
                         time.sleep(sleep_time)
                         continue
                     return None
@@ -220,8 +262,14 @@ class BaseAPIClient(ABC):
                 response.raise_for_status()
                 return response
                 
-            except requests.exceptions.RequestException as e:
-                print(f"[{self.api_name}] Network error: {e}")
+            except requests.exceptions.RequestException as exc:
+                logger.warning(
+                    "network request failed api=%s attempt=%d/%d error_type=%s",
+                    self.api_name,
+                    attempt + 1,
+                    retries,
+                    exc.__class__.__name__,
+                )
                 if attempt == retries - 1:
                     return None
         return None

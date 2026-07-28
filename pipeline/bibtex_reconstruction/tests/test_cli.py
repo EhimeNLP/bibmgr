@@ -5,7 +5,7 @@ import bibmgr_native
 from bibtex_reconstruction.application.orchestrator import (
     ReconstructionOrchestrator,
 )
-from bibtex_reconstruction.cli import reconstruct_file
+from bibtex_reconstruction.cli import build_parser, reconstruct_file
 from bibtex_reconstruction.domain import ProcessedReference
 from bibtex_reconstruction.domain.enums import ReconstructionOutcome
 from bibtex_reconstruction.validation import NativeBibtexValidator
@@ -42,6 +42,19 @@ class FakeDoiClient:
 class FailingIfCalledReconstructor:
     def reconstruct(self, *args, **kwargs):
         raise AssertionError("LLM must not be called on the DOI fast path")
+
+
+def test_cli_accepts_log_controls():
+    args = build_parser().parse_args([
+        "input.json",
+        "--log-file",
+        "run.log",
+        "--log-level",
+        "DEBUG",
+    ])
+
+    assert args.log_file.name == "run.log"
+    assert args.log_level == "DEBUG"
 
 
 def test_cli_writes_only_validated_entries_and_separate_review_report(tmp_path):

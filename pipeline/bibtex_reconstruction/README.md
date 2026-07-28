@@ -132,6 +132,28 @@ pipeline/bibtex_reconstruction/run.sh
 pipeline/bibtex_reconstruction/run.sh --fail-on-review
 ```
 
+### Execution logs
+
+端末には処理開始，各referenceの進捗・結果，完了件数を`INFO` levelで表示します．複数referenceを並列処理しても，`progress=3/28 ref_id=b2 outcome=ready`のように全体の進捗を確認できます．
+
+詳細ログは実行ごとに次の場所へ保存されます．
+
+```text
+pipeline/bibtex_reconstruction/data/logs/reconstruction-YYYYMMDD-HHMMSS-PID.log
+```
+
+`data/logs/latest.log`は常に直近の実行ログを指します．別のterminalから追跡する場合は次のように確認できます．
+
+```bash
+tail -f pipeline/bibtex_reconstruction/data/logs/latest.log
+```
+
+詳細ログには`DEBUG`以上の情報を保存し，利用したAPI，照合status，reference ID，処理threadを後から確認できます．API keyやreferenceの本文は出力しません．端末にも詳細を表示したい場合は次のように実行します．
+
+```bash
+pipeline/bibtex_reconstruction/run.sh --log-level DEBUG
+```
+
 CLIを直接起動する場合は次のコマンドと同等です．
 
 ```bash
@@ -139,7 +161,8 @@ uv run --project pipeline/bibtex_reconstruction \
   bibtex-reconstruction \
   pipeline/bibtex_reconstruction/data/input.json \
   --output pipeline/bibtex_reconstruction/data/reconstructed.bib \
-  --report-output pipeline/bibtex_reconstruction/data/reconstruction-report.json
+  --report-output pipeline/bibtex_reconstruction/data/reconstruction-report.json \
+  --log-file pipeline/bibtex_reconstruction/data/logs/reconstruction.log
 ```
 
 同じCLIは`python -m bibtex_reconstruction`でも起動できます．

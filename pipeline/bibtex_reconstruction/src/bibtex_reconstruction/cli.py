@@ -13,6 +13,7 @@ from .application.source_loader import load_metadata_document
 from .config import settings
 from .domain import InputData, ProcessedReference, ReconstructionReport
 from .domain.enums import ReconstructionOutcome
+from .logging_config import configure_logging
 
 
 logger = logging.getLogger(__name__)
@@ -41,9 +42,25 @@ def reconstruct_file(
             ): index
             for index, reference in enumerate(references)
         }
-        for future in as_completed(future_to_index):
+        for completed_count, future in enumerate(
+            as_completed(future_to_index),
+            start=1,
+        ):
             index = future_to_index[future]
-            results[index] = future.result()
+            result = future.result()
+            results[index] = result
+            logger.info(
+                "progress=%d/%d ref_id=%s outcome=%s path=%s",
+                completed_count,
+                len(references),
+                result.ref_id,
+                result.outcome.value,
+                (
+                    result.reconstruction_path.value
+                    if result.reconstruction_path
+                    else "none"
+                ),
+            )
 
     processed = [result for result in results if result is not None]
     entries = [
@@ -120,15 +137,34 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Exit with status 2 when any reference requires manual review",
     )
+    parser.add_argument(
+        "--log-file",
+        type=Path,
+        help="Detailed execution log file (DEBUG and above)",
+    )
+    parser.add_argument(
+        "--log-level",
+        choices=("DEBUG", "INFO", "WARNING", "ERROR"),
+        default="INFO",
+        help="Console log level (default: INFO)",
+    )
     return parser
 
 
 def main() -> int:
-    logging.basicConfig(
-        level=logging.INFO,
-        format="%(asctime)s %(levelname)s %(name)s: %(message)s",
-    )
     args = build_parser().parse_args()
+    configure_logging(
+        console_level=args.log_level,
+        log_file=args.log_file,
+    )
+    logger.info(
+        "initialization started input=%s references_output=%s report_output=%s",
+        args.input,
+        args.output,
+        args.report_output,
+    )
+    if args.log_file:
+        logger.info("detailed log=%s", args.log_file)
     entries, report = reconstruct_file(
         args.input,
         args.output,

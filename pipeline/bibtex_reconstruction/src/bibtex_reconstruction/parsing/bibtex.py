@@ -1,8 +1,13 @@
 """Small BibTeX field extraction helpers."""
 
+import logging
 import re
 from typing import Optional
 import bibtexparser
+
+
+logger = logging.getLogger(__name__)
+
 
 def extract_bibtex_field(raw_bibtex: str, field_name: str) -> Optional[str]:
     """
@@ -42,8 +47,12 @@ def extract_bibtex_field(raw_bibtex: str, field_name: str) -> Optional[str]:
 
         return None
 
-    except Exception as e:
-        print(f"[BibTeX Parser] Error parsing raw string: {e}")
+    except Exception as exc:
+        logger.debug(
+            "BibTeX field extraction failed field=%s error_type=%s",
+            field_name,
+            exc.__class__.__name__,
+        )
         return None
 
 _CJK_RE = re.compile(

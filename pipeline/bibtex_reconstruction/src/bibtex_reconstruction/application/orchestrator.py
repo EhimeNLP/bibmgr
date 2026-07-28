@@ -226,6 +226,12 @@ class ReconstructionOrchestrator:
                 try:
                     metadata, bibtex = future.result()
                     if metadata is None:
+                        logger.debug(
+                            "API search completed ref_id=%s api=%s status=%s",
+                            input_data.parsed_data.id,
+                            api_name,
+                            CandidateStatus.NOT_FOUND.value,
+                        )
                         candidates.append(
                             CandidateResult(
                                 source_api=api_name,
@@ -240,6 +246,16 @@ class ReconstructionOrchestrator:
                         if score >= settings.similarity_threshold
                         else CandidateStatus.WEAK_MATCH
                     )
+                    logger.debug(
+                        (
+                            "API search completed ref_id=%s api=%s "
+                            "status=%s score=%.3f"
+                        ),
+                        input_data.parsed_data.id,
+                        api_name,
+                        status.value,
+                        score,
+                    )
                     candidates.append(
                         CandidateResult(
                             source_api=api_name,
@@ -250,7 +266,12 @@ class ReconstructionOrchestrator:
                         )
                     )
                 except Exception as exc:
-                    logger.warning("search failed api=%s error=%s", api_name, exc)
+                    logger.warning(
+                        "search failed ref_id=%s api=%s error_type=%s",
+                        input_data.parsed_data.id,
+                        api_name,
+                        exc.__class__.__name__,
+                    )
                     candidates.append(
                         CandidateResult(
                             source_api=api_name,
@@ -307,6 +328,12 @@ class ReconstructionOrchestrator:
                 metadata.authors,
             ):
                 continue
+            logger.info(
+                "trusted DOI selected ref_id=%s api=%s doi=%s",
+                reference.id,
+                candidate.source_api,
+                doi,
+            )
             return doi
         return None
 
@@ -341,7 +368,11 @@ class ReconstructionOrchestrator:
         try:
             candidate = self.doi_client.fetch_bibtex(doi)
         except Exception as exc:
-            logger.warning("DOI BibTeX retrieval failed doi=%s error=%s", doi, exc)
+            logger.warning(
+                "DOI BibTeX retrieval failed doi=%s error_type=%s",
+                doi,
+                exc.__class__.__name__,
+            )
             return None
         if not candidate:
             return None
