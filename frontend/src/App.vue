@@ -192,7 +192,7 @@ async function changePage(direction: -1 | 1) {
     <header class="app-header">
       <div class="app-shell app-header__inner">
         <div class="brand-mark" aria-hidden="true">
-          <img src="/favicon.svg" alt="" width="34" height="34" />
+          <img src="/favicon.svg" alt="" width="44" height="44" />
         </div>
         <div class="brand-copy">
           <h1 class="brand-wordmark" aria-label="BibMgR">

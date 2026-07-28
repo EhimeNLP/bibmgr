@@ -1,4 +1,4 @@
-# bibmgr
+# ![BibMgR Logo](docs/assets/bibmgr-logo.png)
 
 ## 環境構築
 
