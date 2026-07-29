@@ -31,7 +31,11 @@ from .models import (
 
 class RegistrationEngine(Protocol):
     def validate_for_registration(
-        self, source: str, policy: str
+        self,
+        source: str,
+        policy: str,
+        *,
+        venue_registry: dict[str, Any] | None = None,
     ) -> dict[str, Any]: ...
 
 
@@ -495,10 +499,13 @@ class ReferenceLibrary:
         policy: str,
         actor_user_id: uuid.UUID,
         citation_contexts: list[CitationContextInput] | None = None,
+        venue_registry: dict[str, Any] | None = None,
     ) -> list[ReferenceRecord]:
         # Materialize the database transaction before authoritative validation.
         session.connection()
-        validation = self.engine.validate_for_registration(bibtex, policy)
+        validation = self.engine.validate_for_registration(
+            bibtex, policy, venue_registry=venue_registry
+        )
         if not validation.get("accepted", False):
             raise RegistrationRejectedError(
                 "BibTeX is not eligible for registration.",
@@ -576,6 +583,7 @@ class ReferenceLibrary:
         source_revision: str,
         policy: str,
         actor_user_id: uuid.UUID,
+        venue_registry: dict[str, Any] | None = None,
     ) -> ReferenceRecord:
         session.connection()
         record = self.get_for_update(session, reference_id)
@@ -591,7 +599,9 @@ class ReferenceLibrary:
             )
 
         before_data = _audit_snapshot(record)
-        validation = self.engine.validate_for_registration(bibtex, policy)
+        validation = self.engine.validate_for_registration(
+            bibtex, policy, venue_registry=venue_registry
+        )
         if not validation.get("accepted", False):
             raise RegistrationRejectedError(
                 "BibTeX is not eligible for registration.",

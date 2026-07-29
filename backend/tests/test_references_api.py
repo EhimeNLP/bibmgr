@@ -119,7 +119,11 @@ class RegistrationEngine:
         self.records_by_source[source] = records
 
     def validate_for_registration(
-        self, source: str, policy: str
+        self,
+        source: str,
+        policy: str,
+        *,
+        venue_registry: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         self.calls.append((source, policy))
         accepted = source not in self.rejected_sources
@@ -150,7 +154,11 @@ class RegistrationEngine:
         }
 
     def canonicalize_for_storage(
-        self, source: str, policy: str
+        self,
+        source: str,
+        policy: str,
+        *,
+        venue_registry: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         self.canonicalization_calls.append((source, policy))
         canonical_source = self.canonical_sources.get(source, source)
@@ -172,19 +180,60 @@ class RegistrationEngine:
             "unresolved_semantics": False,
         }
 
-    def analyze(self, source: str, profile: str, mode: str) -> dict[str, Any]:
+    def analyze(
+        self,
+        source: str,
+        profile: str,
+        mode: str,
+        *,
+        venue_registry: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
         raise AssertionError("not used")
 
     def apply_fixes(
-        self, source: str, source_revision: str, fix_ids: list[str], profile: str
+        self,
+        source: str,
+        source_revision: str,
+        fix_ids: list[str],
+        profile: str,
+        *,
+        venue_registry: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         raise AssertionError("not used")
 
     def export_profiles(self) -> dict[str, Any]:
         raise AssertionError("not used")
 
-    def export_source(self, source: str, profile: str) -> dict[str, Any]:
+    def export_source(
+        self,
+        source: str,
+        profile: str,
+        *,
+        venue_name_style: str = "full",
+        profile_data: dict[str, Any] | None = None,
+        venue_registry: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
         raise AssertionError("not used")
+
+    def builtin_configuration(self) -> dict[str, Any]:
+        return {
+            "schema_version": "1",
+            "export_profiles": [],
+            "venue_registry": {"schema_version": "1", "venues": []},
+        }
+
+    def validate_export_profile(
+        self, profile_data: dict[str, Any]
+    ) -> dict[str, Any]:
+        return {"schema_version": "1", "profile": profile_data}
+
+    def validate_venue_registry(
+        self, venue_registry: dict[str, Any]
+    ) -> dict[str, Any]:
+        return {
+            "schema_version": "1",
+            "venue_registry": venue_registry,
+        }
 
 
 class CapturingMailer:

@@ -29,6 +29,15 @@ def test_migrations_are_available_from_the_installed_package() -> None:
     assert migrations.joinpath(
         "versions", "0004_context_history.py"
     ).is_file()
+    assert migrations.joinpath(
+        "versions", "0005_application_configuration.py"
+    ).is_file()
+    assert migrations.joinpath(
+        "versions", "0006_configuration_deletions.py"
+    ).is_file()
+    assert migrations.joinpath(
+        "versions", "0007_configuration_audit_actions.py"
+    ).is_file()
 
 
 def test_reset_target_must_be_local_postgresql() -> None:

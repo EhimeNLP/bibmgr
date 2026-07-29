@@ -1,7 +1,7 @@
 """Transport request and persisted-reference response models."""
 
 from datetime import datetime
-from typing import Literal
+from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -33,6 +33,12 @@ class RegistrationRequest(StrictRequest):
 class ExportRequest(StrictRequest):
     source: str
     profile: str = "laboratory"
+    venue_name_style: Literal["full", "abbreviated"] = "full"
+
+
+class UpdateApplicationConfigurationRequest(StrictRequest):
+    data: dict[str, Any]
+    expected_revision: int = Field(ge=0)
 
 
 class CitationContextInput(StrictRequest):

@@ -29,7 +29,12 @@ from bibmgr_backend.db_models import (
 
 class UnusedEngine:
     def analyze(
-        self, source: str, profile: str, mode: str
+        self,
+        source: str,
+        profile: str,
+        mode: str,
+        *,
+        venue_registry: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         return {"schema_version": "1"}
 
@@ -39,16 +44,26 @@ class UnusedEngine:
         source_revision: str,
         fix_ids: list[str],
         profile: str,
+        *,
+        venue_registry: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         return {"schema_version": "1"}
 
     def validate_for_registration(
-        self, source: str, policy: str
+        self,
+        source: str,
+        policy: str,
+        *,
+        venue_registry: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         raise AssertionError("protected write reached the engine")
 
     def canonicalize_for_storage(
-        self, source: str, policy: str
+        self,
+        source: str,
+        policy: str,
+        *,
+        venue_registry: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         raise AssertionError("protected write reached the engine")
 
@@ -56,9 +71,35 @@ class UnusedEngine:
         return {"schema_version": "1"}
 
     def export_source(
-        self, source: str, profile: str
+        self,
+        source: str,
+        profile: str,
+        *,
+        venue_name_style: str = "full",
+        profile_data: dict[str, Any] | None = None,
+        venue_registry: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         return {"schema_version": "1"}
+
+    def builtin_configuration(self) -> dict[str, Any]:
+        return {
+            "schema_version": "1",
+            "export_profiles": [],
+            "venue_registry": {"schema_version": "1", "venues": []},
+        }
+
+    def validate_export_profile(
+        self, profile_data: dict[str, Any]
+    ) -> dict[str, Any]:
+        return {"schema_version": "1", "profile": profile_data}
+
+    def validate_venue_registry(
+        self, venue_registry: dict[str, Any]
+    ) -> dict[str, Any]:
+        return {
+            "schema_version": "1",
+            "venue_registry": venue_registry,
+        }
 
 
 class CapturingMailer:
@@ -310,6 +351,12 @@ def test_exact_external_email_allowlist_is_additive() -> None:
             None,
         ),
         ("GET", "/bibtex/export/profiles", None),
+        ("GET", "/settings/configuration", None),
+        (
+            "GET",
+            "/settings/configuration-history?kind=export_profile",
+            None,
+        ),
         ("POST", "/bibtex/analyze", {"source": "@misc{demo}"}),
         (
             "POST",
@@ -357,6 +404,10 @@ def test_application_access_requires_session_and_writes_require_csrf() -> None:
     assert client.get("/references").status_code == 401
     assert client.get("/references/page").status_code == 401
     assert client.get("/bibtex/export/profiles").status_code == 401
+    assert client.get("/settings/configuration").status_code == 401
+    assert client.get(
+        "/settings/configuration-history?kind=export_profile"
+    ).status_code == 401
     assert client.post(
         "/bibtex/analyze",
         json={"source": source},
@@ -390,6 +441,10 @@ def test_application_access_requires_session_and_writes_require_csrf() -> None:
 
     assert client.get("/references").status_code == 200
     assert client.get("/bibtex/export/profiles").status_code == 200
+    assert client.get("/settings/configuration").status_code == 200
+    assert client.get(
+        "/settings/configuration-history?kind=export_profile"
+    ).status_code == 200
     assert client.post(
         "/bibtex/analyze",
         json={"source": source},
@@ -403,6 +458,11 @@ def test_application_access_requires_session_and_writes_require_csrf() -> None:
         missing_csrf.json()["error"]["code"]
         == "csrf_validation_failed"
     )
+    missing_delete_csrf = client.delete(
+        "/settings/venues/custom-venue",
+        params={"expected_revision": 1},
+    )
+    assert missing_delete_csrf.status_code == 403
 
 
 def test_production_requires_authentication_secret(

@@ -31,6 +31,7 @@ from .auth import (
 )
 from .database import SessionFactory
 from .db_models import ReferenceAuditEvent
+from .configuration import ApplicationConfiguration
 from .library import (
     LibraryError,
     ReferenceLibrary,
@@ -58,6 +59,7 @@ from .models import (
     RegistrationRequest,
     RestoreReferenceRevisionRequest,
     UpdateReferenceRequest,
+    UpdateApplicationConfigurationRequest,
 )
 from .native import NativeCallError, NativeEngine
 
@@ -115,23 +117,62 @@ AUTHENTICATION_REQUIRED_RESPONSES: dict[int, dict[str, Any]] = {
 
 
 class Engine(Protocol):
-    def analyze(self, source: str, profile: str, mode: str) -> dict[str, Any]: ...
+    def analyze(
+        self,
+        source: str,
+        profile: str,
+        mode: str,
+        *,
+        venue_registry: dict[str, Any] | None = None,
+    ) -> dict[str, Any]: ...
 
     def apply_fixes(
-        self, source: str, source_revision: str, fix_ids: list[str], profile: str
+        self,
+        source: str,
+        source_revision: str,
+        fix_ids: list[str],
+        profile: str,
+        *,
+        venue_registry: dict[str, Any] | None = None,
     ) -> dict[str, Any]: ...
 
     def validate_for_registration(
-        self, source: str, policy: str
+        self,
+        source: str,
+        policy: str,
+        *,
+        venue_registry: dict[str, Any] | None = None,
     ) -> dict[str, Any]: ...
 
     def canonicalize_for_storage(
-        self, source: str, policy: str
+        self,
+        source: str,
+        policy: str,
+        *,
+        venue_registry: dict[str, Any] | None = None,
     ) -> dict[str, Any]: ...
 
     def export_profiles(self) -> dict[str, Any]: ...
 
-    def export_source(self, source: str, profile: str) -> dict[str, Any]: ...
+    def export_source(
+        self,
+        source: str,
+        profile: str,
+        *,
+        venue_name_style: str = "full",
+        profile_data: dict[str, Any] | None = None,
+        venue_registry: dict[str, Any] | None = None,
+    ) -> dict[str, Any]: ...
+
+    def builtin_configuration(self) -> dict[str, Any]: ...
+
+    def validate_export_profile(
+        self, profile_data: dict[str, Any]
+    ) -> dict[str, Any]: ...
+
+    def validate_venue_registry(
+        self, venue_registry: dict[str, Any]
+    ) -> dict[str, Any]: ...
 
 
 def create_app(
@@ -151,6 +192,7 @@ def create_app(
     selected_engine: Engine = engine or NativeEngine()
     selected_session_factory = session_factory or SessionFactory
     library = ReferenceLibrary(selected_engine)
+    configuration = ApplicationConfiguration(selected_engine)
     selected_authentication = authentication or AuthenticationManager()
     selected_registration_policy = (
         registration_policy
@@ -585,9 +627,15 @@ def create_app(
     def analyze(
         request: AnalyzeRequest,
         native: EngineDependency,
+        session: SessionDependency,
         _authenticated: AuthenticatedSessionDependency,
     ) -> dict[str, Any]:
-        return native.analyze(request.source, request.profile, request.mode)
+        return native.analyze(
+            request.source,
+            request.profile,
+            request.mode,
+            venue_registry=configuration.venue_registry(session),
+        )
 
     @application.post(
         "/bibtex/fixes/apply",
@@ -599,6 +647,7 @@ def create_app(
     def apply_fixes(
         request: ApplyFixesRequest,
         native: EngineDependency,
+        session: SessionDependency,
         _authenticated: AuthenticatedSessionDependency,
     ) -> dict[str, Any]:
         return native.apply_fixes(
@@ -606,6 +655,7 @@ def create_app(
             request.source_revision,
             request.fix_ids,
             request.profile,
+            venue_registry=configuration.venue_registry(session),
         )
 
     @application.post(
@@ -618,9 +668,14 @@ def create_app(
     def validate_registration(
         request: RegistrationRequest,
         native: EngineDependency,
+        session: SessionDependency,
         _authenticated: AuthenticatedSessionDependency,
     ) -> dict[str, Any]:
-        return native.validate_for_registration(request.source, request.policy)
+        return native.validate_for_registration(
+            request.source,
+            request.policy,
+            venue_registry=configuration.venue_registry(session),
+        )
 
     @application.post(
         "/bibtex/registration/canonicalize",
@@ -632,10 +687,13 @@ def create_app(
     def canonicalize_registration_source(
         request: RegistrationRequest,
         native: EngineDependency,
+        session: SessionDependency,
         _authenticated: AuthenticatedSessionDependency,
     ) -> dict[str, Any]:
         return native.canonicalize_for_storage(
-            request.source, request.policy
+            request.source,
+            request.policy,
+            venue_registry=configuration.venue_registry(session),
         )
 
     @application.get(
@@ -643,10 +701,10 @@ def create_app(
         responses=AUTHENTICATION_REQUIRED_RESPONSES,
     )
     def export_profiles(
-        native: EngineDependency,
+        session: SessionDependency,
         _authenticated: AuthenticatedSessionDependency,
     ) -> dict[str, Any]:
-        return native.export_profiles()
+        return configuration.export_profile_catalog(session)
 
     @application.post(
         "/bibtex/export",
@@ -658,9 +716,142 @@ def create_app(
     def export_source(
         request: ExportRequest,
         native: EngineDependency,
+        session: SessionDependency,
         _authenticated: AuthenticatedSessionDependency,
     ) -> dict[str, Any]:
-        return native.export_source(request.source, request.profile)
+        return native.export_source(
+            request.source,
+            request.profile,
+            venue_name_style=request.venue_name_style,
+            profile_data=configuration.export_profile(
+                session, request.profile
+            ),
+            venue_registry=configuration.venue_registry(session),
+        )
+
+    @application.get(
+        "/settings/configuration",
+        responses=AUTHENTICATION_REQUIRED_RESPONSES,
+    )
+    def get_application_configuration(
+        session: SessionDependency,
+        _authenticated: AuthenticatedSessionDependency,
+    ) -> dict[str, Any]:
+        return configuration.catalog(session)
+
+    @application.get(
+        "/settings/configuration-history",
+        responses=AUTHENTICATION_REQUIRED_RESPONSES,
+    )
+    def get_application_configuration_history(
+        kind: Literal["export_profile", "venue"],
+        session: SessionDependency,
+        _authenticated: AuthenticatedSessionDependency,
+        limit: Annotated[int, Query(ge=1, le=100)] = 50,
+        offset: Annotated[int, Query(ge=0)] = 0,
+    ) -> dict[str, Any]:
+        return configuration.history(
+            session,
+            kind=kind,
+            limit=limit,
+            offset=offset,
+        )
+
+    @application.put(
+        "/settings/export-profiles/{profile_id}",
+        responses={
+            **REQUEST_VALIDATION_RESPONSES,
+            **AUTHENTICATED_WRITE_RESPONSES,
+            409: {"model": ErrorResponse},
+        },
+    )
+    def update_export_profile(
+        profile_id: str,
+        request: UpdateApplicationConfigurationRequest,
+        session: SessionDependency,
+        authenticated: WriteSessionDependency,
+    ) -> dict[str, Any]:
+        with write_transaction(session):
+            entry = configuration.save_export_profile(
+                session,
+                profile_id=profile_id,
+                profile_data=request.data,
+                expected_revision=request.expected_revision,
+                actor_user_id=authenticated.user.id,
+            )
+        return {"schema_version": "1", "setting": entry}
+
+    @application.put(
+        "/settings/venues/{venue_id}",
+        responses={
+            **REQUEST_VALIDATION_RESPONSES,
+            **AUTHENTICATED_WRITE_RESPONSES,
+            409: {"model": ErrorResponse},
+        },
+    )
+    def update_venue(
+        venue_id: str,
+        request: UpdateApplicationConfigurationRequest,
+        session: SessionDependency,
+        authenticated: WriteSessionDependency,
+    ) -> dict[str, Any]:
+        with write_transaction(session):
+            entry = configuration.save_venue(
+                session,
+                venue_id=venue_id,
+                venue_data=request.data,
+                expected_revision=request.expected_revision,
+                actor_user_id=authenticated.user.id,
+            )
+        return {"schema_version": "1", "setting": entry}
+
+    @application.delete(
+        "/settings/export-profiles/{profile_id}",
+        responses={
+            **REQUEST_VALIDATION_RESPONSES,
+            **AUTHENTICATED_WRITE_RESPONSES,
+            404: {"model": ErrorResponse},
+            409: {"model": ErrorResponse},
+        },
+    )
+    def delete_export_profile(
+        profile_id: str,
+        expected_revision: Annotated[int, Query(ge=1)],
+        session: SessionDependency,
+        authenticated: WriteSessionDependency,
+    ) -> dict[str, Any]:
+        with write_transaction(session):
+            result = configuration.delete_export_profile(
+                session,
+                profile_id=profile_id,
+                expected_revision=expected_revision,
+                actor_user_id=authenticated.user.id,
+            )
+        return {"schema_version": "1", **result}
+
+    @application.delete(
+        "/settings/venues/{venue_id}",
+        responses={
+            **REQUEST_VALIDATION_RESPONSES,
+            **AUTHENTICATED_WRITE_RESPONSES,
+            404: {"model": ErrorResponse},
+            409: {"model": ErrorResponse},
+        },
+    )
+    def delete_venue(
+        venue_id: str,
+        expected_revision: Annotated[int, Query(ge=1)],
+        session: SessionDependency,
+        authenticated: WriteSessionDependency,
+    ) -> dict[str, Any]:
+        with write_transaction(session):
+            result = configuration.delete_venue(
+                session,
+                venue_id=venue_id,
+                expected_revision=expected_revision,
+                actor_user_id=authenticated.user.id,
+            )
+        return {"schema_version": "1", **result}
 
     @application.get(
         "/reference-history",
@@ -880,6 +1071,7 @@ def create_app(
                 policy=selected_registration_policy,
                 actor_user_id=authenticated.user.id,
                 citation_contexts=request.citation_contexts,
+                venue_registry=configuration.venue_registry(session),
             )
         responses = [reference_response(record) for record in records]
         return RegisterReferencesResponse(
@@ -910,6 +1102,7 @@ def create_app(
                 source_revision=request.source_revision,
                 policy=selected_registration_policy,
                 actor_user_id=authenticated.user.id,
+                venue_registry=configuration.venue_registry(session),
             )
         return reference_response(record)
 

@@ -9,6 +9,8 @@ erDiagram
     USERS ||--o{ USER_SESSIONS : owns
     USERS ||--o{ BIBLIOGRAPHIC_REFERENCES : creates_or_updates
     USERS ||--o{ REFERENCE_AUDIT_EVENTS : performs
+    USERS ||--o{ APPLICATION_CONFIGURATION : updates
+    USERS ||--o{ APPLICATION_CONFIGURATION_AUDIT_EVENTS : performs
     REFERENCE_HISTORY_HEADS ||--o{ REFERENCE_AUDIT_EVENTS : orders
     BIBLIOGRAPHIC_REFERENCES ||--o{ REFERENCE_CONTRIBUTORS : has
     BIBLIOGRAPHIC_REFERENCES ||--o{ REFERENCE_IDENTIFIERS : has
@@ -50,6 +52,25 @@ erDiagram
         integer latest_revision
         timestamp updated_at
     }
+
+    APPLICATION_CONFIGURATION {
+        text kind PK
+        text key PK
+        integer revision
+        uuid updated_by_user_id FK
+        jsonb data
+    }
+
+    APPLICATION_CONFIGURATION_AUDIT_EVENTS {
+        uuid id PK
+        text kind
+        text key
+        integer revision
+        text action
+        uuid actor_user_id FK
+        jsonb before_data
+        jsonb after_data
+    }
 ```
 
 Contributors are deliberately reference-scoped. Equal author spellings do not prove that two people are the same person, so the initial schema does not create a global person authority record.
@@ -90,6 +111,10 @@ History snapshot version 2 contains all restorable relational state plus `submit
 `POST /references/{id}/revert` accepts a target revision and the caller's observed head revision. It locks the persistent history head, rejects a stale head with HTTP 409, restores the exact target snapshot under the original reference UUID, and appends a new `restore` revision identifying its source revision. Strong DOI and arXiv uniqueness constraints are checked again, so restoration cannot overwrite a conflicting live reference.
 
 Historical revisions are append-only. PostgreSQL has a trigger that rejects `UPDATE` and `DELETE` on `reference_audit_events`; application code has no history mutation endpoint.
+
+## Application configuration
+
+`application_configuration` stores database overrides for export profiles and venue mappings. A missing row means “use the embedded Rust default,” keeping the service bootable and the standalone tools deterministic without database configuration. Every effective write compares the caller's `expected_revision`, records the authenticated actor, and appends the action plus complete before/after documents to `application_configuration_audit_events` in the same transaction. The first override of a built-in setting records the embedded definition as `before_data`, so its diff contains only values the user actually changed. New actions distinguish custom creation, built-in override, update, built-in-default restoration, and custom deletion; pre-action-tracking rows use the neutral `change` action when their exact meaning cannot be inferred. Data identical to the current override or embedded default is a no-op: it creates neither an override nor an audit revision. A custom deletion has a null `after_data`; restoring a built-in default records the restored embedded document and removes the override row. Audit revision numbers continue across deletion and recreation of the same key, and category-level history queries retain deleted keys. The effective venue registry is validated as one snapshot so duplicate IDs and alias collisions cannot be committed.
 
 ## Migrations
 

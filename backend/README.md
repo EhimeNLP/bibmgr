@@ -49,7 +49,7 @@ Production startup must run `bibmgr-db upgrade` before starting the application.
 | `GET /references/{id}/history` | Fetch the ordered revisions of one reference |
 | `POST /references/{id}/revert` | Restore a revision as a new head revision |
 
-Reference search and detail are public. History reads require a logged-in session because they expose operator identities. Reference writes and revision restore additionally require a valid `X-CSRF-Token` header.
+All application and reference endpoints require a logged-in session. Reference writes, revision restore, and global configuration changes additionally require a valid `X-CSRF-Token` header.
 
 Registration accepts:
 
@@ -87,6 +87,14 @@ The service also exposes:
 - `POST /bibtex/registration/canonicalize`
 - `GET /bibtex/export/profiles`
 - `POST /bibtex/export`
+- `GET /settings/configuration`
+- `GET /settings/configuration-history?kind=export_profile|venue`
+- `PUT /settings/export-profiles/{profile_id}`
+- `DELETE /settings/export-profiles/{profile_id}`
+- `PUT /settings/venues/{venue_id}`
+- `DELETE /settings/venues/{venue_id}`
+
+`POST /bibtex/export` accepts `venue_name_style` as `full` or `abbreviated` and defaults to `full` for every output profile. The settings catalog combines embedded defaults with PostgreSQL overrides. `PUT` creates or updates a setting. Submitting data identical to the effective setting is a no-op and does not advance its revision. `DELETE` removes a custom setting or removes a built-in setting's override so its embedded default becomes effective again. All effective writes use optimistic revisions, run native configuration validation before commit where applicable, and append actor-attributed audit events. Configuration history is paginated by `limit` and `offset`, includes deleted custom settings, and identifies each new event as create, override, update, restore-default, or delete. Events created before action tracking was introduced use the neutral `change` label when the exact action cannot be inferred from their snapshots.
 
 `GET /healthz` is a process liveness check. `GET /readyz` verifies database connectivity. `GET /metrics` exposes Prometheus text metrics. Every HTTP response includes `X-Request-ID`, and the backend writes structured request logs without request bodies, email addresses, or BibTeX content.
 

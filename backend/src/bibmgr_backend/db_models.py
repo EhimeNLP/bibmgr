@@ -494,3 +494,99 @@ class ReferenceAuditEvent(Base):
             "occurred_at",
         ),
     )
+
+
+class ApplicationConfigurationRecord(Base):
+    """Database override for one built-in or custom application setting."""
+
+    __tablename__ = "application_configuration"
+
+    kind: Mapped[str] = mapped_column(String(32), primary_key=True)
+    key: Mapped[str] = mapped_column(String(128), primary_key=True)
+    data: Mapped[dict[str, Any]] = mapped_column(json_type, nullable=False)
+    revision: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    updated_by_user_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid(as_uuid=True),
+        ForeignKey("users.id", ondelete="RESTRICT"),
+        nullable=False,
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, default=utc_now
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        default=utc_now,
+        onupdate=utc_now,
+    )
+
+    updated_by: Mapped[UserRecord] = relationship(lazy="joined")
+
+    __table_args__ = (
+        CheckConstraint(
+            "kind IN ('export_profile', 'venue')",
+            name="ck_application_configuration_kind",
+        ),
+        CheckConstraint(
+            "revision >= 1",
+            name="ck_application_configuration_revision",
+        ),
+        Index(
+            "ix_application_configuration_updated_at",
+            "updated_at",
+        ),
+    )
+
+
+class ApplicationConfigurationAuditEvent(Base):
+    """Append-only attribution for global configuration changes."""
+
+    __tablename__ = "application_configuration_audit_events"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    kind: Mapped[str] = mapped_column(String(32), nullable=False)
+    key: Mapped[str] = mapped_column(String(128), nullable=False)
+    revision: Mapped[int] = mapped_column(Integer, nullable=False)
+    action: Mapped[str] = mapped_column(String(24), nullable=False)
+    actor_user_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid(as_uuid=True),
+        ForeignKey("users.id", ondelete="RESTRICT"),
+        nullable=False,
+    )
+    before_data: Mapped[dict[str, Any] | None] = mapped_column(json_type)
+    after_data: Mapped[dict[str, Any] | None] = mapped_column(json_type)
+    occurred_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, default=utc_now
+    )
+
+    actor: Mapped[UserRecord] = relationship(lazy="joined")
+
+    __table_args__ = (
+        CheckConstraint(
+            "kind IN ('export_profile', 'venue')",
+            name="ck_application_configuration_audit_kind",
+        ),
+        CheckConstraint(
+            "revision >= 1",
+            name="ck_application_configuration_audit_revision",
+        ),
+        CheckConstraint(
+            "action IN ("
+            "'change', 'create', 'override', 'update', "
+            "'restore_default', 'delete'"
+            ")",
+            name="ck_application_configuration_audit_action",
+        ),
+        UniqueConstraint(
+            "kind",
+            "key",
+            "revision",
+            name="uq_application_configuration_audit_revision",
+        ),
+        Index(
+            "ix_application_configuration_audit_occurred_at",
+            "occurred_at",
+        ),
+    )
