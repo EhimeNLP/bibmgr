@@ -37,10 +37,12 @@ const activeFilters = ref<ReferenceSearchFilters>({
 const mobileView = ref<"library" | "detail">("library");
 const mobileBackButton = ref<HTMLButtonElement | null>(null);
 const authMenu = ref<InstanceType<typeof AuthMenu> | null>(null);
+const isAuthenticationLoading = ref(true);
 const authenticationSession = ref<AuthenticationSession>({
   schema_version: "1",
   authenticated: false,
 });
+let referenceLoadGeneration = 0;
 const pageNumber = computed(() =>
   Math.floor(pageOffset.value / pageLimit) + 1
 );
@@ -54,7 +56,6 @@ onMounted(() => {
     AUTHENTICATION_REQUIRED_EVENT,
     handleAuthenticationRequired,
   );
-  void loadReferences(activeFilters.value, 0);
   void loadAuthenticationSession();
 });
 
@@ -66,20 +67,34 @@ onBeforeUnmount(() => {
 });
 
 async function loadAuthenticationSession() {
+  isAuthenticationLoading.value = true;
   try {
     authenticationSession.value = await getAuthenticationSession();
+    if (authenticationSession.value.authenticated) {
+      await loadReferences(activeFilters.value, 0);
+    } else {
+      resetProtectedWorkspace();
+    }
   } catch (error) {
     console.error(error);
     authenticationSession.value = {
       schema_version: "1",
       authenticated: false,
     };
+    resetProtectedWorkspace();
+  } finally {
+    isAuthenticationLoading.value = false;
   }
 }
 
 function handleAuthenticationChanged(session: AuthenticationSession) {
   authenticationSession.value = session;
-  if (!session.authenticated) clearRememberedAuthentication();
+  if (session.authenticated) {
+    void loadReferences(activeFilters.value, 0);
+  } else {
+    clearRememberedAuthentication();
+    resetProtectedWorkspace();
+  }
 }
 
 function requestLogin() {
@@ -91,6 +106,7 @@ function handleAuthenticationRequired() {
     schema_version: "1",
     authenticated: false,
   };
+  resetProtectedWorkspace();
   void authMenu.value?.openLogin();
 }
 
@@ -98,6 +114,8 @@ async function loadReferences(
   filters: ReferenceSearchFilters,
   offset: number,
 ) {
+  if (!authenticationSession.value.authenticated) return;
+  const generation = ++referenceLoadGeneration;
   isLoading.value = true;
   errorMessage.value = null;
   selectedReference.value = null;
@@ -107,18 +125,49 @@ async function loadReferences(
       limit: pageLimit,
       offset,
     });
+    if (
+      generation !== referenceLoadGeneration ||
+      !authenticationSession.value.authenticated
+    ) {
+      return;
+    }
     references.value = page.items;
     totalReferences.value = page.total;
     pageOffset.value = page.offset;
     selectedReference.value = references.value[0] ?? null;
   } catch (error) {
+    if (
+      generation !== referenceLoadGeneration ||
+      !authenticationSession.value.authenticated
+    ) {
+      return;
+    }
     console.error(error);
     errorMessage.value = "Failed to load references.";
     references.value = [];
     totalReferences.value = 0;
   } finally {
-    isLoading.value = false;
+    if (generation === referenceLoadGeneration) {
+      isLoading.value = false;
+    }
   }
+}
+
+function resetProtectedWorkspace() {
+  referenceLoadGeneration += 1;
+  query.value = "";
+  references.value = [];
+  selectedReference.value = null;
+  isLoading.value = false;
+  errorMessage.value = null;
+  hasSearched.value = false;
+  totalReferences.value = 0;
+  pageOffset.value = 0;
+  activeFilters.value = {
+    query: "",
+    sort: "updated_desc",
+  };
+  mobileView.value = "library";
 }
 
 async function handleSearch(filters?: ReferenceSearchFilters) {
@@ -221,6 +270,44 @@ async function changePage(direction: -1 | 1) {
 
     <main class="app-shell app-main">
       <section
+        v-if="isAuthenticationLoading"
+        class="access-state"
+        role="status"
+        aria-live="polite"
+      >
+        <div class="state-icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none">
+            <circle cx="12" cy="12" r="8" />
+            <path d="M12 7v5l3 2" />
+          </svg>
+        </div>
+        <h2>Checking your session…</h2>
+        <p>BibMgR will open after your laboratory account is verified.</p>
+      </section>
+
+      <section
+        v-else-if="!authenticationSession.authenticated"
+        class="access-state"
+        aria-labelledby="access-heading"
+      >
+        <div class="state-icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none">
+            <rect x="5" y="10" width="14" height="10" rx="3" />
+            <path d="M8.5 10V7.5a3.5 3.5 0 0 1 7 0V10M12 14v2" />
+          </svg>
+        </div>
+        <h2 id="access-heading">Log in to access BibMgR</h2>
+        <p>
+          Reference search, BibTeX tools, exports, and library changes require
+          a laboratory account.
+        </p>
+        <button type="button" class="button-primary" @click="requestLogin">
+          Log in to continue
+        </button>
+      </section>
+
+      <section
+        v-else
         class="content-layout"
         :class="{ 'show-detail': mobileView === 'detail' }"
         aria-label="Bibliography workspace"

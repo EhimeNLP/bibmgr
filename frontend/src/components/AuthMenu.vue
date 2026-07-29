@@ -229,9 +229,10 @@ defineExpose({ openLogin });
           <header class="auth-sheet__header">
             <div>
               <p class="auth-eyebrow">Laboratory account</p>
-              <h2 id="auth-heading">Log in to write</h2>
+              <h2 id="auth-heading">Log in to BibMgR</h2>
               <p>
-                Search and export remain available without an account.
+                A laboratory account is required to access the reference
+                library and BibTeX tools.
               </p>
             </div>
             <button
@@ -352,8 +353,8 @@ defineExpose({ openLogin });
               <p class="auth-eyebrow">Laboratory account</p>
               <h2 id="sign-out-heading">Sign out?</h2>
               <p id="sign-out-description">
-                You will need a new email login code before making further
-                changes.
+                You will need a new email login code before accessing BibMgR
+                again.
               </p>
             </div>
           </header>

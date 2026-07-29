@@ -10,6 +10,7 @@ import type {
   RegistrationValidationResult,
   ValidateRegistrationRequest,
 } from "../types/bibtex";
+import { handleAuthenticationFailure } from "./auth";
 import { API_BASE_URL } from "./base";
 
 export type BibtexRequestOptions = {
@@ -88,6 +89,7 @@ async function getVersionedJson<T extends { schema_version: "1" }>(
 ): Promise<T> {
   const response = await fetch(`${API_BASE_URL}${path}`, {
     method: "GET",
+    credentials: "include",
     headers: jsonHeaders(),
     signal: options?.signal,
   });
@@ -101,6 +103,7 @@ async function postVersionedJson<T extends { schema_version: "1" }>(
 ): Promise<T> {
   const response = await fetch(`${API_BASE_URL}${path}`, {
     method: "POST",
+    credentials: "include",
     headers: jsonHeaders(),
     body: JSON.stringify(body),
     signal: options?.signal,
@@ -114,6 +117,7 @@ async function versionedResponse<T extends { schema_version: "1" }>(
   const payload = await readResponsePayload(response);
 
   if (!response.ok) {
+    handleAuthenticationFailure(response.status);
     throw apiError(payload, response.status);
   }
   if (!isRecord(payload) || payload.schema_version !== "1") {

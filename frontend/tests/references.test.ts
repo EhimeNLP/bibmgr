@@ -9,6 +9,7 @@ import {
   searchReferences,
   updateReference,
 } from "../src/api/references";
+import { AUTHENTICATION_REQUIRED_EVENT } from "../src/api/auth";
 
 const sourceRevision = `sha256:${"0".repeat(64)}`;
 const reference = {
@@ -53,6 +54,7 @@ describe("reference library API", () => {
     const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
     expect(url).toBe("/api/references?query=%E5%B1%B1%E7%94%B0&limit=100");
     expect(init.method).toBe("GET");
+    expect(init.credentials).toBe("include");
   });
 
   it("removes BibTeX case-protection braces from display titles", async () => {
@@ -231,5 +233,38 @@ describe("reference library API", () => {
       status: 409,
       details: { source_revision: sourceRevision },
     });
+  });
+
+  it("requests login when a reference read returns 401", async () => {
+    const authenticationRequired = vi.fn();
+    window.addEventListener(
+      AUTHENTICATION_REQUIRED_EVENT,
+      authenticationRequired,
+    );
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        jsonResponse(
+          {
+            schema_version: "1",
+            error: {
+              code: "authentication_required",
+              message: "Login is required for this operation.",
+            },
+          },
+          401,
+        ),
+      ),
+    );
+
+    await expect(searchReferencePage({ query: "" })).rejects.toMatchObject({
+      status: 401,
+      code: "authentication_required",
+    });
+    expect(authenticationRequired).toHaveBeenCalledOnce();
+    window.removeEventListener(
+      AUTHENTICATION_REQUIRED_EVENT,
+      authenticationRequired,
+    );
   });
 });

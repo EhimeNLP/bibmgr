@@ -3,29 +3,37 @@ import { expect, test, type APIRequestContext, type Page } from "@playwright/tes
 
 const email = "e2e.visitor@example.org";
 
-test("login, CRUD, restore, and public accessibility", async ({
+test("authenticated access, CRUD, restore, and accessibility", async ({
   page,
   request,
 }) => {
   await page.goto("/");
   await expect(
-    page.getByRole("heading", { name: "References", exact: true }),
+    page.getByRole("heading", { name: "Log in to access BibMgR" }),
   ).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "References", exact: true }),
+  ).toHaveCount(0);
   await assertNoSeriousAccessibilityViolations(page);
 
-  await page.getByRole("button", { name: "Log in" }).click();
+  await page
+    .getByRole("button", { name: "Log in", exact: true })
+    .click();
   await page.getByLabel("Laboratory email").fill(email);
   const requestedAt = Date.now();
   await page.getByRole("button", { name: "Send login code" }).click();
   const code = await latestMailpitCode(request, email, requestedAt);
   await page.getByLabel("8-digit login code").fill(code);
-  const loginDialog = page.getByRole("dialog", { name: "Log in to write" });
+  const loginDialog = page.getByRole("dialog", { name: "Log in to BibMgR" });
   await page
-    .getByRole("dialog", { name: "Log in to write" })
+    .getByRole("dialog", { name: "Log in to BibMgR" })
     .getByRole("button", { name: "Log in", exact: true })
     .click();
   await expect(loginDialog).toHaveCount(0);
   await expect(page.getByText(email)).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "References", exact: true }),
+  ).toBeVisible();
 
   await page.getByRole("button", { name: "Add reference" }).click();
   await page.getByLabel("BibTeX entry").fill(
@@ -90,6 +98,19 @@ test("login, CRUD, restore, and public accessibility", async ({
     page.getByRole("button", { name: "Download .bib", exact: true }),
   ).toBeEnabled();
   await assertNoSeriousAccessibilityViolations(page);
+
+  await page.getByRole("button", { name: "Close history" }).click();
+  await page.getByRole("button", { name: "Sign out" }).click();
+  const signOutDialog = page.getByRole("alertdialog", {
+    name: "Sign out?",
+  });
+  await signOutDialog.getByRole("button", { name: "Sign out" }).click();
+  await expect(
+    page.getByRole("heading", { name: "Log in to access BibMgR" }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "References", exact: true }),
+  ).toHaveCount(0);
 });
 
 async function registerAndWaitForCompletion(page: Page) {

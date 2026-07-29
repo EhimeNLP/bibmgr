@@ -10,6 +10,7 @@ import {
   listBibtexExportProfiles,
   validateBibtexForRegistration,
 } from "../src/api/bibtex";
+import { AUTHENTICATION_REQUIRED_EVENT } from "../src/api/auth";
 
 const sourceRevision = `sha256:${"0".repeat(64)}`;
 
@@ -50,6 +51,7 @@ describe("BibTeX API", () => {
     const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
     expect(url).toBe("/api/bibtex/analyze");
     expect(init.method).toBe("POST");
+    expect(init.credentials).toBe("include");
     expect(init.signal).toBe(controller.signal);
     expect(JSON.parse(String(init.body))).toEqual({
       source,
@@ -176,8 +178,42 @@ describe("BibTeX API", () => {
     const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
     expect(url).toBe("/api/bibtex/export/profiles");
     expect(init.method).toBe("GET");
+    expect(init.credentials).toBe("include");
     expect(init.signal).toBe(controller.signal);
     expect(init.body).toBeUndefined();
+  });
+
+  it("requests login when the session is no longer valid", async () => {
+    const authenticationRequired = vi.fn();
+    window.addEventListener(
+      AUTHENTICATION_REQUIRED_EVENT,
+      authenticationRequired,
+    );
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        jsonResponse(
+          {
+            schema_version: "1",
+            error: {
+              code: "authentication_required",
+              message: "Login is required for this operation.",
+            },
+          },
+          401,
+        ),
+      ),
+    );
+
+    await expect(listBibtexExportProfiles()).rejects.toMatchObject({
+      status: 401,
+      code: "authentication_required",
+    });
+    expect(authenticationRequired).toHaveBeenCalledOnce();
+    window.removeEventListener(
+      AUTHENTICATION_REQUIRED_EVENT,
+      authenticationRequired,
+    );
   });
 
   it("exposes structured backend errors", async () => {

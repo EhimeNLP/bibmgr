@@ -329,6 +329,42 @@ svg {
   padding-block: 22px 26px;
 }
 
+.access-state {
+  display: flex;
+  width: 100%;
+  height: clamp(420px, calc(100svh - 112px), 680px);
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  padding: 48px 24px;
+  border: 0.5px solid var(--color-border);
+  border-radius: var(--radius-window);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-window);
+  text-align: center;
+}
+
+.access-state h2 {
+  margin: 16px 0 0;
+  color: var(--color-text);
+  font-size: 21px;
+  font-weight: 650;
+  letter-spacing: -0.025em;
+  line-height: 1.25;
+}
+
+.access-state p {
+  max-width: 46ch;
+  margin: 8px 0 0;
+  color: var(--color-text-secondary);
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.access-state .button-primary {
+  margin-top: 22px;
+}
+
 .content-layout {
   display: grid;
   width: 100%;
@@ -2891,6 +2927,12 @@ pre {
     display: block;
     height: calc(100svh - 86px);
     min-height: 520px;
+    border-radius: 22px;
+  }
+
+  .access-state {
+    height: calc(100svh - 86px);
+    min-height: 420px;
     border-radius: 22px;
   }
 

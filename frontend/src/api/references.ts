@@ -20,11 +20,12 @@ export async function searchReferences(query: string): Promise<Reference[]> {
   });
   const response = await fetch(
     `${API_BASE_URL}/references?${parameters.toString()}`,
-    { method: "GET" },
+    { method: "GET", credentials: "include" },
   );
   const payload = await readResponsePayload(response);
 
   if (!response.ok) {
+    handleAuthenticationFailure(response.status);
     throw referenceApiError(payload, response.status);
   }
   if (!Array.isArray(payload)) {
@@ -55,10 +56,11 @@ export async function searchReferencePage(
   appendParameter(parameters, "offset", options.offset ?? 0);
   const response = await fetch(
     `${API_BASE_URL}/references/page?${parameters.toString()}`,
-    { method: "GET" },
+    { method: "GET", credentials: "include" },
   );
   const payload = await readResponsePayload(response);
   if (!response.ok) {
+    handleAuthenticationFailure(response.status);
     throw referenceApiError(payload, response.status);
   }
   if (
@@ -84,7 +86,7 @@ export async function searchReferencePage(
 export async function getReference(referenceId: string): Promise<Reference> {
   const response = await fetch(
     `${API_BASE_URL}/references/${encodeURIComponent(referenceId)}`,
-    { method: "GET" },
+    { method: "GET", credentials: "include" },
   );
   return referenceResponse(response);
 }
