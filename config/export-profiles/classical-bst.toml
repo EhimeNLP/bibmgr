@@ -25,6 +25,7 @@ field_order = [
   "note",
 ]
 field_case = "lowercase"
+case_protected_fields = ["title"]
 value_delimiter = "braces"
 line_ending = "lf"
 indent = "  "

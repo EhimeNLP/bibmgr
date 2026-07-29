@@ -35,6 +35,7 @@ field_order = [
   "note",
 ]
 field_case = "canonical"
+case_protected_fields = ["title"]
 value_delimiter = "braces"
 line_ending = "lf"
 indent = "  "
