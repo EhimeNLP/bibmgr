@@ -127,11 +127,17 @@ describe("HistoryPanel", () => {
     await flushPromises();
     const restoreButtons = wrapper.findAll("button.history-restore");
     expect(restoreButtons).toHaveLength(1);
-    expect(wrapper.text()).toContain(
-      "View submitted and stored BibTeX",
-    );
-    expect(wrapper.text()).toContain("Submitted source");
-    expect(wrapper.text()).toContain("Stored BibTeX");
+    expect(wrapper.text()).toContain("View BibTeX changes");
+    expect(wrapper.text()).toContain("View submitted-to-stored changes");
+    const revisionItems = wrapper.findAll(".history-list > li");
+    await revisionItems[0]!
+      .get(".history-revision__source")
+      .trigger("click");
+    expect(revisionItems[0]!.findAll(".is-deletion").length).toBeGreaterThan(0);
+    await revisionItems[1]!
+      .get(".history-revision__source")
+      .trigger("click");
+    expect(revisionItems[1]!.findAll(".is-addition").length).toBeGreaterThan(0);
     await restoreButtons[0]!.trigger("click");
     expect(wrapper.text()).toContain("Restore revision 1 as a new revision?");
 

@@ -12,7 +12,8 @@ import type {
   ReferenceRevision,
 } from "../types/history";
 import type { Reference } from "../types/reference";
-import BibtexCodeBlock from "./BibtexCodeBlock.vue";
+import AppIcon from "./AppIcon.vue";
+import UnifiedDiff from "./UnifiedDiff.vue";
 
 const props = defineProps<{
   authenticated: boolean;
@@ -56,6 +57,22 @@ const catalogPage = computed(
 const catalogPageCount = computed(() =>
   Math.max(1, Math.ceil(catalogTotal.value / catalogLimit)),
 );
+const revisionDiffs = computed(() => {
+  const diffs = new Map<number, { before: string; after: string }>();
+  let previous = "";
+  const revisions = [...(history.value?.revisions ?? [])].sort(
+    (left, right) => left.revision - right.revision,
+  );
+  for (const revision of revisions) {
+    const after =
+      revision.action === "delete"
+        ? ""
+        : (revision.canonicalBibtex ?? previous);
+    diffs.set(revision.revision, { before: previous, after });
+    previous = after;
+  }
+  return diffs;
+});
 
 watch(
   () => props.authenticated,
@@ -224,14 +241,35 @@ function sourceDiffersFromStored(revision: ReferenceRevision): boolean {
   );
 }
 
+function revisionDiff(revision: ReferenceRevision) {
+  return (
+    revisionDiffs.value.get(revision.revision) ?? {
+      before: "",
+      after: revision.canonicalBibtex ?? "",
+    }
+  );
+}
+
+function beforeRevisionLabel(revision: ReferenceRevision) {
+  return revision.revision === 1
+    ? "Empty"
+    : `Revision ${revision.revision - 1}`;
+}
+
+function afterRevisionLabel(revision: ReferenceRevision) {
+  return revision.action === "delete"
+    ? "Deleted"
+    : `Revision ${revision.revision}`;
+}
+
 function actionLabel(action: ReferenceHistoryAction): string {
   return {
     baseline: "Baseline captured",
     create: "Created",
     update: "Edited",
     delete: "Deleted",
-      restore: "Restored",
-      context: "Citation contexts added",
+    restore: "Restored",
+    context: "Citation contexts added",
   }[action];
 }
 
@@ -302,10 +340,7 @@ function trapDialogFocus(event: KeyboardEvent, root: HTMLElement | null) {
       :title="authenticated ? 'Reference history' : 'Log in to view history'"
       @click="openHistory"
     >
-      <svg aria-hidden="true" viewBox="0 0 18 18" fill="none">
-        <path d="M4.2 5.3A6 6 0 1 1 3 9" />
-        <path d="M1.8 4.2v3.2H5M9 5.5V9l2.3 1.4" />
-      </svg>
+      <AppIcon name="clock-history" />
       <span>History</span>
     </button>
 
@@ -335,9 +370,7 @@ function trapDialogFocus(event: KeyboardEvent, root: HTMLElement | null) {
               aria-label="Close history"
               @click="closeHistory"
             >
-              <svg aria-hidden="true" viewBox="0 0 18 18" fill="none">
-                <path d="m5 5 8 8M13 5l-8 8" />
-              </svg>
+              <AppIcon name="x-lg" />
             </button>
           </header>
 
@@ -426,28 +459,33 @@ function trapDialogFocus(event: KeyboardEvent, root: HTMLElement | null) {
                       Restored from revision {{ revision.restoredFromRevision }}
                     </p>
                     <details
-                      v-if="revision.canonicalBibtex"
+                      v-if="
+                        revisionDiff(revision).before ||
+                        revisionDiff(revision).after
+                      "
                       class="history-revision__source"
                     >
-                      <summary>
-                        {{
-                          sourceDiffersFromStored(revision)
-                            ? "View submitted and stored BibTeX"
-                            : "View stored BibTeX"
-                        }}
-                      </summary>
-                      <template v-if="sourceDiffersFromStored(revision)">
-                        <h4>Submitted source</h4>
-                        <BibtexCodeBlock
-                          :source="revision.submittedBibtex || ''"
-                          accessible-label="Submitted BibTeX source"
-                        />
-                      </template>
-                      <h4>Stored BibTeX</h4>
-                      <BibtexCodeBlock
-                        :source="revision.canonicalBibtex"
-                        accessible-label="Stored BibTeX"
+                      <summary>View BibTeX changes</summary>
+                      <UnifiedDiff
+                        :before="revisionDiff(revision).before"
+                        :after="revisionDiff(revision).after"
+                        :before-label="beforeRevisionLabel(revision)"
+                        :after-label="afterRevisionLabel(revision)"
+                        :accessible-label="`BibTeX changes in revision ${revision.revision}`"
                       />
+                      <details
+                        v-if="sourceDiffersFromStored(revision)"
+                        class="history-revision__normalization"
+                      >
+                        <summary>View submitted-to-stored changes</summary>
+                        <UnifiedDiff
+                          :before="revision.submittedBibtex || ''"
+                          :after="revision.canonicalBibtex || ''"
+                          before-label="Submitted"
+                          after-label="Stored"
+                          :accessible-label="`Submitted-to-stored changes in revision ${revision.revision}`"
+                        />
+                      </details>
                     </details>
                   </div>
                   <button
