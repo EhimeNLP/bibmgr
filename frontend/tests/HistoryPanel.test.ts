@@ -62,6 +62,14 @@ const restored = {
   authors: [],
 };
 
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>((resolvePromise) => {
+    resolve = resolvePromise;
+  });
+  return { promise, resolve };
+}
+
 afterEach(() => {
   vi.resetAllMocks();
   document.body.classList.remove("history-open");
@@ -136,6 +144,63 @@ describe("HistoryPanel", () => {
       2,
     );
     expect(wrapper.emitted("restored")).toEqual([[restored]]);
+    wrapper.unmount();
+  });
+
+  it("ignores a stale history response after selecting another reference", async () => {
+    const secondReferenceId = "b67ac241-aed7-419c-9dc7-435475808b30";
+    const secondSummary = {
+      ...summary,
+      referenceId: secondReferenceId,
+      title: "Selected paper",
+    };
+    const firstResponse = deferred<typeof history>();
+    const secondResponse = deferred<typeof history>();
+    historyApi.pageReferenceHistory.mockResolvedValue({
+      items: [summary, secondSummary],
+      total: 2,
+      limit: 25,
+      offset: 0,
+    });
+    historyApi.getReferenceHistory.mockImplementation(
+      (requestedReferenceId: string) =>
+        requestedReferenceId === referenceId
+          ? firstResponse.promise
+          : secondResponse.promise,
+    );
+    const wrapper = mount(HistoryPanel, {
+      props: { authenticated: true },
+      attachTo: document.body,
+      global: { stubs: { Teleport: true } },
+    });
+
+    await wrapper.get("button.history-trigger").trigger("click");
+    await vi.waitFor(() => {
+      expect(wrapper.findAll(".history-catalog > button")).toHaveLength(2);
+    });
+    await wrapper.findAll(".history-catalog > button")[1]!.trigger("click");
+    secondResponse.resolve({
+      ...history,
+      referenceId: secondReferenceId,
+      revisions: [
+        {
+          ...history.revisions[0]!,
+          title: "Selected revision",
+          actor: {
+            ...history.revisions[0]!.actor,
+            email: "selected@ai.cs.ehime-u.ac.jp",
+          },
+        },
+      ],
+    });
+    await flushPromises();
+    expect(wrapper.text()).toContain("selected@ai.cs.ehime-u.ac.jp");
+
+    firstResponse.resolve(history);
+    await flushPromises();
+
+    expect(wrapper.text()).toContain("selected@ai.cs.ehime-u.ac.jp");
+    expect(wrapper.text()).not.toContain("member@ai.cs.ehime-u.ac.jp");
     wrapper.unmount();
   });
 });

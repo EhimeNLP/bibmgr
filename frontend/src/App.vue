@@ -150,7 +150,7 @@ async function showLibrary(event?: MouseEvent) {
   });
 }
 
-async function handleReferenceRegistered(reference: Reference) {
+async function refreshAfterReferenceWrite(reference: Reference) {
   await loadReferences(activeFilters.value, 0);
   selectedReference.value =
     references.value.find((item) => item.id === reference.id) ?? reference;
@@ -161,8 +161,17 @@ async function handleReferenceRegistered(reference: Reference) {
   }
 }
 
+async function handleReferencesRegistered(registered: Reference[]) {
+  const firstRegistered = registered[0];
+  if (firstRegistered) await refreshAfterReferenceWrite(firstRegistered);
+}
+
+async function handleReferenceUpdated(reference: Reference) {
+  await refreshAfterReferenceWrite(reference);
+}
+
 function handleReferenceRestored(reference: Reference) {
-  void handleReferenceRegistered(reference);
+  void refreshAfterReferenceWrite(reference);
 }
 
 async function handleReferenceDeleted() {
@@ -237,7 +246,7 @@ async function changePage(direction: -1 | 1) {
               />
               <RegistrationPanel
                 :authenticated="authenticationSession.authenticated"
-                @registered="handleReferenceRegistered"
+                @registered="handleReferencesRegistered"
                 @login-required="requestLogin"
               />
             </div>
@@ -322,7 +331,7 @@ async function changePage(direction: -1 | 1) {
           <ReferenceDetail
             :reference="selectedReference"
             :authenticated="authenticationSession.authenticated"
-            @updated="handleReferenceRegistered"
+            @updated="handleReferenceUpdated"
             @deleted="handleReferenceDeleted"
             @login-required="requestLogin"
           />

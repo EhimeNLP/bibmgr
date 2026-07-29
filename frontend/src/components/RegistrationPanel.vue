@@ -20,7 +20,7 @@ const props = defineProps<{
 }>();
 
 const emit = defineEmits<{
-  registered: [reference: Reference];
+  registered: [references: Reference[]];
   loginRequired: [];
 }>();
 
@@ -254,9 +254,7 @@ function resetFileInput() {
 function emitRegisteredReferences(result: RegisterBibtexResult) {
   const references =
     result.references?.length ? result.references : [result.reference];
-  for (const reference of references) {
-    emit("registered", reference);
-  }
+  emit("registered", references);
 }
 
 function replaceDiagnostics(

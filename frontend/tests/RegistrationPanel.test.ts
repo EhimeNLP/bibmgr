@@ -242,7 +242,7 @@ describe("RegistrationPanel", () => {
     expect(wrapper.get<HTMLTextAreaElement>("#manual-bibtex").element.value).toBe(
       "",
     );
-    expect(wrapper.emitted("registered")).toEqual([[reference]]);
+    expect(wrapper.emitted("registered")).toEqual([[[reference]]]);
   });
 
   it("surfaces manual registration failures and preserves the entry", async () => {
@@ -294,7 +294,7 @@ describe("RegistrationPanel", () => {
     expect(wrapper.find('[data-testid="manual-canonical-preview"]').exists()).toBe(
       false,
     );
-    expect(wrapper.emitted("registered")).toEqual([[reference]]);
+    expect(wrapper.emitted("registered")).toEqual([[[reference]]]);
   });
 
   it("previews the selected output profile without changing registration input", async () => {
@@ -509,7 +509,7 @@ describe("RegistrationPanel", () => {
       "reference.BIB was registered.",
     );
     expect(wrapper.find("#file-bibtex-preview").exists()).toBe(false);
-    expect(wrapper.emitted("registered")).toEqual([[reference]]);
+    expect(wrapper.emitted("registered")).toEqual([[[reference]]]);
   });
 
   it("accepts and preserves multiple entries from one .bib file", async () => {
@@ -554,8 +554,7 @@ describe("RegistrationPanel", () => {
       source: "file",
     });
     expect(wrapper.emitted("registered")).toEqual([
-      [reference],
-      [secondReference],
+      [[reference, secondReference]],
     ]);
   });
 
@@ -587,7 +586,7 @@ describe("RegistrationPanel", () => {
       bibtex,
       source: "file",
     });
-    expect(wrapper.emitted("registered")).toEqual([[reference]]);
+    expect(wrapper.emitted("registered")).toEqual([[[reference]]]);
   });
 
   it("uses the backend rather than the estimated entry count as authority", async () => {

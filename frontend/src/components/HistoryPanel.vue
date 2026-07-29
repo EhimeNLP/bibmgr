@@ -24,7 +24,11 @@ const emit = defineEmits<{
 }>();
 
 const isOpen = ref(false);
-const isLoading = ref(false);
+const isCatalogLoading = ref(false);
+const isHistoryLoading = ref(false);
+const isLoading = computed(
+  () => isCatalogLoading.value || isHistoryLoading.value,
+);
 const isRestoring = ref(false);
 const summaries = ref<ReferenceHistorySummary[]>([]);
 const selectedReferenceId = ref<string | null>(null);
@@ -37,6 +41,8 @@ const catalogOffset = ref(0);
 const catalogLimit = 25;
 const dialog = ref<HTMLElement | null>(null);
 const trigger = ref<HTMLButtonElement | null>(null);
+let catalogGeneration = 0;
+let historyGeneration = 0;
 
 const selectedSummary = computed(
   () =>
@@ -59,6 +65,8 @@ watch(
 );
 
 onBeforeUnmount(() => {
+  catalogGeneration += 1;
+  historyGeneration += 1;
   document.body.classList.remove("history-open");
 });
 
@@ -75,6 +83,10 @@ async function openHistory() {
 }
 
 async function closeHistory() {
+  catalogGeneration += 1;
+  historyGeneration += 1;
+  isCatalogLoading.value = false;
+  isHistoryLoading.value = false;
   isOpen.value = false;
   document.body.classList.remove("history-open");
   pendingRevision.value = null;
@@ -83,13 +95,17 @@ async function closeHistory() {
 }
 
 async function loadCatalog() {
-  isLoading.value = true;
+  const generation = ++catalogGeneration;
+  historyGeneration += 1;
+  isHistoryLoading.value = false;
+  isCatalogLoading.value = true;
   errorMessage.value = null;
   try {
     const page = await pageReferenceHistory({
       limit: catalogLimit,
       offset: catalogOffset.value,
     });
+    if (generation !== catalogGeneration || !isOpen.value) return;
     summaries.value = page.items;
     catalogTotal.value = page.total;
     catalogOffset.value = page.offset;
@@ -102,12 +118,16 @@ async function loadCatalog() {
     if (selectedReferenceId.value) {
       await loadHistory(selectedReferenceId.value, false);
     } else {
+      historyGeneration += 1;
       history.value = null;
     }
   } catch (error) {
+    if (generation !== catalogGeneration || !isOpen.value) return;
     errorMessage.value = errorText(error, "Could not load history.");
   } finally {
-    isLoading.value = false;
+    if (generation === catalogGeneration) {
+      isCatalogLoading.value = false;
+    }
   }
 }
 
@@ -115,19 +135,38 @@ async function selectHistory(referenceId: string) {
   selectedReferenceId.value = referenceId;
   pendingRevision.value = null;
   statusMessage.value = null;
+  history.value = null;
   await loadHistory(referenceId);
 }
 
 async function loadHistory(referenceId: string, showLoading = true) {
-  if (showLoading) isLoading.value = true;
+  const generation = ++historyGeneration;
+  if (showLoading) isHistoryLoading.value = true;
   errorMessage.value = null;
   try {
-    history.value = await getReferenceHistory(referenceId);
+    const loadedHistory = await getReferenceHistory(referenceId);
+    if (
+      generation !== historyGeneration ||
+      !isOpen.value ||
+      selectedReferenceId.value !== referenceId
+    ) {
+      return;
+    }
+    history.value = loadedHistory;
   } catch (error) {
+    if (
+      generation !== historyGeneration ||
+      !isOpen.value ||
+      selectedReferenceId.value !== referenceId
+    ) {
+      return;
+    }
     errorMessage.value = errorText(error, "Could not load revisions.");
     history.value = null;
   } finally {
-    if (showLoading) isLoading.value = false;
+    if (showLoading && generation === historyGeneration) {
+      isHistoryLoading.value = false;
+    }
   }
 }
 
