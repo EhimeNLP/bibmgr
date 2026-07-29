@@ -2,23 +2,26 @@
 
 ## Overview
 
-The Vue 3 + TypeScript client provides public reference search, BibTeX validation/fixes, reference detail, and profile-based export. Database writes and operator history require an authenticated email-code session with CSRF protection.
+The Vue 3 + TypeScript client provides authenticated reference search, BibTeX validation/fixes, reference detail, and profile-based export. Database and configuration writes use the email-code session with CSRF protection.
 
 The interface currently supports:
 
 - paginated free-text and structured search by year, author, venue, identifier, entry type, creator, updated range, and sort order;
-- one profile-controlled preview that exports with the laboratory profile by default;
+- one profile-controlled preview that exports with the laboratory profile and full venue names by default, with an independent abbreviated venue-name option;
 - citation-context display;
 - manual and `.bib` batch registration that stores accepted source without profile-driven rewriting while showing an independent profile-selectable output preview;
 - revision-checked edit and delete actions;
 - paginated append-only history and confirmation-based restore;
 - login through the laboratory domain or an exact operator-approved external address;
 - explicit sign-out confirmation and automatic login recovery after session expiry;
+- shared, revision-checked export-profile and venue-mapping settings with actor-attributed history, including deleted settings;
+- Bootstrap Icons through one shared icon component instead of component-owned SVG paths;
+- GitHub-style unified line diffs for reference revisions and shared configuration changes;
 - keyboard focus containment in modal dialogs and Playwright/axe accessibility coverage.
 
 ## Runtime data flow
 
-The browser calls the `api` path below Vite's configured base path. At the default root deployment this is `/api`; Vite proxies it to `http://localhost:8000` during development and Caddy proxies it to the backend in production. Initial loading and searches call `GET /references/page` and retain `total`, `limit`, and `offset` for pagination. Read-only operations do not send authentication credentials.
+The browser calls the `api` path below Vite's configured base path. At the default root deployment this is `/api`; Vite proxies it to `http://localhost:8000` during development and Caddy proxies it to the backend in production. Initial loading and searches call `GET /references/page` and retain `total`, `limit`, and `offset` for pagination. All application operations send the session cookie.
 
 Protected requests send the HttpOnly session cookie with `credentials: "include"` and the session-bound `X-CSRF-Token`. A protected HTTP 401 clears remembered authentication and opens the login dialog. Update sends the observed `source_revision`; delete sends the observed revision as quoted `If-Match`; restore sends the observed history-head revision.
 
@@ -31,6 +34,9 @@ Protected requests send the HttpOnly session cookie with `credentials: "include"
 - `src/components/ReferenceActions.vue`: Apple-style More menu, edit sheet, and destructive confirmation.
 - `src/components/HistoryPanel.vue`: active/deleted histories and append-only restore.
 - `src/components/AuthMenu.vue`: email-code login and sign-out confirmation.
+- `src/components/SettingsPanel.vue`: shared export-profile and venue-mapping creation, change-aware editing, anchored confirmation, actor-attributed history, custom deletion, and restoration of built-in defaults.
+- `src/components/AppIcon.vue`: the shared Bootstrap Icons boundary used by application controls.
+- `src/components/UnifiedDiff.vue`: accessible old/new line numbers and highlighted additions/deletions for audit history.
 - `src/api/`: typed transport and response normalization.
 - `src/types/`: authentication, history, BibTeX, and reference DTOs.
 

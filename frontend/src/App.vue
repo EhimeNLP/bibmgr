@@ -20,6 +20,8 @@ import RegistrationPanel from "./components/RegistrationPanel.vue";
 import ThemeSwitcher from "./components/ThemeSwitcher.vue";
 import AuthMenu from "./components/AuthMenu.vue";
 import HistoryPanel from "./components/HistoryPanel.vue";
+import SettingsPanel from "./components/SettingsPanel.vue";
+import AppIcon from "./components/AppIcon.vue";
 
 const query = ref("");
 const references = ref<Reference[]>([]);
@@ -42,6 +44,7 @@ const authenticationSession = ref<AuthenticationSession>({
   schema_version: "1",
   authenticated: false,
 });
+const configurationGeneration = ref(0);
 let referenceLoadGeneration = 0;
 const pageNumber = computed(() =>
   Math.floor(pageOffset.value / pageLimit) + 1
@@ -223,6 +226,10 @@ function handleReferenceRestored(reference: Reference) {
   void refreshAfterReferenceWrite(reference);
 }
 
+function handleConfigurationChanged() {
+  configurationGeneration.value += 1;
+}
+
 async function handleReferenceDeleted() {
   const nextOffset =
     references.value.length === 1 && pageOffset.value > 0
@@ -260,6 +267,11 @@ async function changePage(direction: -1 | 1) {
           <p>Laboratory Bibliography Manager</p>
         </div>
         <ThemeSwitcher />
+        <SettingsPanel
+          :authenticated="authenticationSession.authenticated"
+          @changed="handleConfigurationChanged"
+          @login-required="requestLogin"
+        />
         <AuthMenu
           ref="authMenu"
           :session="authenticationSession"
@@ -276,10 +288,7 @@ async function changePage(direction: -1 | 1) {
         aria-live="polite"
       >
         <div class="state-icon" aria-hidden="true">
-          <svg viewBox="0 0 24 24" fill="none">
-            <circle cx="12" cy="12" r="8" />
-            <path d="M12 7v5l3 2" />
-          </svg>
+          <AppIcon name="clock" />
         </div>
         <h2>Checking your session…</h2>
         <p>BibMgR will open after your laboratory account is verified.</p>
@@ -291,10 +300,7 @@ async function changePage(direction: -1 | 1) {
         aria-labelledby="access-heading"
       >
         <div class="state-icon" aria-hidden="true">
-          <svg viewBox="0 0 24 24" fill="none">
-            <rect x="5" y="10" width="14" height="10" rx="3" />
-            <path d="M8.5 10V7.5a3.5 3.5 0 0 1 7 0V10M12 14v2" />
-          </svg>
+          <AppIcon name="lock" />
         </div>
         <h2 id="access-heading">Log in to access BibMgR</h2>
         <p>
@@ -332,6 +338,7 @@ async function changePage(direction: -1 | 1) {
                 @login-required="requestLogin"
               />
               <RegistrationPanel
+                :key="`registration-${configurationGeneration}`"
                 :authenticated="authenticationSession.authenticated"
                 @registered="handleReferencesRegistered"
                 @login-required="requestLogin"
@@ -351,7 +358,9 @@ async function changePage(direction: -1 | 1) {
           <LoadingState v-if="isLoading" />
 
           <div v-else-if="errorMessage" class="error-state" role="alert">
-            <div class="state-icon" aria-hidden="true">!</div>
+            <div class="state-icon" aria-hidden="true">
+              <AppIcon name="exclamation-triangle" />
+            </div>
             <h2>References could not be loaded</h2>
             <p>{{ errorMessage }}</p>
             <button type="button" class="button-secondary" @click="handleSearch()">
@@ -410,12 +419,11 @@ async function changePage(direction: -1 | 1) {
             class="mobile-back"
             @click="showLibrary"
           >
-            <svg aria-hidden="true" viewBox="0 0 16 16" fill="none">
-              <path d="m10 3-5 5 5 5" />
-            </svg>
+            <AppIcon name="chevron-left" />
             References
           </button>
           <ReferenceDetail
+            :key="`detail-${configurationGeneration}`"
             :reference="selectedReference"
             :authenticated="authenticationSession.authenticated"
             @updated="handleReferenceUpdated"

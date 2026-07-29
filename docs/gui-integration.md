@@ -20,6 +20,12 @@ The example backend exposes schema-v1 JSON:
 | `POST /bibtex/registration/canonicalize` | Explicit opt-in CST normalization utility |
 | `GET /bibtex/export/profiles` | Server-owned output profile catalog |
 | `POST /bibtex/export` | Profile-driven semantic export preview |
+| `GET /settings/configuration` | Effective export profiles and venue mappings |
+| `GET /settings/configuration-history` | Paginated profile or venue history, including deleted settings |
+| `PUT /settings/export-profiles/{id}` | Add or revision-check an export profile override |
+| `DELETE /settings/export-profiles/{id}` | Delete a custom profile or remove a built-in override |
+| `PUT /settings/venues/{id}` | Add or revision-check a venue mapping override |
+| `DELETE /settings/venues/{id}` | Delete a custom mapping or remove a built-in override |
 | `POST /auth/email/start` | Send a passwordless login code |
 | `POST /auth/email/verify` | Verify a code and create a session |
 | `GET /auth/session` | Restore the current browser session |
@@ -33,9 +39,9 @@ The example backend exposes schema-v1 JSON:
 | `DELETE /references/{id}` | Delete a reference |
 | `POST /references/{id}/revert` | Restore a prior state as a new revision |
 
-BibTeX processing, reference reads, and history reads require the HttpOnly session cookie. Reference registration, replacement, deletion, citation-context addition, and restoration additionally require the session-bound `X-CSRF-Token`. The frontend restores that token from `GET /auth/session`; it never stores a reusable API key. Before authentication completes, the workspace is replaced by a login-required view and no reference request is sent.
+BibTeX processing, reference reads, configuration reads, and history reads require the HttpOnly session cookie. Reference registration, replacement, deletion, citation-context addition, restoration, and configuration writes additionally require the session-bound `X-CSRF-Token`. The frontend restores that token from `GET /auth/session`; it never stores a reusable API key. Before authentication completes, the workspace is replaced by a login-required view and no reference request is sent.
 
-The history catalog retains deleted reference IDs and titles. Restoring sends both the selected revision and the currently displayed head revision; `stale_reference_history` means the client must reload rather than retry with an obsolete head.
+The history catalog retains deleted reference IDs and titles. Each revision derives its before and after BibTeX states from the ordered append-only snapshots and renders a unified line diff with old/new line numbers and highlighted additions and deletions. Creation compares against an empty source, deletion compares against an empty destination, and restoration therefore remains visually explicit. Restoring sends both the selected revision and the currently displayed head revision; `stale_reference_history` means the client must reload rather than retry with an obsolete head.
 
 Every request carries `source`; relevant requests also carry `profile`, `policy`, `mode`, `fix_ids`, or `source_revision`. An explicit fix request must send the revision returned by the analysis that exposed its IDs. Every success carries `schema_version`. Errors use a stable code/message DTO and do not masquerade as diagnostics. Transport-level request validation uses `invalid_request` without copying framework-owned input values into the response.
 
@@ -79,7 +85,11 @@ Sign out also requires explicit confirmation. Opening the confirmation does not 
 
 ## BibTeX preview and profiles
 
-The reference detail has one BibTeX preview and selects the `laboratory` profile by default. Every selected profile, including `laboratory`, is rendered through the export endpoint from the stored source. Selecting another profile replaces the contents of the same preview; returning to `laboratory` generates the laboratory representation again. Export warnings never change the database value. Profile and source generations are checked when each request completes, so a stale response cannot replace a newer preview. The authenticated history view labels the persisted value as Stored BibTeX and can still show separate submitted/stored values for legacy normalized revisions.
+The reference detail has one BibTeX preview and selects the `laboratory` profile by default. Every selected profile, including `laboratory`, is rendered through the export endpoint from the stored source. Venue name presentation is a second, independent two-value control: Full is the default and Abbreviated requests the registered short name. Selecting either option replaces the contents of the same preview and never changes stored source. Export warnings never change the database value. Profile, venue-style, and source generations are checked when each request completes, so a stale response cannot replace a newer preview. The authenticated history view labels the persisted value as Stored BibTeX and can still show separate submitted/stored values for legacy normalized revisions.
+
+Application settings exposes export profile definitions and venue mappings without mixing them into routine reference actions. Settings are shared deployment-wide, so the sheet states that changes affect every user. A plus action creates a new profile or mapping. Custom settings expose a destructive delete action; modified built-ins expose **Restore Default**, which removes the shared override and reveals the embedded definition. The confirmation and its final action appear immediately below the editor heading instead of after the potentially long document. Save remains disabled until the effective form data changes, and the backend independently treats identical writes as no-ops. Each write sends the loaded revision, and a stale response must be reloaded rather than retried blindly. Category-level history shows the action, actor, time, revision, and a unified JSON diff, including keys that custom deletion removed from the current catalog. Diff headers identify the transition, such as `Revision 1 → Revision 2`, using explicit labels for empty, deleted, and built-in-default states. The diff canonicalizes JSON object keys before comparison, so property order does not create false changes. Its table expands to the longest source line so addition and deletion highlighting continues across the complete horizontal scroll width. A legacy event without both required snapshots is reported as unavailable rather than rendered as a misleading whole-document diff. Profile documents and the complete effective venue registry are validated by Rust before persistence.
+
+Application controls use Bootstrap Icons through the shared `AppIcon` component. Individual Vue components do not define their own SVG paths, keeping stroke/fill geometry and optical sizing consistent across settings, history, search, navigation, and destructive actions.
 
 ## Frontend modules
 

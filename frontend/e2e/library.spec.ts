@@ -1,12 +1,21 @@
 import AxeBuilder from "@axe-core/playwright";
-import { expect, test, type APIRequestContext, type Page } from "@playwright/test";
-
-const email = "e2e.visitor@example.org";
+import {
+  expect,
+  test,
+  type APIRequestContext,
+  type Locator,
+  type Page,
+} from "@playwright/test";
 
 test("authenticated access, CRUD, restore, and accessibility", async ({
   page,
   request,
 }) => {
+  const runId = Date.now().toString(36);
+  const email = `e2e-${runId}@ai.cs.ehime-u.ac.jp`;
+  const referenceTitle = `End-to-End Reference ${runId}`;
+  const editedReferenceTitle = `Edited ${referenceTitle}`;
+
   await page.goto("/");
   await expect(
     page.getByRole("heading", { name: "Log in to access BibMgR" }),
@@ -35,16 +44,18 @@ test("authenticated access, CRUD, restore, and accessibility", async ({
     page.getByRole("heading", { name: "References", exact: true }),
   ).toBeVisible();
 
+  await verifyApplicationSettings(page, runId, email);
+
   await page.getByRole("button", { name: "Add reference" }).click();
   await page.getByLabel("BibTeX entry").fill(
     [
-      "@article{bibmgre2e2026,",
+      `@article{bibmgre2e${runId},`,
       "  author = {Researcher, Example},",
-      "  title = {End-to-End Reference},",
+      `  title = {${referenceTitle}},`,
       "  journal = {Transactions of the Association for Computational Linguistics},",
       "  year = {2026},",
-      "  doi = {10.9999/bibmgr-e2e},",
-      "  url = {https://example.org/bibmgr-e2e},",
+      `  doi = {10.9999/bibmgr-e2e-${runId}},`,
+      `  url = {https://example.org/bibmgr-e2e-${runId}},`,
       "}",
       "",
     ].join("\n"),
@@ -54,10 +65,10 @@ test("authenticated access, CRUD, restore, and accessibility", async ({
 
   await page
     .getByRole("searchbox", { name: "Search references" })
-    .fill("End-to-End Reference");
+    .fill(referenceTitle);
   await page.getByRole("button", { name: "Search references" }).click();
   await expect(
-    page.getByRole("button", { name: /End-to-End Reference/ }),
+    page.getByRole("button", { name: new RegExp(referenceTitle) }),
   ).toBeVisible();
 
   await page.getByRole("button", { name: "Reference actions" }).click();
@@ -66,17 +77,14 @@ test("authenticated access, CRUD, restore, and accessibility", async ({
     name: "Reference BibTeX entry",
   });
   await editor.fill(
-    (await editor.inputValue()).replace(
-      "End-to-End Reference",
-      "Edited End-to-End Reference",
-    ),
+    (await editor.inputValue()).replace(referenceTitle, editedReferenceTitle),
   );
   await saveAndWaitForDialogToClose(page);
   await expect(
     page
       .getByRole("region", { name: "Reference details" })
       .getByRole("heading", {
-        name: "Edited End-to-End Reference",
+        name: editedReferenceTitle,
         level: 2,
       }),
   ).toBeVisible();
@@ -85,11 +93,24 @@ test("authenticated access, CRUD, restore, and accessibility", async ({
   await page.getByRole("menuitem", { name: "Delete…" }).click();
   await page.getByRole("button", { name: "Delete", exact: true }).click();
   await expect(
-    page.getByRole("heading", { name: "Edited End-to-End Reference" }),
+    page.getByRole("heading", { name: editedReferenceTitle }),
   ).toHaveCount(0);
 
   await page.getByRole("button", { name: "Reference history" }).click();
-  await page.getByRole("button", { name: /Edited End-to-End Reference/ }).click();
+  await page
+    .getByRole("button", { name: new RegExp(editedReferenceTitle) })
+    .click();
+  const deletedRevision = page
+    .locator(".history-list > li")
+    .filter({ hasText: "Deleted" })
+    .first();
+  await deletedRevision.getByText("View BibTeX changes").click();
+  await expect(
+    deletedRevision.locator(".unified-diff .is-deletion").first(),
+  ).toBeVisible();
+  await expectCompactDiffGutter(
+    deletedRevision.locator(".unified-diff"),
+  );
   const restore = page.getByRole("button", { name: "Restore" }).last();
   await restore.click();
   await page.getByRole("button", { name: "Confirm restore" }).click();
@@ -112,6 +133,186 @@ test("authenticated access, CRUD, restore, and accessibility", async ({
     page.getByRole("heading", { name: "References", exact: true }),
   ).toHaveCount(0);
 });
+
+async function verifyApplicationSettings(
+  page: Page,
+  runId: string,
+  email: string,
+) {
+  const customProfileId = `e2e-profile-${runId}`;
+  const overrideDescription =
+    `E2E shared override ${runId} ` + "wide-content-".repeat(50);
+  await page
+    .getByRole("button", { name: "Application settings", exact: true })
+    .click();
+  const settings = page.getByRole("dialog", {
+    name: "Application settings",
+  });
+  await expect(settings).toBeVisible();
+  await expect(
+    settings.getByRole("button", { name: "Save profile", exact: true }),
+  ).toBeDisabled();
+
+  await settings
+    .getByRole("button", { name: "Add export profile", exact: true })
+    .click();
+  await settings.getByLabel("Profile ID lowercase kebab-case").fill(
+    customProfileId,
+  );
+  await settings.getByRole("button", { name: "Add profile" }).click();
+  await expect(
+    settings.getByRole("button", {
+      name: new RegExp(`${customProfileId}$`),
+    }),
+  ).toBeVisible();
+  await expect(settings.getByText("Custom profile · Revision 1")).toBeVisible();
+  await expect(
+    settings.getByRole("button", { name: "Save profile", exact: true }),
+  ).toBeDisabled();
+
+  await settings.getByRole("button", { name: "Delete…", exact: true }).click();
+  await expect(settings.getByText("Delete this profile?")).toBeVisible();
+  const confirmDelete = settings.getByRole("button", {
+    name: "Delete",
+    exact: true,
+  });
+  await expect(confirmDelete).toBeInViewport();
+  await expect
+    .poll(async () => {
+      const confirmation = await confirmDelete.boundingBox();
+      const editor = await settings
+        .getByLabel("Profile definition (JSON)")
+        .boundingBox();
+      return Boolean(
+        confirmation && editor && confirmation.y < editor.y,
+      );
+    })
+    .toBe(true);
+  await confirmDelete.click();
+  await expect(
+    settings.getByRole("button", {
+      name: new RegExp(`${customProfileId}$`),
+    }),
+  ).toHaveCount(0);
+
+  await settings
+    .getByRole("button", { name: "Modern BibTeX modern", exact: true })
+    .click();
+  const profileDefinition = settings.getByLabel("Profile definition (JSON)");
+  const originalProfile = JSON.parse(await profileDefinition.inputValue()) as {
+    description: string;
+  } & Record<string, unknown>;
+  await profileDefinition.fill(
+    JSON.stringify(
+      {
+        ...originalProfile,
+        description: overrideDescription,
+      },
+      null,
+      2,
+    ),
+  );
+  await settings
+    .getByRole("button", { name: "Save profile", exact: true })
+    .click();
+  await expect(settings.getByText(/Shared override, revision \d+/)).toBeVisible();
+  await expect(
+    settings.getByRole("button", { name: "Save profile", exact: true }),
+  ).toBeDisabled();
+
+  await settings
+    .getByRole("button", { name: "Restore Default…", exact: true })
+    .click();
+  await expect(
+    settings.getByText("Restore the built-in profile?"),
+  ).toBeVisible();
+  const confirmRestore = settings.getByRole("button", {
+    name: "Restore Default",
+    exact: true,
+  });
+  await expect(confirmRestore).toBeInViewport();
+  await confirmRestore.click();
+  await expect
+    .poll(async () => {
+      const restored = JSON.parse(await profileDefinition.inputValue()) as {
+        description: string;
+      };
+      return restored.description;
+    })
+    .toBe(originalProfile.description);
+  await expect(settings.getByText("Built-in profile · Default")).toBeVisible();
+  await expect(
+    settings.getByRole("button", { name: "Restore Default…", exact: true }),
+  ).toHaveCount(0);
+  await expect(
+    settings.getByRole("button", { name: "Save profile", exact: true }),
+  ).toBeDisabled();
+
+  await settings
+    .getByRole("button", {
+      name: "View export profile history",
+      exact: true,
+    })
+    .click();
+  await expect(
+    settings.getByRole("heading", { name: "Export profile history" }),
+  ).toBeVisible();
+  const deletedProfileHistory = settings
+    .locator(".settings-history__list > li")
+    .filter({ hasText: customProfileId })
+    .filter({ hasText: "Deleted" });
+  await expect(deletedProfileHistory).toContainText("Deleted");
+  await expect(deletedProfileHistory).toContainText(email);
+  await deletedProfileHistory.locator("summary").click();
+  await expect(
+    deletedProfileHistory.locator(".unified-diff .is-deletion").first(),
+  ).toBeVisible();
+  await expect(deletedProfileHistory.locator(".unified-diff")).toContainText(
+    customProfileId,
+  );
+  await expectCompactDiffGutter(
+    deletedProfileHistory.locator(".unified-diff"),
+  );
+  const changedProfileHistory = settings
+    .locator(".settings-history__list > li")
+    .filter({ hasText: "modern" })
+    .filter({ hasText: /Overrode default|Updated/ })
+    .filter({ hasText: email })
+    .first();
+  await expect(changedProfileHistory).toBeVisible();
+  await changedProfileHistory.locator("summary").click();
+  const overrideDiff = changedProfileHistory.locator(".unified-diff");
+  await expect(overrideDiff).toContainText(
+    /(?:Built-in default|Revision \d+) → Revision \d+/,
+  );
+  await expect(overrideDiff.locator(".is-deletion")).toHaveCount(1);
+  await expect(overrideDiff.locator(".is-addition")).toHaveCount(1);
+  await expect(overrideDiff.locator(".is-deletion")).toContainText(
+    originalProfile.description,
+  );
+  await expect(overrideDiff.locator(".is-addition")).toContainText(
+    overrideDescription,
+  );
+  await expectCompactDiffGutter(overrideDiff);
+  await expectDiffHighlightSpansScrollWidth(overrideDiff);
+  await expect(
+    settings
+      .locator(".settings-history__list > li")
+      .filter({ hasText: "modern" })
+      .filter({ hasText: "Restored default" })
+      .first(),
+  ).toBeVisible();
+  await assertNoSeriousAccessibilityViolations(page);
+  await settings.getByRole("button", { name: "Done", exact: true }).click();
+  await expect(
+    settings.getByRole("heading", { name: "Export profile history" }),
+  ).toHaveCount(0);
+
+  await settings
+    .getByRole("button", { name: "Close settings", exact: true })
+    .click();
+  await expect(settings).toHaveCount(0);
+}
 
 async function registerAndWaitForCompletion(page: Page) {
   const editor = page.getByRole("textbox", { name: "BibTeX entry" });
@@ -184,4 +385,51 @@ async function assertNoSeriousAccessibilityViolations(page: Page) {
       ["critical", "serious"].includes(violation.impact ?? ""),
     ),
   ).toEqual([]);
+}
+
+async function expectCompactDiffGutter(diff: Locator) {
+  const cells = diff.locator("tbody tr").first().locator("td");
+  await expect(cells).toHaveCount(4);
+  const widths = await cells.evaluateAll((elements) =>
+    elements.map((element) =>
+      Math.round(element.getBoundingClientRect().width),
+    ),
+  );
+  expect(widths.slice(0, 3)).toEqual([28, 28, 14]);
+  expect(widths[3]).toBeGreaterThan(
+    widths[0]! + widths[1]! + widths[2]!,
+  );
+}
+
+async function expectDiffHighlightSpansScrollWidth(diff: Locator) {
+  const metrics = await diff.evaluate((element) => {
+    const viewport = element.querySelector<HTMLElement>(
+      ".unified-diff__viewport",
+    );
+    const table = element.querySelector<HTMLTableElement>("table");
+    const changedRow = element.querySelector<HTMLTableRowElement>(
+      "tr.is-addition",
+    );
+    const changedCell = changedRow?.querySelector<HTMLTableCellElement>(
+      ".unified-diff__code",
+    );
+    if (!viewport || !table || !changedRow || !changedCell) return null;
+    return {
+      clientWidth: viewport.clientWidth,
+      scrollWidth: viewport.scrollWidth,
+      tableWidth: table.getBoundingClientRect().width,
+      rowWidth: changedRow.getBoundingClientRect().width,
+      changedBackground: getComputedStyle(changedCell).backgroundColor,
+    };
+  });
+
+  expect(metrics).not.toBeNull();
+  expect(metrics!.scrollWidth).toBeGreaterThan(metrics!.clientWidth);
+  expect(Math.abs(metrics!.tableWidth - metrics!.scrollWidth)).toBeLessThanOrEqual(
+    1,
+  );
+  expect(Math.abs(metrics!.rowWidth - metrics!.tableWidth)).toBeLessThanOrEqual(
+    1,
+  );
+  expect(metrics!.changedBackground).not.toBe("rgba(0, 0, 0, 0)");
 }
