@@ -237,9 +237,17 @@ class ReferenceLibrary:
                 )
             )
         if normalized_identifier:
+            identifier_pattern = (
+                f"%{_escape_like(normalized_identifier)}%"
+            )
             statement = statement.where(
-                ReferenceIdentifier.normalized_value.ilike(
-                    f"%{_escape_like(normalized_identifier)}%", escape="\\"
+                or_(
+                    ReferenceIdentifier.normalized_value.ilike(
+                        identifier_pattern, escape="\\"
+                    ),
+                    ReferenceRecord.citation_key.ilike(
+                        identifier_pattern, escape="\\"
+                    ),
                 )
             )
         normalized_entry_type = (entry_type or "").strip()
@@ -363,7 +371,17 @@ class ReferenceLibrary:
     def count_history(self, session: Session) -> int:
         return int(
             session.scalar(
-                select(func.count()).select_from(ReferenceHistoryHead)
+                select(func.count())
+                .select_from(ReferenceHistoryHead)
+                .join(
+                    ReferenceAuditEvent,
+                    and_(
+                        ReferenceAuditEvent.reference_id
+                        == ReferenceHistoryHead.reference_id,
+                        ReferenceAuditEvent.revision
+                        == ReferenceHistoryHead.latest_revision,
+                    ),
+                )
             )
             or 0
         )

@@ -16,6 +16,7 @@ from bibmgr_backend.db_models import (
     Base,
     ReferenceAuditEvent,
     ReferenceContributor,
+    ReferenceHistoryHead,
     ReferenceIdentifier,
     ReferenceRecord,
     UserRecord,
@@ -789,6 +790,35 @@ def test_structured_search_page_returns_total_and_filters() -> None:
     assert page.status_code == 200
     assert page.json()["total"] == 1
     assert [item["title"] for item in page.json()["items"]] == ["Second"]
+
+    citation_key_page = client.get(
+        "/references/page",
+        params={"identifier": "two"},
+    )
+
+    assert citation_key_page.status_code == 200
+    assert citation_key_page.json()["total"] == 1
+    assert [
+        item["title"] for item in citation_key_page.json()["items"]
+    ] == ["Second"]
+
+
+def test_history_page_total_excludes_heads_without_events() -> None:
+    client, _engine, sessions = build_test_client()
+    with sessions() as session:
+        session.add(
+            ReferenceHistoryHead(
+                reference_id=uuid.uuid4(),
+                latest_revision=0,
+            )
+        )
+        session.commit()
+
+    page = client.get("/reference-history/page")
+
+    assert page.status_code == 200
+    assert page.json()["items"] == []
+    assert page.json()["total"] == 0
 
 
 def test_citation_contexts_are_audited_and_visible() -> None:
