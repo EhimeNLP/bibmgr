@@ -134,6 +134,7 @@ beforeEach(() => {
         schema_version: "1",
         source: `${source}\n% ${profile}`,
         profile,
+        venue_name_style: "full",
         record_count: 1,
         warnings: [],
       }),
@@ -305,7 +306,7 @@ describe("RegistrationPanel", () => {
     await flushPromises();
 
     expect(bibtexApiMocks.exportBibtex).toHaveBeenCalledWith(
-      { source, profile: "laboratory" },
+      { source, profile: "laboratory", venue_name_style: "full" },
       expect.objectContaining({ signal: expect.any(AbortSignal) }),
     );
     expect(
@@ -321,7 +322,7 @@ describe("RegistrationPanel", () => {
     await flushPromises();
 
     expect(bibtexApiMocks.exportBibtex).toHaveBeenLastCalledWith(
-      { source, profile: "modern" },
+      { source, profile: "modern", venue_name_style: "full" },
       expect.objectContaining({ signal: expect.any(AbortSignal) }),
     );
     expect(

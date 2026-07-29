@@ -43,6 +43,7 @@ beforeEach(() => {
         schema_version: "1",
         source: `${source}\n% ${profile}`,
         profile,
+        venue_name_style: "full",
         record_count: 1,
         warnings: [],
       }),
@@ -83,7 +84,11 @@ describe("ReferenceDetail BibTeX views", () => {
 
     expect(apiMocks.listBibtexExportProfiles).toHaveBeenCalledTimes(1);
     expect(apiMocks.exportBibtex).toHaveBeenCalledWith(
-      { source: reference.bibtex, profile: "laboratory" },
+      {
+        source: reference.bibtex,
+        profile: "laboratory",
+        venue_name_style: "full",
+      },
       expect.objectContaining({ signal: expect.any(AbortSignal) }),
     );
     expect(wrapper.get("select").element.value).toBe("laboratory");
@@ -106,7 +111,11 @@ describe("ReferenceDetail BibTeX views", () => {
 
     expect(apiMocks.exportBibtex).toHaveBeenCalledTimes(2);
     expect(apiMocks.exportBibtex).toHaveBeenCalledWith(
-      { source: reference.bibtex, profile: "modern" },
+      {
+        source: reference.bibtex,
+        profile: "modern",
+        venue_name_style: "full",
+      },
       expect.objectContaining({ signal: expect.any(AbortSignal) }),
     );
     expect(wrapper.get('[data-testid="bibtex-export-preview"]').text()).toBe(
@@ -118,7 +127,11 @@ describe("ReferenceDetail BibTeX views", () => {
 
     expect(apiMocks.exportBibtex).toHaveBeenCalledTimes(3);
     expect(apiMocks.exportBibtex).toHaveBeenLastCalledWith(
-      { source: reference.bibtex, profile: "laboratory" },
+      {
+        source: reference.bibtex,
+        profile: "laboratory",
+        venue_name_style: "full",
+      },
       expect.objectContaining({ signal: expect.any(AbortSignal) }),
     );
     expect(wrapper.get('[data-testid="bibtex-export-preview"]').text()).toBe(
@@ -146,7 +159,11 @@ describe("ReferenceDetail BibTeX views", () => {
     expect(apiMocks.listBibtexExportProfiles).toHaveBeenCalledTimes(1);
     expect(apiMocks.exportBibtex).toHaveBeenCalledTimes(2);
     expect(apiMocks.exportBibtex).toHaveBeenLastCalledWith(
-      { source: second.bibtex, profile: "laboratory" },
+      {
+        source: second.bibtex,
+        profile: "laboratory",
+        venue_name_style: "full",
+      },
       expect.objectContaining({ signal: expect.any(AbortSignal) }),
     );
 

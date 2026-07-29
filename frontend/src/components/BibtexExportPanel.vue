@@ -11,6 +11,7 @@ import { exportBibtex, listBibtexExportProfiles } from "../api/bibtex";
 import type {
   BibtexExportProfile,
   BibtexExportResult,
+  VenueNameStyle,
 } from "../types/bibtex";
 import BibtexCodeBlock from "./BibtexCodeBlock.vue";
 
@@ -22,8 +23,10 @@ const props = defineProps<{
 
 const profiles = ref<BibtexExportProfile[]>([]);
 const selectedProfile = ref("laboratory");
+const venueNameStyle = ref<VenueNameStyle>("full");
 const profileSelectId = useId();
 const profileDescriptionId = useId();
+const venueNameGroupId = useId();
 const generatedResult = ref<BibtexExportResult | null>(null);
 const isLoadingProfiles = ref(false);
 const isExporting = ref(false);
@@ -123,9 +126,15 @@ function onProfileChange() {
   void generatePreview();
 }
 
+function onVenueNameStyleChange() {
+  resetCopyState();
+  void generatePreview();
+}
+
 async function generatePreview() {
   const source = props.source;
   const profile = selectedProfile.value;
+  const selectedVenueNameStyle = venueNameStyle.value;
   if (!source.trim() || !profiles.value.some((item) => item.id === profile)) {
     exportController?.abort();
     exportGeneration += 1;
@@ -147,13 +156,18 @@ async function generatePreview() {
 
   try {
     const exported = await exportBibtex(
-      { source, profile },
+      {
+        source,
+        profile,
+        venue_name_style: selectedVenueNameStyle,
+      },
       { signal: controller.signal },
     );
     if (
       generation !== exportGeneration ||
       props.source !== source ||
-      selectedProfile.value !== profile
+      selectedProfile.value !== profile ||
+      venueNameStyle.value !== selectedVenueNameStyle
     ) {
       return;
     }
@@ -294,6 +308,33 @@ function errorMessage(error: unknown, fallback: string) {
       </select>
     </div>
 
+    <fieldset
+      class="bibtex-export__venue-style"
+      :aria-labelledby="venueNameGroupId"
+    >
+      <legend :id="venueNameGroupId">Venue name</legend>
+      <div class="segmented-control">
+        <label>
+          <input
+            v-model="venueNameStyle"
+            type="radio"
+            value="full"
+            @change="onVenueNameStyleChange"
+          />
+          <span>Full</span>
+        </label>
+        <label>
+          <input
+            v-model="venueNameStyle"
+            type="radio"
+            value="abbreviated"
+            @change="onVenueNameStyleChange"
+          />
+          <span>Abbreviated</span>
+        </label>
+      </div>
+    </fieldset>
+
     <p
       v-if="selectedProfileDetails"
       :id="profileDescriptionId"
@@ -329,7 +370,11 @@ function errorMessage(error: unknown, fallback: string) {
           aria-label="Export warnings"
         >
           <li v-for="warning in result.warnings" :key="`${warning.record_index}-${warning.message}`">
-            Entry {{ warning.record_index + 1 }}: {{ warning.message }}
+            {{
+              result.record_count > 1
+                ? `Entry ${warning.record_index + 1}: ${warning.message}`
+                : warning.message
+            }}
           </li>
         </ul>
         <BibtexCodeBlock

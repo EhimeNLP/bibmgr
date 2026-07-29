@@ -140,6 +140,7 @@ describe("BibTeX API", () => {
       schema_version: "1" as const,
       source: "@misc{key, howpublished = {arXiv:1706.03762}}\n",
       profile: "classical-bst",
+      venue_name_style: "full",
       record_count: 1,
       warnings: [],
     };

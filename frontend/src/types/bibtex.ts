@@ -96,12 +96,15 @@ export type BibtexExportResult = {
   schema_version: BibmgrSchemaVersion;
   source: string;
   profile: string;
+  venue_name_style: VenueNameStyle;
   record_count: number;
   warnings: Array<{
     record_index: number;
     message: string;
   }>;
 };
+
+export type VenueNameStyle = "full" | "abbreviated";
 
 export type BibtexExportProfile = {
   id: string;
@@ -137,6 +140,7 @@ export type ValidateRegistrationRequest = {
 export type ExportBibtexRequest = {
   source: string;
   profile?: string;
+  venue_name_style?: VenueNameStyle;
 };
 
 export type BibmgrErrorResponse = {

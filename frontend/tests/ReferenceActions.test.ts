@@ -91,6 +91,7 @@ beforeEach(() => {
         schema_version: "1",
         source: `${source}\n% ${profile}`,
         profile,
+        venue_name_style: "full",
         record_count: 1,
         warnings: [],
       }),
@@ -167,7 +168,11 @@ describe("ReferenceActions", () => {
       wrapper.get<HTMLTextAreaElement>("#reference-edit-bibtex").element.value,
     ).toBe(storedSource);
     expect(bibtexApiMocks.exportBibtex).toHaveBeenCalledWith(
-      { source: storedSource, profile: "laboratory" },
+      {
+        source: storedSource,
+        profile: "laboratory",
+        venue_name_style: "full",
+      },
       expect.objectContaining({ signal: expect.any(AbortSignal) }),
     );
     expect(
@@ -180,7 +185,11 @@ describe("ReferenceActions", () => {
     await flushPromises();
 
     expect(bibtexApiMocks.exportBibtex).toHaveBeenLastCalledWith(
-      { source: submitted, profile: "laboratory" },
+      {
+        source: submitted,
+        profile: "laboratory",
+        venue_name_style: "full",
+      },
       expect.objectContaining({ signal: expect.any(AbortSignal) }),
     );
     await wrapper
