@@ -11,6 +11,7 @@ import type {
   ReferenceSearchFilters,
   ReferenceSort,
 } from "../types/reference";
+import AppIcon from "./AppIcon.vue";
 
 const props = defineProps<{
   modelValue: string;
@@ -309,10 +310,7 @@ function clearAllFilters() {
     <div class="search-bar__controls">
       <label class="sr-only" for="reference-search">Search references</label>
       <div class="search-input">
-        <svg aria-hidden="true" viewBox="0 0 20 20" fill="none">
-          <circle cx="8.75" cy="8.75" r="5.75" />
-          <path d="m13 13 4 4" />
-        </svg>
+        <AppIcon name="search" />
         <input
           id="reference-search"
           :value="props.modelValue"
@@ -331,10 +329,7 @@ function clearAllFilters() {
         :aria-label="props.loading ? 'Searching references' : 'Search references'"
       >
         <span v-if="props.loading" class="button-spinner" aria-hidden="true" />
-        <svg v-else aria-hidden="true" viewBox="0 0 20 20" fill="none">
-          <circle cx="8.75" cy="8.75" r="5.75" />
-          <path d="m13 13 4 4" />
-        </svg>
+        <AppIcon v-else name="search" />
         <span>{{ props.loading ? "Searching…" : "Search" }}</span>
       </button>
       <button
@@ -349,9 +344,7 @@ function clearAllFilters() {
         title="Filters"
         @click="toggleFilters"
       >
-        <svg aria-hidden="true" viewBox="0 0 20 20" fill="none">
-          <path d="M3 5h14M5.5 10h9M8 15h4" />
-        </svg>
+        <AppIcon name="sliders" />
         <span
           v-if="activeTokens.length > 0"
           class="search-filter-trigger__count"
@@ -373,9 +366,7 @@ function clearAllFilters() {
         :title="sortButtonLabel"
         @click="toggleSort"
       >
-        <svg aria-hidden="true" viewBox="0 0 20 20" fill="none">
-          <path d="M3 5h8M3 10h6M3 15h4M14.5 4v12m-2.5-2 2.5 2 2.5-2" />
-        </svg>
+        <AppIcon name="sort-down" />
       </button>
     </div>
 
@@ -394,9 +385,7 @@ function clearAllFilters() {
         @click="clearFilter(token.key)"
       >
         <span>{{ token.label }}</span>
-        <svg aria-hidden="true" viewBox="0 0 12 12">
-          <path d="m3.25 3.25 5.5 5.5m0-5.5-5.5 5.5" />
-        </svg>
+        <AppIcon name="x" />
       </button>
     </div>
 
@@ -418,9 +407,7 @@ function clearAllFilters() {
           aria-label="Close filters"
           @click="closeFilters({ restoreFocus: true })"
         >
-          <svg aria-hidden="true" viewBox="0 0 20 20">
-            <path d="m6 6 8 8m0-8-8 8" />
-          </svg>
+          <AppIcon name="x-lg" />
         </button>
       </div>
 
@@ -532,14 +519,10 @@ function clearAllFilters() {
         @click="applySort(option.value)"
       >
         <span>{{ option.label }}</span>
-        <svg
+        <AppIcon
           v-if="selectedSort === option.value"
-          aria-hidden="true"
-          viewBox="0 0 16 16"
-          fill="none"
-        >
-          <path d="m3.5 8 3 3 6-6" />
-        </svg>
+          name="check-lg"
+        />
       </button>
     </section>
   </form>

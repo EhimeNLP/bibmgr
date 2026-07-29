@@ -6,6 +6,7 @@ import {
   verifyEmailLogin,
 } from "../api/auth";
 import type { AuthenticationSession } from "../types/auth";
+import AppIcon from "./AppIcon.vue";
 
 const props = defineProps<{
   session: AuthenticationSession;
@@ -241,9 +242,7 @@ defineExpose({ openLogin });
               aria-label="Close login"
               @click="closeLogin"
             >
-              <svg aria-hidden="true" viewBox="0 0 18 18" fill="none">
-                <path d="m5 5 8 8M13 5l-8 8" />
-              </svg>
+              <AppIcon name="x-lg" />
             </button>
           </header>
 

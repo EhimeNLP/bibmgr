@@ -18,6 +18,7 @@ import type { Reference } from "../types/reference";
 import BibtexEditor from "./BibtexEditor.vue";
 import BibtexExportPanel from "./BibtexExportPanel.vue";
 import BibtexValidationPanel from "./BibtexValidationPanel.vue";
+import AppIcon from "./AppIcon.vue";
 
 const props = defineProps<{
   reference: Reference;
@@ -356,11 +357,7 @@ function trapDialogFocus(event: KeyboardEvent, root: HTMLElement | null) {
       @keydown.down.prevent="openMenuFromKeyboard('first')"
       @keydown.up.prevent="openMenuFromKeyboard('last')"
     >
-      <svg aria-hidden="true" viewBox="0 0 18 18" fill="none">
-        <circle cx="4" cy="9" r="1.15" />
-        <circle cx="9" cy="9" r="1.15" />
-        <circle cx="14" cy="9" r="1.15" />
-      </svg>
+      <AppIcon name="three-dots" />
     </button>
 
     <div
@@ -377,10 +374,7 @@ function trapDialogFocus(event: KeyboardEvent, root: HTMLElement | null) {
         role="menuitem"
         @click="openEdit"
       >
-        <svg aria-hidden="true" viewBox="0 0 18 18" fill="none">
-          <path d="m4 12.8-.6 2.2 2.2-.6L14 6a1.45 1.45 0 0 0 0-2.05 1.45 1.45 0 0 0-2.05 0L4 12.8Z" />
-          <path d="m10.9 5 2.1 2.1" />
-        </svg>
+        <AppIcon name="pencil" />
         <span>Edit…</span>
       </button>
       <div class="reference-actions-menu__separator" role="separator" />
@@ -390,9 +384,7 @@ function trapDialogFocus(event: KeyboardEvent, root: HTMLElement | null) {
         role="menuitem"
         @click="requestDelete"
       >
-        <svg aria-hidden="true" viewBox="0 0 18 18" fill="none">
-          <path d="M3.5 5.2h11M7 3.2h4M5.2 5.2l.6 9.1h6.4l.6-9.1M7.4 7.7v4.2M10.6 7.7v4.2" />
-        </svg>
+        <AppIcon name="trash3" />
         <span>Delete…</span>
       </button>
     </div>
@@ -423,9 +415,7 @@ function trapDialogFocus(event: KeyboardEvent, root: HTMLElement | null) {
               :disabled="isSaving"
               @click="closeEdit"
             >
-              <svg aria-hidden="true" viewBox="0 0 18 18" fill="none">
-                <path d="m5 5 8 8M13 5l-8 8" />
-              </svg>
+              <AppIcon name="x-lg" />
             </button>
           </header>
 

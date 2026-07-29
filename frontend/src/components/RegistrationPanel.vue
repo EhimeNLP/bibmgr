@@ -10,6 +10,7 @@ import { countBibliographicEntries } from "../utils/bibtexHighlight";
 import BibtexEditor from "./BibtexEditor.vue";
 import BibtexExportPanel from "./BibtexExportPanel.vue";
 import BibtexValidationPanel from "./BibtexValidationPanel.vue";
+import AppIcon from "./AppIcon.vue";
 
 type RegistrationMode = "manual" | "file";
 
@@ -295,9 +296,7 @@ function onFileFixApplied() {
       :title="authenticated ? undefined : 'Log in to add references'"
       @click="openRegistration"
     >
-      <svg aria-hidden="true" viewBox="0 0 18 18" fill="none">
-        <path d="M9 3.5v11M3.5 9h11" />
-      </svg>
+      <AppIcon name="plus-lg" />
       <span>Add reference</span>
     </button>
 
@@ -326,9 +325,7 @@ function onFileFixApplied() {
               aria-label="Close add references"
               @click="closeRegistration"
             >
-              <svg aria-hidden="true" viewBox="0 0 18 18" fill="none">
-                <path d="m5 5 8 8M13 5l-8 8" />
-              </svg>
+              <AppIcon name="x-lg" />
             </button>
           </header>
 
@@ -460,10 +457,7 @@ function onFileFixApplied() {
                 @change="onBibFileChange"
               />
               <span class="file-picker__icon" aria-hidden="true">
-                <svg viewBox="0 0 20 20" fill="none">
-                  <path d="M11.5 2.5H5A1.5 1.5 0 0 0 3.5 4v12A1.5 1.5 0 0 0 5 17.5h10a1.5 1.5 0 0 0 1.5-1.5V7.5l-5-5Z" />
-                  <path d="M11.5 2.5v5h5M7 12.5h6M7 9.5h2.5" />
-                </svg>
+                <AppIcon name="file-earmark-text" />
               </span>
               <span class="file-picker__copy">
                 <strong>{{ selectedBibFile ? "BibTeX file selected" : "Choose a .bib file" }}</strong>

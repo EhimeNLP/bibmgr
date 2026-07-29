@@ -2,6 +2,7 @@
 import type { Reference } from "../types/reference";
 import BibtexExportPanel from "./BibtexExportPanel.vue";
 import ReferenceActions from "./ReferenceActions.vue";
+import AppIcon from "./AppIcon.vue";
 
 defineProps<{
   reference: Reference | null;
@@ -19,10 +20,7 @@ const emit = defineEmits<{
   <section class="reference-detail">
     <div v-if="!reference" class="placeholder">
       <div class="state-icon" aria-hidden="true">
-        <svg viewBox="0 0 24 24" fill="none">
-          <path d="M6.75 4.75h8.5a2 2 0 0 1 2 2v12.5h-8.5a2 2 0 0 0-2 2V4.75Z" />
-          <path d="M6.75 4.75H5.5a2 2 0 0 0-2 2v10.5a2 2 0 0 0 2 2h1.25" />
-        </svg>
+        <AppIcon name="journal-bookmark" />
       </div>
       <h2>Select a reference</h2>
       <p>Choose an item from the library to view its metadata and BibTeX.</p>
@@ -42,9 +40,7 @@ const emit = defineEmits<{
             rel="noopener noreferrer"
           >
             <span>Open source</span>
-            <svg aria-hidden="true" viewBox="0 0 16 16" fill="none">
-              <path d="m4.5 11.5 7-7M6.5 4.5h5v5" />
-            </svg>
+            <AppIcon name="box-arrow-up-right" />
           </a>
           <ReferenceActions
             :reference="reference"
