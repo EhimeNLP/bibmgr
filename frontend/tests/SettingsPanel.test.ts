@@ -9,6 +9,7 @@ const apiMocks = vi.hoisted(() => ({
   deleteVenue: vi.fn(),
   getApplicationConfiguration: vi.fn(),
   getConfigurationHistory: vi.fn(),
+  previewExportProfile: vi.fn(),
   updateExportProfile: vi.fn(),
   updateVenue: vi.fn(),
 }));
@@ -26,7 +27,33 @@ const configuration = {
         display_name: "Laboratory",
         description: "Laboratory output.",
         validation_profile: "laboratory",
-        preprint_representation: "misc-eprint",
+        preprint_representation: "misc-eprint" as const,
+        month_format: "numeric" as const,
+        supported_entry_types: [],
+        field_order: ["title", "author", "booktitle", "year", "doi", "url"],
+        field_case: "canonical" as const,
+        case_protected_fields: ["title"],
+        value_delimiter: "braces" as const,
+        line_ending: "lf" as const,
+        indent: "  ",
+        trailing_comma: true,
+        include_doi: true,
+        include_url: true,
+        include_extra_fields: true,
+        field_renames: {},
+        field_selection: {
+          allowed_fields: [
+            "title",
+            "author",
+            "booktitle",
+            "year",
+            "doi",
+            "url",
+          ],
+          excluded_fields: [],
+        },
+        excluded_fields: [],
+        allow_unknown_work_type: false,
       },
       revision: 0,
       built_in: true,
@@ -57,6 +84,7 @@ beforeEach(() => {
   apiMocks.deleteVenue.mockReset();
   apiMocks.getApplicationConfiguration.mockReset();
   apiMocks.getConfigurationHistory.mockReset();
+  apiMocks.previewExportProfile.mockReset();
   apiMocks.updateExportProfile.mockReset();
   apiMocks.updateVenue.mockReset();
   apiMocks.getApplicationConfiguration.mockResolvedValue(
@@ -69,6 +97,14 @@ beforeEach(() => {
     total: 0,
     limit: 50,
     offset: 0,
+  });
+  apiMocks.previewExportProfile.mockResolvedValue({
+    schema_version: "1",
+    source: "@misc{preview,\\n  title = {{Preview}},\\n}",
+    profile: "laboratory",
+    venue_name_style: "full",
+    record_count: 1,
+    warnings: [],
   });
   apiMocks.updateExportProfile.mockResolvedValue({
     schema_version: "1",
@@ -157,13 +193,9 @@ describe("SettingsPanel", () => {
 
     await wrapper.get(".settings-trigger").trigger("click");
     await flushPromises();
-    const profile = {
-      ...configuration.export_profiles[0].data,
-      description: "Updated laboratory output.",
-    };
     await wrapper
-      .get(".settings-field--code textarea")
-      .setValue(JSON.stringify(profile));
+      .get('textarea[required]')
+      .setValue("Updated laboratory output.");
     await wrapper.get("form.settings-editor").trigger("submit");
     await flushPromises();
 
@@ -293,7 +325,7 @@ describe("SettingsPanel", () => {
       wrapper
         .get(".settings-confirm")
         .element.compareDocumentPosition(
-          wrapper.get(".settings-field--code").element,
+          wrapper.get(".profile-editor").element,
         ) & Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy();
     await wrapper.get(".settings-confirm .button-danger").trigger("click");

@@ -244,18 +244,10 @@ class ApplicationConfiguration:
         expected_revision: int,
         actor_user_id: uuid.UUID,
     ) -> dict[str, Any]:
-        self._validate_key(profile_id)
-        candidate = deepcopy(profile_data)
-        if candidate.get("profile") != profile_id:
-            raise InvalidConfigurationError(
-                "The profile field must match the URL profile ID."
-            )
-        validated = self.engine.validate_export_profile(candidate)
-        canonical = validated.get("profile")
-        if not isinstance(canonical, dict):
-            raise InvalidConfigurationError(
-                "The native engine returned an invalid export profile."
-            )
+        canonical = self.validate_export_profile(
+            profile_id=profile_id,
+            profile_data=profile_data,
+        )
         record = self._save(
             session,
             kind=EXPORT_PROFILE,
@@ -270,6 +262,27 @@ class ApplicationConfiguration:
             record=record,
             built_in=self._is_builtin(EXPORT_PROFILE, profile_id),
         )
+
+    def validate_export_profile(
+        self,
+        *,
+        profile_id: str,
+        profile_data: dict[str, Any],
+    ) -> dict[str, Any]:
+        """Return the native engine's canonical profile without persisting it."""
+        self._validate_key(profile_id)
+        candidate = deepcopy(profile_data)
+        if candidate.get("profile") != profile_id:
+            raise InvalidConfigurationError(
+                "The profile field must match the URL profile ID."
+            )
+        validated = self.engine.validate_export_profile(candidate)
+        canonical = validated.get("profile")
+        if not isinstance(canonical, dict):
+            raise InvalidConfigurationError(
+                "The native engine returned an invalid export profile."
+            )
+        return deepcopy(canonical)
 
     def save_venue(
         self,

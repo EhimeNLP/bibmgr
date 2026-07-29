@@ -1,5 +1,23 @@
-import type { BibmgrSchemaVersion } from "./bibtex";
+import type {
+  BibmgrSchemaVersion,
+  BibtexExportResult,
+  VenueNameStyle,
+} from "./bibtex";
 import type { AuthenticatedUser } from "./auth";
+
+export type PreprintRepresentation =
+  | "misc-eprint"
+  | "misc-howpublished"
+  | "article-journal";
+export type ExportMonthFormat = "numeric" | "bibtex-macro";
+export type ExportFieldCase = "lowercase" | "canonical";
+export type ExportValueDelimiter = "braces" | "quotes";
+export type ExportLineEnding = "lf" | "cr-lf";
+
+export type ExportFieldSelection = {
+  allowed_fields: string[] | null;
+  excluded_fields: string[];
+};
 
 export type ExportProfileData = {
   schema_version: BibmgrSchemaVersion;
@@ -7,9 +25,32 @@ export type ExportProfileData = {
   display_name: string;
   description: string;
   validation_profile: string;
-  preprint_representation: string;
-  [key: string]: unknown;
+  preprint_representation: PreprintRepresentation;
+  month_format: ExportMonthFormat;
+  supported_entry_types: string[];
+  field_order: string[];
+  field_case: ExportFieldCase;
+  case_protected_fields: string[];
+  value_delimiter: ExportValueDelimiter;
+  line_ending: ExportLineEnding;
+  indent: string;
+  trailing_comma: boolean;
+  include_doi: boolean;
+  include_url: boolean;
+  include_extra_fields: boolean;
+  field_renames: Record<string, string>;
+  field_selection: ExportFieldSelection;
+  excluded_fields: string[];
+  allow_unknown_work_type: boolean;
 };
+
+export type ExportProfilePreviewRequest = {
+  source: string;
+  data: ExportProfileData;
+  venue_name_style?: VenueNameStyle;
+};
+
+export type ExportProfilePreviewResult = BibtexExportResult;
 
 export type VenueKind =
   | "conference"

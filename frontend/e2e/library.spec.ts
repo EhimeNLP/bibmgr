@@ -181,7 +181,7 @@ async function verifyApplicationSettings(
     .poll(async () => {
       const confirmation = await confirmDelete.boundingBox();
       const editor = await settings
-        .getByLabel("Profile definition (JSON)")
+        .getByRole("heading", { name: "Profile details", exact: true })
         .boundingBox();
       return Boolean(
         confirmation && editor && confirmation.y < editor.y,
@@ -198,20 +198,34 @@ async function verifyApplicationSettings(
   await settings
     .getByRole("button", { name: "Modern BibTeX modern", exact: true })
     .click();
-  const profileDefinition = settings.getByLabel("Profile definition (JSON)");
-  const originalProfile = JSON.parse(await profileDefinition.inputValue()) as {
-    description: string;
-  } & Record<string, unknown>;
-  await profileDefinition.fill(
-    JSON.stringify(
-      {
-        ...originalProfile,
-        description: overrideDescription,
-      },
-      null,
-      2,
-    ),
+  const liveProfilePreview = settings.getByTestId("export-profile-preview");
+  await expect(liveProfilePreview).toBeVisible();
+  const trailingComma = settings.getByLabel(
+    "Trailing comma on the last field",
+    { exact: true },
   );
+  await trailingComma.uncheck();
+  await expect
+    .poll(async () =>
+      /,\s*}\s*$/.test((await liveProfilePreview.textContent()) ?? ""),
+    )
+    .toBe(false);
+  await trailingComma.check();
+  await expect
+    .poll(async () =>
+      /,\s*}\s*$/.test((await liveProfilePreview.textContent()) ?? ""),
+    )
+    .toBe(true);
+  await settings.locator("details.profile-advanced > summary").click();
+  await expect(settings.getByTestId("export-profile-json")).toBeVisible();
+  await expect(
+    settings.getByLabel("Profile definition (JSON)"),
+  ).toHaveCount(0);
+  const profileDescription = settings.getByLabel("Description", {
+    exact: true,
+  });
+  const originalDescription = await profileDescription.inputValue();
+  await profileDescription.fill(overrideDescription);
   await settings
     .getByRole("button", { name: "Save profile", exact: true })
     .click();
@@ -234,12 +248,9 @@ async function verifyApplicationSettings(
   await confirmRestore.click();
   await expect
     .poll(async () => {
-      const restored = JSON.parse(await profileDefinition.inputValue()) as {
-        description: string;
-      };
-      return restored.description;
+      return profileDescription.inputValue();
     })
-    .toBe(originalProfile.description);
+    .toBe(originalDescription);
   await expect(settings.getByText("Built-in profile · Default")).toBeVisible();
   await expect(
     settings.getByRole("button", { name: "Restore Default…", exact: true }),
@@ -288,7 +299,7 @@ async function verifyApplicationSettings(
   await expect(overrideDiff.locator(".is-deletion")).toHaveCount(1);
   await expect(overrideDiff.locator(".is-addition")).toHaveCount(1);
   await expect(overrideDiff.locator(".is-deletion")).toContainText(
-    originalProfile.description,
+    originalDescription,
   );
   await expect(overrideDiff.locator(".is-addition")).toContainText(
     overrideDescription,

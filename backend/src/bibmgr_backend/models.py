@@ -36,6 +36,12 @@ class ExportRequest(StrictRequest):
     venue_name_style: Literal["full", "abbreviated"] = "full"
 
 
+class PreviewExportProfileRequest(StrictRequest):
+    source: str = Field(min_length=1, max_length=100_000)
+    data: dict[str, Any]
+    venue_name_style: Literal["full", "abbreviated"] = "full"
+
+
 class UpdateApplicationConfigurationRequest(StrictRequest):
     data: dict[str, Any]
     expected_revision: int = Field(ge=0)

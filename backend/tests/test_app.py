@@ -14,6 +14,7 @@ from bibmgr_backend.native import NativeCallError
 class RecordingEngine:
     def __init__(self) -> None:
         self.calls: list[tuple[str, tuple[Any, ...]]] = []
+        self.export_profile_data: list[dict[str, Any] | None] = []
 
     def analyze(
         self,
@@ -120,6 +121,7 @@ class RecordingEngine:
         venue_registry: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         self.calls.append(("export", (source, profile)))
+        self.export_profile_data.append(profile_data)
         return {
             "schema_version": "1",
             "source": source,
@@ -360,6 +362,44 @@ def test_export_profile_catalog_uses_effective_application_configuration() -> No
     assert engine.calls == []
 
 
+def test_export_profile_preview_uses_unsaved_data_without_writing_history() -> None:
+    client, engine = client_and_engine()
+    catalog = client.get("/settings/configuration").json()
+    laboratory = next(
+        entry
+        for entry in catalog["export_profiles"]
+        if entry["key"] == "laboratory"
+    )
+    draft = {
+        **laboratory["data"],
+        "description": "Unsaved preview configuration.",
+    }
+
+    response = client.post(
+        "/settings/export-profiles/preview",
+        json={
+            "source": "@misc{preview, title={Preview}}",
+            "data": draft,
+            "venue_name_style": "abbreviated",
+        },
+        headers={"X-CSRF-Token": ""},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["profile"] == "laboratory"
+    assert response.json()["venue_name_style"] == "abbreviated"
+    assert engine.calls == [
+        ("export", ("@misc{preview, title={Preview}}", "laboratory"))
+    ]
+    assert engine.export_profile_data == [draft]
+    history = client.get(
+        "/settings/configuration-history",
+        params={"kind": "export_profile"},
+    )
+    assert history.status_code == 200
+    assert history.json()["total"] == 0
+
+
 def test_application_configuration_is_editable_with_revision_checks() -> None:
     client, _engine = client_and_engine()
     catalog = client.get("/settings/configuration")
@@ -577,6 +617,16 @@ def test_bibtex_operations_require_authentication() -> None:
     assert response.json()["error"]["code"] == "authentication_required"
     assert engine.calls == []
     assert client.get("/bibtex/export/profiles").status_code == 401
+    assert (
+        client.post(
+            "/settings/export-profiles/preview",
+            json={
+                "source": "@misc{key}",
+                "data": {"profile": "laboratory"},
+            },
+        ).status_code
+        == 401
+    )
     assert client.get("/healthz").status_code == 200
 
 

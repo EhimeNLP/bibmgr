@@ -2010,6 +2010,17 @@ pre {
   padding-bottom: 16px;
 }
 
+form.settings-editor > .settings-editor__heading {
+  position: sticky;
+  z-index: 4;
+  top: -20px;
+  margin: -20px -22px 16px;
+  padding: 18px 22px 14px;
+  border-bottom: 1px solid var(--color-border);
+  background: var(--color-surface);
+  box-shadow: 0 5px 12px rgb(0 0 0 / 3%);
+}
+
 .settings-editor__heading h3 {
   margin: 0;
   color: var(--color-text);
@@ -3722,6 +3733,12 @@ pre {
 
   .settings-editor {
     padding: 17px 18px 20px;
+  }
+
+  form.settings-editor > .settings-editor__heading {
+    top: -17px;
+    margin: -17px -18px 16px;
+    padding: 15px 18px 13px;
   }
 
   .settings-editor__heading {

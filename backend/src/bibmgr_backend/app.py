@@ -31,7 +31,7 @@ from .auth import (
 )
 from .database import SessionFactory
 from .db_models import ReferenceAuditEvent
-from .configuration import ApplicationConfiguration
+from .configuration import ApplicationConfiguration, InvalidConfigurationError
 from .library import (
     LibraryError,
     ReferenceLibrary,
@@ -48,6 +48,7 @@ from .models import (
     EmailLoginStartResponse,
     EmailLoginVerifyRequest,
     ExportRequest,
+    PreviewExportProfileRequest,
     ReferenceHistoryResponse,
     ReferenceHistoryPageResponse,
     ReferenceHistorySummaryResponse,
@@ -755,6 +756,36 @@ def create_app(
             kind=kind,
             limit=limit,
             offset=offset,
+        )
+
+    @application.post(
+        "/settings/export-profiles/preview",
+        responses={
+            **REQUEST_VALIDATION_RESPONSES,
+            **AUTHENTICATION_REQUIRED_RESPONSES,
+        },
+    )
+    def preview_export_profile(
+        request: PreviewExportProfileRequest,
+        native: EngineDependency,
+        session: SessionDependency,
+        _authenticated: AuthenticatedSessionDependency,
+    ) -> dict[str, Any]:
+        profile_id = request.data.get("profile")
+        if not isinstance(profile_id, str):
+            raise InvalidConfigurationError(
+                "The export profile must contain a profile ID."
+            )
+        profile_data = configuration.validate_export_profile(
+            profile_id=profile_id,
+            profile_data=request.data,
+        )
+        return native.export_source(
+            request.source,
+            profile_id,
+            venue_name_style=request.venue_name_style,
+            profile_data=profile_data,
+            venue_registry=configuration.venue_registry(session),
         )
 
     @application.put(

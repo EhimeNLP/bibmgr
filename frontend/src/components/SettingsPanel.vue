@@ -17,7 +17,9 @@ import type {
   VenueData,
   VenueKind,
 } from "../types/configuration";
+import { exportProfileErrors } from "../utils/exportProfile";
 import AppIcon from "./AppIcon.vue";
+import ExportProfileEditor from "./ExportProfileEditor.vue";
 import UnifiedDiff from "./UnifiedDiff.vue";
 
 const props = defineProps<{ authenticated: boolean }>();
@@ -41,7 +43,7 @@ const newConfigurationKey = ref("");
 const configuration = ref<ApplicationConfiguration | null>(null);
 const selectedProfileId = ref<string | null>(null);
 const selectedVenueId = ref<string | null>(null);
-const profileJson = ref("");
+const profileDraft = ref<ExportProfileData | null>(null);
 const venueDraft = ref<VenueData | null>(null);
 const errorMessage = ref<string | null>(null);
 const statusMessage = ref<string | null>(null);
@@ -77,12 +79,17 @@ const selectedVenue = computed(
     ) ?? null,
 );
 const isBusy = computed(() => isSaving.value || isDeleting.value);
+const profileDraftId = computed(() => {
+  if (createMode.value === "profile") {
+    return validConfigurationKey(newConfigurationKey.value, "profile") ?? "";
+  }
+  return selectedProfile.value?.key ?? "";
+});
 const profileDraftData = computed(() => {
-  const key =
-    createMode.value === "profile"
-      ? validConfigurationKey(newConfigurationKey.value, "profile")
-      : selectedProfile.value?.key;
-  return key ? parseProfileData(key) : null;
+  const key = profileDraftId.value;
+  return key && profileDraft.value
+    ? { ...cloneData(profileDraft.value), profile: key }
+    : null;
 });
 const normalizedVenueDraft = computed(() => {
   const key =
@@ -95,7 +102,7 @@ const normalizedVenueDraft = computed(() => {
 });
 const canSaveProfile = computed(() => {
   const data = profileDraftData.value;
-  if (!data) return false;
+  if (!data || exportProfileErrors(data).length > 0) return false;
   if (createMode.value === "profile") return true;
   return Boolean(
     selectedProfile.value &&
@@ -218,9 +225,9 @@ function selectVenue(key: string) {
 }
 
 function syncProfileDraft() {
-  profileJson.value = selectedProfile.value
-    ? JSON.stringify(selectedProfile.value.data, null, 2)
-    : "";
+  profileDraft.value = selectedProfile.value
+    ? cloneData(selectedProfile.value.data)
+    : null;
 }
 
 function syncVenueDraft() {
@@ -242,9 +249,17 @@ async function saveProfile() {
   if (!entry || isBusy.value) return;
   errorMessage.value = null;
   statusMessage.value = null;
-  const data = parseProfileData(entry.key);
+  const data =
+    profileDraft.value
+      ? { ...cloneData(profileDraft.value), profile: entry.key }
+      : null;
   if (!data) {
-    errorMessage.value = "Profile definition must be a valid JSON object.";
+    errorMessage.value = "Profile definition is unavailable.";
+    return;
+  }
+  const profileErrors = exportProfileErrors(data);
+  if (profileErrors.length > 0) {
+    errorMessage.value = profileErrors[0];
     return;
   }
   if (!creating && sameData(data, selectedProfile.value?.data)) {
@@ -322,15 +337,11 @@ function startAddingProfile() {
   createMode.value = "profile";
   pendingDeletion.value = null;
   newConfigurationKey.value = "";
-  profileJson.value = JSON.stringify(
-    {
-      ...cloneData(base),
-      profile: "",
-      display_name: `${base.display_name} Copy`,
-    },
-    null,
-    2,
-  );
+  profileDraft.value = {
+    ...cloneData(base),
+    profile: "",
+    display_name: `${base.display_name} Copy`,
+  };
   errorMessage.value = null;
   statusMessage.value = null;
 }
@@ -370,7 +381,7 @@ async function requestProfileDeletion() {
     builtIn: entry.built_in,
   };
   await nextTick();
-  confirmationAction.value?.focus({ preventScroll: true });
+  confirmationAction.value?.focus();
 }
 
 async function requestVenueDeletion() {
@@ -383,7 +394,7 @@ async function requestVenueDeletion() {
     builtIn: entry.built_in,
   };
   await nextTick();
-  confirmationAction.value?.focus({ preventScroll: true });
+  confirmationAction.value?.focus();
 }
 
 async function confirmDeletion() {
@@ -442,17 +453,6 @@ function validConfigurationKey(
       ? configuration.value?.export_profiles.some((entry) => entry.key === key)
       : configuration.value?.venues.some((entry) => entry.key === key);
   return alreadyExists ? null : key;
-}
-
-function parseProfileData(key: string): ExportProfileData | null {
-  try {
-    const parsed: unknown = JSON.parse(profileJson.value);
-    return isRecord(parsed)
-      ? ({ ...parsed, profile: key } as ExportProfileData)
-      : null;
-  } catch {
-    return null;
-  }
 }
 
 function normalizeVenueData(data: VenueData, key: string): VenueData {
@@ -1019,14 +1019,12 @@ defineExpose({ openSettings });
                   :disabled="isBusy"
                 />
               </label>
-              <label class="settings-field settings-field--code">
-                <span>Profile definition (JSON)</span>
-                <textarea
-                  v-model="profileJson"
-                  spellcheck="false"
-                  :disabled="isBusy"
-                ></textarea>
-              </label>
+              <ExportProfileEditor
+                v-if="profileDraft"
+                v-model="profileDraft"
+                :profile-id="profileDraftId"
+                :disabled="isBusy"
+              />
             </form>
 
             <form

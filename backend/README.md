@@ -89,12 +89,13 @@ The service also exposes:
 - `POST /bibtex/export`
 - `GET /settings/configuration`
 - `GET /settings/configuration-history?kind=export_profile|venue`
+- `POST /settings/export-profiles/preview`
 - `PUT /settings/export-profiles/{profile_id}`
 - `DELETE /settings/export-profiles/{profile_id}`
 - `PUT /settings/venues/{venue_id}`
 - `DELETE /settings/venues/{venue_id}`
 
-`POST /bibtex/export` accepts `venue_name_style` as `full` or `abbreviated` and defaults to `full` for every output profile. The settings catalog combines embedded defaults with PostgreSQL overrides. `PUT` creates or updates a setting. Submitting data identical to the effective setting is a no-op and does not advance its revision. `DELETE` removes a custom setting or removes a built-in setting's override so its embedded default becomes effective again. All effective writes use optimistic revisions, run native configuration validation before commit where applicable, and append actor-attributed audit events. Configuration history is paginated by `limit` and `offset`, includes deleted custom settings, and identifies each new event as create, override, update, restore-default, or delete. Events created before action tracking was introduced use the neutral `change` label when the exact action cannot be inferred from their snapshots.
+`POST /bibtex/export` accepts `venue_name_style` as `full` or `abbreviated` and defaults to `full` for every output profile. The settings catalog combines embedded defaults with PostgreSQL overrides. `POST /settings/export-profiles/preview` validates and renders an unsaved typed profile against the effective venue registry without writing configuration or audit history. `PUT` creates or updates a setting. Submitting data identical to the effective setting is a no-op and does not advance its revision. `DELETE` removes a custom setting or removes a built-in setting's override so its embedded default becomes effective again. All effective writes use optimistic revisions, run native configuration validation before commit where applicable, and append actor-attributed audit events. Configuration history is paginated by `limit` and `offset`, includes deleted custom settings, and identifies each new event as create, override, update, restore-default, or delete. Events created before action tracking was introduced use the neutral `change` label when the exact action cannot be inferred from their snapshots.
 
 `GET /healthz` is a process liveness check. `GET /readyz` verifies database connectivity. `GET /metrics` exposes Prometheus text metrics. Every HTTP response includes `X-Request-ID`, and the backend writes structured request logs without request bodies, email addresses, or BibTeX content.
 

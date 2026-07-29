@@ -12,6 +12,8 @@ import type {
   ConfigurationKind,
   ConfigurationUpdateResult,
   ExportProfileData,
+  ExportProfilePreviewRequest,
+  ExportProfilePreviewResult,
   VenueData,
 } from "../types/configuration";
 
@@ -43,6 +45,23 @@ export async function getConfigurationHistory(
     },
   );
   return configurationResponse<ConfigurationHistoryPage>(response);
+}
+
+export async function previewExportProfile(
+  request: ExportProfilePreviewRequest,
+  signal?: AbortSignal,
+): Promise<ExportProfilePreviewResult> {
+  const response = await fetch(
+    `${API_BASE_URL}/settings/export-profiles/preview`,
+    {
+      method: "POST",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(request),
+      signal,
+    },
+  );
+  return configurationResponse<ExportProfilePreviewResult>(response);
 }
 
 export async function updateExportProfile(
