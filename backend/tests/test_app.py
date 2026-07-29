@@ -1,8 +1,13 @@
 from typing import Any
 
 from fastapi.testclient import TestClient
+from sqlalchemy import create_engine
+from sqlalchemy.orm import Session, sessionmaker
+from sqlalchemy.pool import StaticPool
 
 from bibmgr_backend.app import create_app
+from bibmgr_backend.auth import AuthenticationManager
+from bibmgr_backend.db_models import Base
 from bibmgr_backend.native import NativeCallError
 
 
@@ -82,9 +87,64 @@ class RecordingEngine:
         return {"schema_version": "1", "source": source, "profile": profile}
 
 
-def client_and_engine() -> tuple[TestClient, RecordingEngine]:
-    engine = RecordingEngine()
-    return TestClient(create_app(engine)), engine
+class CapturingMailer:
+    def __init__(self) -> None:
+        self.code = ""
+
+    def send_login_code(
+        self,
+        *,
+        recipient: str,
+        code: str,
+        expires_in_minutes: int,
+    ) -> None:
+        self.code = code
+
+
+def client_and_engine(
+    engine: RecordingEngine | None = None,
+    *,
+    authenticated: bool = True,
+) -> tuple[TestClient, RecordingEngine]:
+    selected_engine = engine or RecordingEngine()
+    database = create_engine(
+        "sqlite+pysqlite://",
+        connect_args={"check_same_thread": False},
+        poolclass=StaticPool,
+    )
+    Base.metadata.create_all(database)
+    sessions = sessionmaker(
+        bind=database,
+        class_=Session,
+        expire_on_commit=False,
+    )
+    mailer = CapturingMailer()
+    authentication = AuthenticationManager(
+        mailer=mailer,
+        secret=b"backend-transport-test-secret",
+        code_generator=lambda: "12345678",
+        session_token_generator=lambda: "backend-transport-session",
+        secure_cookie=False,
+    )
+    client = TestClient(
+        create_app(
+            selected_engine,
+            session_factory=sessions,
+            authentication=authentication,
+        )
+    )
+    if authenticated:
+        email = "transport@ai.cs.ehime-u.ac.jp"
+        assert client.post(
+            "/auth/email/start", json={"email": email}
+        ).status_code == 202
+        verified = client.post(
+            "/auth/email/verify",
+            json={"email": email, "code": mailer.code},
+        )
+        assert verified.status_code == 200
+        client.headers["X-CSRF-Token"] = verified.json()["csrfToken"]
+    return client, selected_engine
 
 
 def test_analyze_passes_source_profile_and_mode_unchanged() -> None:
@@ -250,6 +310,22 @@ def test_openapi_advertises_versioned_request_validation_errors() -> None:
         "schema_version",
         "error",
     ]
+    assert "401" in schema["paths"]["/bibtex/analyze"]["post"]["responses"]
+
+
+def test_bibtex_operations_require_authentication() -> None:
+    client, engine = client_and_engine(authenticated=False)
+
+    response = client.post(
+        "/bibtex/analyze",
+        json={"source": "@misc{key}", "mode": "tolerant"},
+    )
+
+    assert response.status_code == 401
+    assert response.json()["error"]["code"] == "authentication_required"
+    assert engine.calls == []
+    assert client.get("/bibtex/export/profiles").status_code == 401
+    assert client.get("/healthz").status_code == 200
 
 
 class FailingEngine(RecordingEngine):
@@ -258,7 +334,7 @@ class FailingEngine(RecordingEngine):
 
 
 def test_native_errors_use_the_versioned_error_dto() -> None:
-    client = TestClient(create_app(FailingEngine()))
+    client, _engine = client_and_engine(FailingEngine())
 
     response = client.post("/bibtex/analyze", json={"source": ""})
 

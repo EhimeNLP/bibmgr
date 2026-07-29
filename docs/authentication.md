@@ -2,7 +2,9 @@
 
 ## Access policy
 
-Reference search, reference detail, BibTeX analysis, fix calculation, registration validation, and export are public because they do not change server state. `POST /references`, `PUT /references/{id}`, and `DELETE /references/{id}` require authentication even though other computational endpoints also use `POST`.
+BibMgR requires an authenticated session for reference search, reference detail, history, BibTeX analysis, fix calculation, registration validation, export, and every library mutation. Read-only and computational requests require the HttpOnly session cookie but not a CSRF token. State-changing requests additionally require the session-bound `X-CSRF-Token`.
+
+The email-login start and verification endpoints and `GET /auth/session` remain available before login. Liveness, readiness, and metrics endpoints remain unauthenticated for infrastructure monitoring and do not expose bibliography records.
 
 ## Passwordless email login
 

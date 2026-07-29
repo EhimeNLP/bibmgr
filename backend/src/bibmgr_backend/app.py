@@ -576,18 +576,30 @@ def create_app(
         return response
 
     @application.post(
-        "/bibtex/analyze", responses=REQUEST_VALIDATION_RESPONSES
+        "/bibtex/analyze",
+        responses={
+            **REQUEST_VALIDATION_RESPONSES,
+            **AUTHENTICATION_REQUIRED_RESPONSES,
+        },
     )
     def analyze(
-        request: AnalyzeRequest, native: EngineDependency
+        request: AnalyzeRequest,
+        native: EngineDependency,
+        _authenticated: AuthenticatedSessionDependency,
     ) -> dict[str, Any]:
         return native.analyze(request.source, request.profile, request.mode)
 
     @application.post(
-        "/bibtex/fixes/apply", responses=REQUEST_VALIDATION_RESPONSES
+        "/bibtex/fixes/apply",
+        responses={
+            **REQUEST_VALIDATION_RESPONSES,
+            **AUTHENTICATION_REQUIRED_RESPONSES,
+        },
     )
     def apply_fixes(
-        request: ApplyFixesRequest, native: EngineDependency
+        request: ApplyFixesRequest,
+        native: EngineDependency,
+        _authenticated: AuthenticatedSessionDependency,
     ) -> dict[str, Any]:
         return native.apply_fixes(
             request.source,
@@ -597,33 +609,56 @@ def create_app(
         )
 
     @application.post(
-        "/bibtex/registration/validate", responses=REQUEST_VALIDATION_RESPONSES
+        "/bibtex/registration/validate",
+        responses={
+            **REQUEST_VALIDATION_RESPONSES,
+            **AUTHENTICATION_REQUIRED_RESPONSES,
+        },
     )
     def validate_registration(
-        request: RegistrationRequest, native: EngineDependency
+        request: RegistrationRequest,
+        native: EngineDependency,
+        _authenticated: AuthenticatedSessionDependency,
     ) -> dict[str, Any]:
         return native.validate_for_registration(request.source, request.policy)
 
     @application.post(
         "/bibtex/registration/canonicalize",
-        responses=REQUEST_VALIDATION_RESPONSES,
+        responses={
+            **REQUEST_VALIDATION_RESPONSES,
+            **AUTHENTICATION_REQUIRED_RESPONSES,
+        },
     )
     def canonicalize_registration_source(
-        request: RegistrationRequest, native: EngineDependency
+        request: RegistrationRequest,
+        native: EngineDependency,
+        _authenticated: AuthenticatedSessionDependency,
     ) -> dict[str, Any]:
         return native.canonicalize_for_storage(
             request.source, request.policy
         )
 
-    @application.get("/bibtex/export/profiles")
-    def export_profiles(native: EngineDependency) -> dict[str, Any]:
+    @application.get(
+        "/bibtex/export/profiles",
+        responses=AUTHENTICATION_REQUIRED_RESPONSES,
+    )
+    def export_profiles(
+        native: EngineDependency,
+        _authenticated: AuthenticatedSessionDependency,
+    ) -> dict[str, Any]:
         return native.export_profiles()
 
     @application.post(
-        "/bibtex/export", responses=REQUEST_VALIDATION_RESPONSES
+        "/bibtex/export",
+        responses={
+            **REQUEST_VALIDATION_RESPONSES,
+            **AUTHENTICATION_REQUIRED_RESPONSES,
+        },
     )
     def export_source(
-        request: ExportRequest, native: EngineDependency
+        request: ExportRequest,
+        native: EngineDependency,
+        _authenticated: AuthenticatedSessionDependency,
     ) -> dict[str, Any]:
         return native.export_source(request.source, request.profile)
 
@@ -738,10 +773,14 @@ def create_app(
     @application.get(
         "/references",
         response_model=list[ReferenceResponse],
-        responses=REQUEST_VALIDATION_RESPONSES,
+        responses={
+            **REQUEST_VALIDATION_RESPONSES,
+            **AUTHENTICATION_REQUIRED_RESPONSES,
+        },
     )
     def search_references(
         session: SessionDependency,
+        _authenticated: AuthenticatedSessionDependency,
         query: Annotated[str, Query(max_length=512)] = "",
         limit: Annotated[int, Query(ge=1, le=100)] = 50,
         offset: Annotated[int, Query(ge=0)] = 0,
@@ -754,10 +793,14 @@ def create_app(
     @application.get(
         "/references/page",
         response_model=ReferencePageResponse,
-        responses=REQUEST_VALIDATION_RESPONSES,
+        responses={
+            **REQUEST_VALIDATION_RESPONSES,
+            **AUTHENTICATION_REQUIRED_RESPONSES,
+        },
     )
     def page_references(
         session: SessionDependency,
+        _authenticated: AuthenticatedSessionDependency,
         query: Annotated[str, Query(max_length=512)] = "",
         year: Annotated[int | None, Query(ge=1, le=9999)] = None,
         author: Annotated[str | None, Query(max_length=320)] = None,
@@ -802,10 +845,15 @@ def create_app(
     @application.get(
         "/references/{reference_id}",
         response_model=ReferenceResponse,
-        responses={404: {"model": ErrorResponse}},
+        responses={
+            **AUTHENTICATION_REQUIRED_RESPONSES,
+            404: {"model": ErrorResponse},
+        },
     )
     def get_reference(
-        reference_id: uuid.UUID, session: SessionDependency
+        reference_id: uuid.UUID,
+        session: SessionDependency,
+        _authenticated: AuthenticatedSessionDependency,
     ) -> ReferenceResponse:
         return reference_response(library.get(session, reference_id))
 

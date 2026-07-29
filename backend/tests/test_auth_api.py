@@ -289,12 +289,81 @@ def test_exact_external_email_allowlist_is_additive() -> None:
     ]
 
 
-def test_reference_writes_require_session_and_csrf_but_reads_are_public() -> None:
+@pytest.mark.parametrize(
+    ("method", "path", "payload"),
+    [
+        ("GET", "/references", None),
+        ("GET", "/references/page", None),
+        (
+            "GET",
+            "/references/00000000-0000-0000-0000-000000000001",
+            None,
+        ),
+        ("GET", "/reference-history", None),
+        ("GET", "/reference-history/page", None),
+        (
+            "GET",
+            (
+                "/references/00000000-0000-0000-0000-000000000001"
+                "/history"
+            ),
+            None,
+        ),
+        ("GET", "/bibtex/export/profiles", None),
+        ("POST", "/bibtex/analyze", {"source": "@misc{demo}"}),
+        (
+            "POST",
+            "/bibtex/fixes/apply",
+            {
+                "source": "@misc{demo}",
+                "source_revision": f"sha256:{'0' * 64}",
+                "fix_ids": ["fix"],
+            },
+        ),
+        (
+            "POST",
+            "/bibtex/registration/validate",
+            {"source": "@misc{demo}"},
+        ),
+        (
+            "POST",
+            "/bibtex/registration/canonicalize",
+            {"source": "@misc{demo}"},
+        ),
+        (
+            "POST",
+            "/bibtex/export",
+            {"source": "@misc{demo}"},
+        ),
+    ],
+)
+def test_reads_and_bibtex_tools_require_authentication(
+    method: str,
+    path: str,
+    payload: dict[str, Any] | None,
+) -> None:
+    client, _mailer, _clock, _sessions = build_client()
+
+    response = client.request(method, path, json=payload)
+
+    assert response.status_code == 401
+    assert response.json()["error"]["code"] == "authentication_required"
+
+
+def test_application_access_requires_session_and_writes_require_csrf() -> None:
     client, mailer, clock, _sessions = build_client()
     source = "@article{demo, title={Demo}}"
 
-    assert client.get("/references").status_code == 200
+    assert client.get("/references").status_code == 401
+    assert client.get("/references/page").status_code == 401
+    assert client.get("/bibtex/export/profiles").status_code == 401
+    assert client.post(
+        "/bibtex/analyze",
+        json={"source": source},
+    ).status_code == 401
     assert client.get("/reference-history").status_code == 401
+    assert client.get("/healthz").status_code == 200
+    assert client.get("/readyz").status_code == 200
     unauthenticated = client.post(
         "/references",
         json={"bibtex": source, "source": "manual"},
@@ -319,6 +388,12 @@ def test_reference_writes_require_session_and_csrf_but_reads_are_public() -> Non
     )
     assert verified.status_code == 200
 
+    assert client.get("/references").status_code == 200
+    assert client.get("/bibtex/export/profiles").status_code == 200
+    assert client.post(
+        "/bibtex/analyze",
+        json={"source": source},
+    ).status_code == 200
     missing_csrf = client.post(
         "/references",
         json={"bibtex": source, "source": "manual"},

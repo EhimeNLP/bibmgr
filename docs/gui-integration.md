@@ -33,9 +33,9 @@ The example backend exposes schema-v1 JSON:
 | `DELETE /references/{id}` | Delete a reference |
 | `POST /references/{id}/revert` | Restore a prior state as a new revision |
 
-BibTeX processing and reference reads are public. Reference registration, replacement, and deletion require the HttpOnly session cookie plus the session-bound `X-CSRF-Token`. The frontend restores that token from `GET /auth/session`; it never stores a reusable API key.
+BibTeX processing, reference reads, and history reads require the HttpOnly session cookie. Reference registration, replacement, deletion, citation-context addition, and restoration additionally require the session-bound `X-CSRF-Token`. The frontend restores that token from `GET /auth/session`; it never stores a reusable API key. Before authentication completes, the workspace is replaced by a login-required view and no reference request is sent.
 
-History reads require login because they include actor email addresses. The history catalog retains deleted reference IDs and titles. Restoring sends both the selected revision and the currently displayed head revision; `stale_reference_history` means the client must reload rather than retry with an obsolete head.
+The history catalog retains deleted reference IDs and titles. Restoring sends both the selected revision and the currently displayed head revision; `stale_reference_history` means the client must reload rather than retry with an obsolete head.
 
 Every request carries `source`; relevant requests also carry `profile`, `policy`, `mode`, `fix_ids`, or `source_revision`. An explicit fix request must send the revision returned by the analysis that exposed its IDs. Every success carries `schema_version`. Errors use a stable code/message DTO and do not masquerade as diagnostics. Transport-level request validation uses `invalid_request` without copying framework-owned input values into the response.
 

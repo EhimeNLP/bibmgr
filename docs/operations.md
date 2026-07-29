@@ -48,7 +48,7 @@ BIBMGR_WEB_BIND_ADDRESS=192.168.1.229
 BIBMGR_WEB_PORT=8503
 ```
 
-The expected public URL is `https://aiweb.cs.ehime-u.ac.jp/bibmgr/`, and the external proxy forwards that path to `http://192.168.1.229:8503/bibmgr/`. An Apache `Require ip` rule limits network access independently of BibMgR's anonymous-read and authenticated-write policy; retain or remove that rule according to the intended audience.
+The expected public URL is `https://aiweb.cs.ehime-u.ac.jp/bibmgr/`, and the external proxy forwards that path to `http://192.168.1.229:8503/bibmgr/`. An Apache `Require ip` rule limits network access independently of BibMgR's application login requirement; retain or remove that rule according to the intended audience.
 
 ## Health, logs, and metrics
 
@@ -147,7 +147,7 @@ docker compose --env-file .env.production \
   up --detach --wait backend web
 ```
 
-Verify the public readiness URL, public search, one authenticated write, and a history restore after recovery. Perform this drill against an isolated staging database regularly; a backup is not operationally proven until restore has succeeded.
+Verify the public readiness URL, authenticated search, one authenticated write, and a history restore after recovery. Perform this drill against an isolated staging database regularly; a backup is not operationally proven until restore has succeeded.
 
 ## systemd
 
