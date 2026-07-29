@@ -14,7 +14,7 @@ The same email-code flow handles account creation and later login:
 4. `POST /auth/email/verify` accepts the code once within ten minutes and creates the user on first verification.
 5. The backend creates a random opaque session, stores only its SHA-256 digest, and sets the raw value in an HttpOnly browser cookie.
 
-Each code permits at most five failed verification attempts. Requests have a per-address cooldown and an hourly per-IP limit. A newer code invalidates older unused codes.
+Each code permits at most five failed verification attempts. Requests have a per-address cooldown and an hourly per-IP limit. PostgreSQL transaction-scoped advisory locks serialize reservation of the address and IP request slots, and the challenge is committed before SMTP delivery begins. A newer code invalidates older unused codes. If SMTP delivery fails, the reserved challenge is marked consumed while its request continues to count toward the cooldown and hourly limit.
 
 ## Browser session and CSRF
 

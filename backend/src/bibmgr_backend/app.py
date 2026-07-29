@@ -474,13 +474,23 @@ def create_app(
         session: SessionDependency,
     ) -> EmailLoginStartResponse:
         with write_transaction(session):
-            selected_authentication.request_login(
+            delivery = selected_authentication.reserve_login_code(
                 session,
                 email=login.email,
                 request_ip=(
                     request.client.host if request.client else None
                 ),
             )
+        if delivery is not None:
+            try:
+                selected_authentication.deliver_login_code(delivery)
+            except EmailDeliveryError:
+                with write_transaction(session):
+                    selected_authentication.mark_login_delivery_failed(
+                        session,
+                        delivery.challenge_id,
+                    )
+                raise
         return EmailLoginStartResponse(
             message=(
                 "If the address is eligible, a login code has been sent."

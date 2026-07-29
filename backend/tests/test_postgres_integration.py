@@ -1,13 +1,24 @@
 from __future__ import annotations
 
+from concurrent.futures import (
+    ThreadPoolExecutor,
+    TimeoutError as FutureTimeoutError,
+)
 import os
+from threading import Event
 import uuid
 
 from alembic import command
 import pytest
-from sqlalchemy import create_engine, text
+from sqlalchemy import create_engine, func, select, text
 from sqlalchemy.exc import DBAPIError, IntegrityError
+from sqlalchemy.orm import Session, sessionmaker
 
+from bibmgr_backend.auth import (
+    AuthenticationManager,
+    AuthenticationRateLimitError,
+)
+from bibmgr_backend.db_models import EmailLoginChallenge
 from bibmgr_backend.migrate import migration_config
 
 
@@ -16,6 +27,17 @@ pytestmark = pytest.mark.skipif(
     not POSTGRES_URL,
     reason="BIBMGR_TEST_POSTGRES_URL is not configured",
 )
+
+
+class UnusedMailer:
+    def send_login_code(
+        self,
+        *,
+        recipient: str,
+        code: str,
+        expires_in_minutes: int,
+    ) -> None:
+        raise AssertionError("reservation must not send email")
 
 
 def test_postgresql_migrations_indexes_and_append_only_history(
@@ -154,3 +176,67 @@ def test_postgresql_migrations_indexes_and_append_only_history(
 
     command.downgrade(config, "base")
     command.upgrade(config, "head")
+
+
+def test_login_request_reservations_are_serialized(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    assert POSTGRES_URL is not None
+    monkeypatch.setenv("BIBMGR_DATABASE_URL", POSTGRES_URL)
+    config = migration_config()
+    command.downgrade(config, "base")
+    command.upgrade(config, "head")
+
+    engine = create_engine(POSTGRES_URL)
+    sessions = sessionmaker(
+        bind=engine,
+        class_=Session,
+        expire_on_commit=False,
+    )
+    authentication = AuthenticationManager(
+        mailer=UnusedMailer(),
+        secret=b"postgres-authentication-test-secret",
+        code_generator=lambda: "12345678",
+        secure_cookie=False,
+    )
+    email = "concurrent@ai.cs.ehime-u.ac.jp"
+    request_ip = "192.0.2.10"
+    second_started = Event()
+
+    def reserve_second_request() -> str:
+        second_started.set()
+        with sessions() as session:
+            try:
+                authentication.reserve_login_code(
+                    session,
+                    email=email,
+                    request_ip=request_ip,
+                )
+                session.commit()
+                return "reserved"
+            except AuthenticationRateLimitError:
+                session.rollback()
+                return "limited"
+
+    with sessions() as first_session:
+        first_delivery = authentication.reserve_login_code(
+            first_session,
+            email=email,
+            request_ip=request_ip,
+        )
+        assert first_delivery is not None
+
+        with ThreadPoolExecutor(max_workers=1) as executor:
+            second = executor.submit(reserve_second_request)
+            assert second_started.wait(timeout=2)
+            try:
+                with pytest.raises(FutureTimeoutError):
+                    second.result(timeout=0.2)
+            finally:
+                first_session.commit()
+            assert second.result(timeout=5) == "limited"
+
+    with sessions() as session:
+        assert session.scalar(
+            select(func.count()).select_from(EmailLoginChallenge)
+        ) == 1

@@ -13,6 +13,7 @@ from sqlalchemy.pool import StaticPool
 from bibmgr_backend.app import create_app
 from bibmgr_backend.auth import (
     AuthenticationManager,
+    EmailDeliveryError,
     SmtpLoginCodeMailer,
     allowed_email_exceptions,
     authentication_secret,
@@ -74,6 +75,17 @@ class CapturingMailer:
         self.messages.append((recipient, code, expires_in_minutes))
 
 
+class FailingMailer(CapturingMailer):
+    def send_login_code(
+        self,
+        *,
+        recipient: str,
+        code: str,
+        expires_in_minutes: int,
+    ) -> None:
+        raise EmailDeliveryError("The login email could not be delivered.")
+
+
 class MutableClock:
     def __init__(self) -> None:
         self.value = datetime(2026, 7, 27, tzinfo=timezone.utc)
@@ -89,6 +101,7 @@ def build_client(
     *,
     allowed_emails: set[str] | None = None,
     cookie_path: str = "/",
+    mailer: CapturingMailer | None = None,
 ) -> tuple[
     TestClient,
     CapturingMailer,
@@ -104,10 +117,10 @@ def build_client(
     sessions = sessionmaker(
         bind=database, class_=Session, expire_on_commit=False
     )
-    mailer = CapturingMailer()
+    selected_mailer = mailer or CapturingMailer()
     clock = MutableClock()
     authentication = AuthenticationManager(
-        mailer=mailer,
+        mailer=selected_mailer,
         secret=b"authentication-api-test-secret",
         now=clock,
         code_generator=lambda: "12345678",
@@ -123,7 +136,7 @@ def build_client(
             authentication=authentication,
         )
     )
-    return client, mailer, clock, sessions
+    return client, selected_mailer, clock, sessions
 
 
 def test_email_login_creates_session_and_logout_revokes_it() -> None:
@@ -230,6 +243,27 @@ def test_login_code_is_rate_limited_and_expires() -> None:
         challenge = session.scalar(select(EmailLoginChallenge))
         assert challenge is not None
         assert challenge.code_digest != mailer.messages[0][1]
+
+
+def test_failed_delivery_consumes_challenge_and_preserves_request_slot() -> None:
+    failing_mailer = FailingMailer()
+    client, _mailer, _clock, sessions = build_client(
+        mailer=failing_mailer
+    )
+    email = "member@ai.cs.ehime-u.ac.jp"
+
+    failed = client.post("/auth/email/start", json={"email": email})
+
+    assert failed.status_code == 503
+    assert failed.json()["error"]["code"] == "email_delivery_failed"
+    with sessions() as session:
+        challenge = session.scalar(select(EmailLoginChallenge))
+        assert challenge is not None
+        assert challenge.consumed_at is not None
+
+    limited = client.post("/auth/email/start", json={"email": email})
+    assert limited.status_code == 429
+    assert limited.headers["retry-after"] == "60"
 
 
 def test_exact_external_email_allowlist_is_additive() -> None:

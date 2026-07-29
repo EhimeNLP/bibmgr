@@ -81,6 +81,14 @@ class AuthenticatedSession:
     token: str
 
 
+@dataclass(frozen=True)
+class LoginCodeDelivery:
+    challenge_id: uuid.UUID
+    recipient: str
+    code: str
+    expires_in_minutes: int
+
+
 class SmtpLoginCodeMailer:
     """Send login codes using the configured SMTP relay."""
 
@@ -223,17 +231,23 @@ class AuthenticationManager:
             )
         self.cookie_path = configured_cookie_path.rstrip("/") or "/"
 
-    def request_login(
+    def reserve_login_code(
         self,
         session: Session,
         *,
         email: str,
         request_ip: str | None,
-    ) -> bool:
+    ) -> LoginCodeDelivery | None:
         normalized_email = normalize_email(email)
         if not self._is_allowed_email(normalized_email):
-            return False
+            return None
+        assert normalized_email is not None
 
+        self._lock_login_request_slots(
+            session,
+            email=normalized_email,
+            request_ip=request_ip,
+        )
         now = self.now()
         latest_request = session.scalar(
             select(EmailLoginChallenge)
@@ -265,7 +279,7 @@ class AuthenticationManager:
             select(UserRecord).where(UserRecord.email == normalized_email)
         )
         if user is not None and user.status != "active":
-            return False
+            return None
 
         session.execute(
             update(EmailLoginChallenge)
@@ -290,14 +304,57 @@ class AuthenticationManager:
             expires_at=now + LOGIN_CODE_LIFETIME,
         )
         session.add(challenge)
-        self.mailer.send_login_code(
+        session.flush()
+        return LoginCodeDelivery(
+            challenge_id=challenge_id,
             recipient=normalized_email,
             code=code,
             expires_in_minutes=int(
                 LOGIN_CODE_LIFETIME.total_seconds() / 60
             ),
         )
-        return True
+
+    def deliver_login_code(self, delivery: LoginCodeDelivery) -> None:
+        self.mailer.send_login_code(
+            recipient=delivery.recipient,
+            code=delivery.code,
+            expires_in_minutes=delivery.expires_in_minutes,
+        )
+
+    def mark_login_delivery_failed(
+        self,
+        session: Session,
+        challenge_id: uuid.UUID,
+    ) -> None:
+        session.execute(
+            update(EmailLoginChallenge)
+            .where(
+                EmailLoginChallenge.id == challenge_id,
+                EmailLoginChallenge.consumed_at.is_(None),
+            )
+            .values(consumed_at=self.now())
+        )
+
+    def _lock_login_request_slots(
+        self,
+        session: Session,
+        *,
+        email: str,
+        request_ip: str | None,
+    ) -> None:
+        if session.get_bind().dialect.name != "postgresql":
+            return
+        lock_values = [("email", email)]
+        if request_ip:
+            lock_values.append(("ip", request_ip))
+        for namespace, value in lock_values:
+            session.scalar(
+                select(
+                    func.pg_advisory_xact_lock(
+                        _advisory_lock_key(namespace, value)
+                    )
+                )
+            )
 
     def verify_login(
         self,
@@ -499,6 +556,12 @@ def _as_utc(value: datetime) -> datetime:
     if value.tzinfo is None:
         return value.replace(tzinfo=timezone.utc)
     return value.astimezone(timezone.utc)
+
+
+def _advisory_lock_key(namespace: str, value: str) -> int:
+    digest = sha256(f"{namespace}\0{value}".encode()).digest()
+    unsigned = int.from_bytes(digest[:8], byteorder="big", signed=False)
+    return unsigned if unsigned < 2**63 else unsigned - 2**64
 
 
 def _environment_flag(name: str, *, default: bool = False) -> bool:
