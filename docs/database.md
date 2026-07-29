@@ -75,7 +75,7 @@ The compatibility list endpoint searches title, citation key, venue, stored BibT
 
 The active registration policy comes from `BIBMGR_REGISTRATION_POLICY`. The persistence request cannot choose a weaker policy.
 
-`POST /references/{id}/citation-contexts` appends contexts without changing stored BibTeX and records the resulting complete state as a `context` history revision. The independent initialization pipeline is not exposed through an application registration endpoint.
+`POST /references/{id}/citation-contexts` appends contexts without changing stored BibTeX and records the resulting complete state as a `context` history revision.
 
 ## Editing and deletion
 

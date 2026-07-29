@@ -62,7 +62,7 @@ def test_postgresql_migrations_indexes_and_append_only_history(
             {"id": user_id, "email": "postgres-test@ai.cs.ehime-u.ac.jp"},
         )
         for reference_id, key, source in (
-            (first_reference_id, "first", "pipeline"),
+            (first_reference_id, "first", "file"),
             (second_reference_id, "second", "manual"),
         ):
             connection.execute(

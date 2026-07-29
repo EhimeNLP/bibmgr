@@ -10,7 +10,6 @@ class ReferenceData(BaseModel):
     doi: Optional[str] = None
     venue: Optional[str] = None
     raw_text: str
-    citation_contexts: List[Any] = Field(default_factory=list)
 
 class DocumentRoot(BaseModel):
     title: str

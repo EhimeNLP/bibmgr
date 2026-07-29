@@ -13,25 +13,13 @@ class ParseOutputTests(unittest.TestCase):
         payload = {
             "metadata": {"title": "Paper", "authors": ["A"], "year": "2025", "doi": "10.1/x"},
             "references": [
-                {
-                    "id": "b0",
-                    "title": "Ref",
-                    "authors": ["B"],
-                    "year": "2020",
-                    "doi": None,
-                    "raw_text": "B. Ref.",
-                    "citation_contexts": ["Ref is compared here."],
-                }
+                {"id": "b0", "title": "Ref", "authors": ["B"], "year": "2020", "doi": None, "raw_text": "B. Ref."}
             ],
         }
         essential = extract_essential_info(payload)
         self.assertEqual(essential["title"], "Paper")
         self.assertEqual(essential["reference_count"], 1)
         self.assertEqual(essential["references"][0]["title"], "Ref")
-        self.assertEqual(
-            essential["references"][0]["citation_contexts"],
-            ["Ref is compared here."],
-        )
         self.assertNotIn("saved_files", essential)
 
     def test_extract_essential_info_repairs_metadata_from_raw_layout(self) -> None:

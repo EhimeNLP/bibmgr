@@ -30,10 +30,6 @@ class PaddleOcrVlParsingTests(unittest.TestCase):
                         "authors": "Someone",
                         "year": "2020",
                         "venue": "Proceedings",
-                        "citation_contexts": [
-                            "  Prior work uses this method.  ",
-                            {"context": "A second citation context."},
-                        ],
                     }
                 ],
             }
@@ -44,13 +40,6 @@ class PaddleOcrVlParsingTests(unittest.TestCase):
         self.assertEqual(metadata.doi, "10.7777/vision")
         self.assertEqual(references[0].id, "ref-1")
         self.assertEqual(references[0].authors, ["Someone"])
-        self.assertEqual(
-            references[0].citation_contexts,
-            [
-                "Prior work uses this method.",
-                "A second citation context.",
-            ],
-        )
 
     def test_parse_paddleocr_vl_payload_uses_layout_title_and_authors(self) -> None:
         metadata, _ = parse_paddleocr_vl_payload(

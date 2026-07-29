@@ -27,7 +27,7 @@ def test_migrations_are_available_from_the_installed_package() -> None:
         "versions", "0003_revertible_history.py"
     ).is_file()
     assert migrations.joinpath(
-        "versions", "0004_pipeline_context_history.py"
+        "versions", "0004_context_history.py"
     ).is_file()
 
 

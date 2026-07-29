@@ -294,27 +294,6 @@ def test_registration_separates_display_title_from_stored_bibtex() -> None:
         assert record.canonical_bibtex == source
 
 
-def test_pipeline_json_registration_is_not_exposed_by_the_app() -> None:
-    client, _engine, _sessions = build_test_client()
-
-    invalid_source = client.post(
-        "/references",
-        json={
-            "bibtex": "@article{pipeline, title = {Pipeline}}\n",
-            "source": "pipeline",
-        },
-    )
-    removed_endpoint = client.post(
-        "/references/pipeline-import",
-        json={"items": []},
-    )
-    openapi_paths = client.get("/openapi.json").json()["paths"]
-
-    assert invalid_source.status_code == 422
-    assert removed_endpoint.status_code == 405
-    assert "/references/pipeline-import" not in openapi_paths
-
-
 def test_register_search_edit_and_delete_reference() -> None:
     client, engine, sessions = build_test_client()
     original = (

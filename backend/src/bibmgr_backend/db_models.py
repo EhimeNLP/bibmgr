@@ -217,7 +217,7 @@ class ReferenceRecord(Base):
 
     __table_args__ = (
         CheckConstraint(
-            "registration_source IN ('manual', 'file', 'edit', 'pipeline')",
+            "registration_source IN ('manual', 'file', 'edit')",
             name="ck_bibliographic_references_registration_source",
         ),
         Index(

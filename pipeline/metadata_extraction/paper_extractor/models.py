@@ -42,7 +42,6 @@ class Reference:
     publication_info: str | None = None
     source: str | None = None
     confidence: float = 0.0
-    citation_contexts: list[str] = field(default_factory=list)
     raw: dict[str, Any] = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
@@ -58,7 +57,6 @@ class Reference:
             "publication_info": self.publication_info,
             "source": self.source,
             "confidence": self.confidence,
-            "citation_contexts": self.citation_contexts,
             "raw": self.raw,
         }
 

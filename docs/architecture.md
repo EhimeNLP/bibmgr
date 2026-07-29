@@ -2,7 +2,7 @@
 
 ## Scope
 
-The runtime accepts a complete BibTeX document and exposes the same behavior to the CLI, Python backend, and Vue application. `pipeline/` is an independent initialization workflow outside the application and Rust dependency graph. It may read the public library search API, but the application does not accept pipeline JSON or expose a pipeline-specific write endpoint.
+The runtime accepts a complete BibTeX document and exposes the same behavior to the CLI, Python backend, and Vue application. `pipeline/` is an initial data generation system and is intentionally outside the dependency graph.
 
 ## Dependency direction
 
@@ -37,8 +37,6 @@ flowchart TD
 ```
 
 Arrows mean “is used by.” Crates do not form dependency cycles. Parser backend types never cross the `bibmgr-syntax` boundary, and no adapter depends on `pipeline/`.
-
-The only application boundary available to the independent reconstruction pipeline is the public paginated search endpoint. Pipeline initialization, review, and persistence are operated separately from the browser and application write API.
 
 ## Processing model
 
