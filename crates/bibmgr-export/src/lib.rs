@@ -39,11 +39,16 @@ pub enum PreprintRepresentation {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "kebab-case")]
-pub enum VenueStyle {
-    Full,
-    Short,
+pub enum VenueNameStyle {
     #[default]
-    AsRecorded,
+    Full,
+    Abbreviated,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(default, deny_unknown_fields)]
+pub struct ExportOptions {
+    pub venue_name_style: VenueNameStyle,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
@@ -112,7 +117,6 @@ pub struct ExportProfile {
     /// readiness validation.
     pub validation_profile: ProfileId,
     pub preprint_representation: PreprintRepresentation,
-    pub venue_style: VenueStyle,
     pub month_format: MonthFormat,
     /// Target entry types understood by the bibliography style. An empty list
     /// keeps the general semantic-to-BibTeX mapping; a populated list also
@@ -155,7 +159,6 @@ impl ExportProfile {
             description: String::from("General-purpose modern BibTeX output."),
             validation_profile: ProfileId::new("modern"),
             preprint_representation: PreprintRepresentation::MiscEprint,
-            venue_style: VenueStyle::AsRecorded,
             month_format: MonthFormat::Numeric,
             supported_entry_types: Vec::new(),
             field_order: default_field_order(),
@@ -398,6 +401,7 @@ pub struct ExportResult {
     pub schema_version: String,
     pub source: String,
     pub profile: ProfileId,
+    pub venue_name_style: VenueNameStyle,
     pub record_count: usize,
     pub warnings: Vec<ExportWarning>,
 }
@@ -445,6 +449,19 @@ pub fn export(
     bibliography: &Bibliography,
     profile: &ExportProfile,
 ) -> Result<ExportResult, ExportError> {
+    export_with_options(bibliography, profile, &ExportOptions::default())
+}
+
+/// Export a semantic bibliography with request-specific presentation options.
+///
+/// Output profiles own target compatibility and field formatting. Venue name
+/// presentation is deliberately request-scoped so every profile exposes the
+/// same full/abbreviated choice without multiplying profile definitions.
+pub fn export_with_options(
+    bibliography: &Bibliography,
+    profile: &ExportProfile,
+    options: &ExportOptions,
+) -> Result<ExportResult, ExportError> {
     profile.validate()?;
     let mut source = String::new();
     let mut warnings = Vec::new();
@@ -452,13 +469,14 @@ pub fn export(
         if record_index != 0 {
             source.push_str(profile.line_ending.as_str());
         }
-        let rendered = export_record(record, record_index, profile, &mut warnings)?;
+        let rendered = export_record(record, record_index, profile, *options, &mut warnings)?;
         source.push_str(&rendered);
     }
     Ok(ExportResult {
         schema_version: String::from(bibmgr_model::SCHEMA_VERSION),
         source,
         profile: profile.profile.clone(),
+        venue_name_style: options.venue_name_style,
         record_count: bibliography.records.len(),
         warnings,
     })
@@ -469,6 +487,7 @@ fn export_record(
     record: &BibliographicRecord,
     record_index: usize,
     profile: &ExportProfile,
+    options: ExportOptions,
     warnings: &mut Vec<ExportWarning>,
 ) -> Result<String, ExportError> {
     let citation_key = record.citation_key.value.to_string();
@@ -572,10 +591,21 @@ fn export_record(
         .as_ref()
         .filter(|_| record.work_type.value != WorkType::Preprint)
     {
-        let venue_value = match profile.venue_style {
-            VenueStyle::Full => venue.value.full_name.as_ref().unwrap_or(&venue.value.raw),
-            VenueStyle::Short => venue.value.short_name.as_ref().unwrap_or(&venue.value.raw),
-            VenueStyle::AsRecorded => &venue.value.raw,
+        let venue_value = match options.venue_name_style {
+            VenueNameStyle::Full => venue.value.full_name.as_ref().unwrap_or(&venue.value.raw),
+            VenueNameStyle::Abbreviated => {
+                if let Some(short_name) = &venue.value.short_name {
+                    short_name
+                } else {
+                    warnings.push(ExportWarning {
+                        record_index,
+                        message: String::from(
+                            "No abbreviated venue name is registered; the full name was exported.",
+                        ),
+                    });
+                    venue.value.full_name.as_ref().unwrap_or(&venue.value.raw)
+                }
+            }
         };
         let field = match record.work_type.value {
             WorkType::JournalArticle => "journal",
@@ -2343,6 +2373,33 @@ mod tests {
     }
 
     const RICH_SOURCE: &str = include_str!("../tests/fixtures/profile-rich-input.bib");
+
+    #[test]
+    fn abbreviated_venue_names_fall_back_to_full_with_a_warning() {
+        let mut bibliography = bibliography(
+            "@article{k, title={T}, author={Doe, Jane}, journal={Recorded Journal}, year={2026},}\n",
+        );
+        let venue = bibliography.records[0].venue.as_mut().unwrap();
+        venue.value.full_name = Some(String::from("Canonical Journal Name"));
+        venue.value.short_name = None;
+
+        let exported = export_with_options(
+            &bibliography,
+            &ExportProfile::modern(),
+            &ExportOptions {
+                venue_name_style: VenueNameStyle::Abbreviated,
+            },
+        )
+        .unwrap();
+
+        assert!(exported
+            .source
+            .contains("journal = {Canonical Journal Name}"));
+        assert_eq!(exported.warnings.len(), 1);
+        assert!(exported.warnings[0]
+            .message
+            .contains("No abbreviated venue name"));
+    }
 
     #[test]
     #[allow(clippy::match_same_arms)]

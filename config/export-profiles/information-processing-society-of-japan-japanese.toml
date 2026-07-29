@@ -4,7 +4,6 @@ display_name = "IPSJ (Japanese)"
 description = "Classical BibTeX output for the Japanese IPSJ bibliography styles, retaining yomi and web reference metadata."
 validation_profile = "classical-bst"
 preprint_representation = "misc-howpublished"
-venue_style = "as-recorded"
 month_format = "bibtex-macro"
 supported_entry_types = [
   "article",

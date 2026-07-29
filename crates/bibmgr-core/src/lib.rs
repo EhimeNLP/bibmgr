@@ -5,7 +5,7 @@
 
 pub use bibmgr_edit::{EditError, FixPlan, FixPlanError, FixSelection};
 pub use bibmgr_export::{
-    ExportError, ExportProfile, ExportResult, PreprintRepresentation, VenueStyle,
+    ExportError, ExportOptions, ExportProfile, ExportResult, PreprintRepresentation, VenueNameStyle,
 };
 pub use bibmgr_model::{
     Diagnostic, DiagnosticId, Fix, FixApplicability, FixId, RuleCode, SourceId, SourceRevision,
@@ -15,7 +15,7 @@ pub use bibmgr_model::{ProfileId, Severity};
 pub use bibmgr_semantics::Bibliography;
 pub use bibmgr_syntax::{ParseMode, ParseOptions, SyntaxSummary};
 pub use bibmgr_validation::{
-    RegistrationPolicy, RepositoryRegistry, ValidationPolicy, VenueRegistry,
+    RegistrationPolicy, RepositoryRegistry, ValidationPolicy, VenueEntity, VenueRegistry,
 };
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeSet;
@@ -314,9 +314,31 @@ pub fn canonicalize_for_storage(
     source: &str,
     policy: &RegistrationPolicy,
 ) -> RegistrationValidation {
+    canonicalize_for_storage_with_options(source, policy, None)
+}
+
+/// Canonicalize source while using an optional immutable venue-registry snapshot.
+pub fn canonicalize_for_storage_with_options(
+    source: &str,
+    policy: &RegistrationPolicy,
+    venue_registry: Option<VenueRegistry>,
+) -> RegistrationValidation {
     let mut validation_policy = policy.clone();
     validation_policy.apply_safe_fixes = false;
-    let initial = validate_for_registration(source, &validation_policy);
+    let analysis_policy = match ValidationPolicy::for_profile(&policy.validation_profile) {
+        Ok(policy) => policy,
+        Err(error) => return registration_configuration_failure(source, &error.to_string()),
+    };
+    let initial = validate_for_registration_with_options(
+        source,
+        &validation_policy,
+        &AnalysisOptions {
+            parse_mode: ParseMode::Strict,
+            validation_policy: analysis_policy.clone(),
+            venue_registry: venue_registry.clone(),
+            ..AnalysisOptions::default()
+        },
+    );
     if !initial.accepted {
         return initial;
     }
@@ -324,7 +346,16 @@ pub fn canonicalize_for_storage(
     let original_inventory = storage_inventory(source);
     let mut canonicalization_policy = policy.clone();
     canonicalization_policy.apply_safe_fixes = true;
-    let mut canonicalized = validate_for_registration(source, &canonicalization_policy);
+    let mut canonicalized = validate_for_registration_with_options(
+        source,
+        &canonicalization_policy,
+        &AnalysisOptions {
+            parse_mode: ParseMode::Strict,
+            validation_policy: analysis_policy,
+            venue_registry,
+            ..AnalysisOptions::default()
+        },
+    );
 
     if canonicalized.accepted
         && original_inventory != storage_inventory(canonicalized.source.as_str())
@@ -522,8 +553,28 @@ pub fn export_profiles() -> Result<ExportProfileCatalog, ExportError> {
 
 /// Analyze strictly and serialize the semantic records using an export profile.
 pub fn export_source(source: &str, profile: &ExportProfile) -> Result<ExportResult, ExportError> {
+    export_source_with_options(source, profile, &ExportSourceOptions::default())
+}
+
+/// Request-scoped export options shared by all adapters.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(default, deny_unknown_fields)]
+pub struct ExportSourceOptions {
+    pub venue_name_style: VenueNameStyle,
+    /// `None` selects the embedded registry; `Some` pins this export to a
+    /// caller-supplied immutable registry snapshot.
+    pub venue_registry: Option<VenueRegistry>,
+}
+
+/// Analyze strictly and serialize with a profile plus request-scoped options.
+pub fn export_source_with_options(
+    source: &str,
+    profile: &ExportProfile,
+    export_options: &ExportSourceOptions,
+) -> Result<ExportResult, ExportError> {
     let options = AnalysisOptions {
         parse_mode: ParseMode::Strict,
+        venue_registry: export_options.venue_registry.clone(),
         ..AnalysisOptions::default()
     };
     let analysis = analyze(source, &options);
@@ -538,7 +589,13 @@ pub fn export_source(source: &str, profile: &ExportProfile) -> Result<ExportResu
     if !blocking_codes.is_empty() {
         return Err(ExportError::BlockingDiagnostics(blocking_codes));
     }
-    let exported = bibmgr_export::export(&analysis.bibliography, profile)?;
+    let exported = bibmgr_export::export_with_options(
+        &analysis.bibliography,
+        profile,
+        &ExportOptions {
+            venue_name_style: export_options.venue_name_style,
+        },
+    )?;
 
     // Validate the generated representation, not the input spelling, against
     // the export profile's explicit target policy. This lets profiles
@@ -556,6 +613,7 @@ pub fn export_source(source: &str, profile: &ExportProfile) -> Result<ExportResu
         &AnalysisOptions {
             parse_mode: ParseMode::Strict,
             validation_policy,
+            venue_registry: export_options.venue_registry.clone(),
             ..AnalysisOptions::default()
         },
     );
@@ -915,10 +973,35 @@ mod tests {
             "booktitle = {Annual Meeting of the Association for Computational Linguistics}"
         ));
 
-        let mut short_profile = ExportProfile::modern();
-        short_profile.venue_style = VenueStyle::Short;
-        let short = export_source(source, &short_profile).unwrap().source;
+        let short = export_source_with_options(
+            source,
+            &ExportProfile::modern(),
+            &ExportSourceOptions {
+                venue_name_style: VenueNameStyle::Abbreviated,
+                ..ExportSourceOptions::default()
+            },
+        )
+        .unwrap()
+        .source;
         assert!(short.contains("booktitle = {ACL}"));
+
+        let journal =
+            "@article{j, author={Doe, Jane}, title={T}, journal={JMLR 2024}, year={2024},}\n";
+        let journal_full = export_source(journal, &ExportProfile::modern())
+            .unwrap()
+            .source;
+        assert!(journal_full.contains("journal = {Journal of Machine Learning Research}"));
+        let journal_abbreviated = export_source_with_options(
+            journal,
+            &ExportProfile::modern(),
+            &ExportSourceOptions {
+                venue_name_style: VenueNameStyle::Abbreviated,
+                ..ExportSourceOptions::default()
+            },
+        )
+        .unwrap()
+        .source;
+        assert!(journal_abbreviated.contains("journal = {JMLR}"));
     }
 
     #[test]

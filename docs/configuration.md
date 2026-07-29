@@ -90,13 +90,13 @@ This selects validation profile `archive`, sets `minimum_severity` to `None`, al
 
 ## Export profile
 
-Export profiles are typed separately and include serialization-only fields such as `preprint_representation`, `venue_style`, `field_case`, `value_delimiter`, `line_ending`, `indent`, and `trailing_comma`. Each profile also names an explicit `validation_profile`. The generated BibTeX is re-analyzed with that policy; an unavailable validation profile is an error rather than a skipped readiness check. Supported preprint values are:
+Export profiles are typed separately and include serialization-only fields such as `preprint_representation`, `field_case`, `value_delimiter`, `line_ending`, `indent`, and `trailing_comma`. Venue naming is deliberately not a profile field: every profile accepts the request-scoped `venue_name_style` values `full` and `abbreviated`, with `full` as the default. Each profile also names an explicit `validation_profile`. The generated BibTeX is re-analyzed with that policy; an unavailable validation profile is an error rather than a skipped readiness check. Supported preprint values are:
 
 - `misc-eprint`: `@misc`, `eprint`, and `archivePrefix`;
 - `misc-howpublished`: `@misc` and `howpublished`;
 - `article-journal`: legacy `@article` and `journal`.
 
-Venue styles are `full`, `short`, and `as-recorded`. The validation catalog contains `archive`, `modern`, `laboratory`, `acl`, and `classical-bst`; `archive` is reserved for ingest and is not an export profile. Export profiles with another matching ID still resolve to a separate typed value. Artifact-derived export profiles explicitly reuse the closest validation policy: `aaai`, `acm-publications`, `ieee-publications`, `ml-conferences`, and `springer-lncs` use `modern`; `lrec` uses `acl`; `eamt`, both IPSJ profiles, `jnlp-japanese`, `jsai-journal`, and `natbib-full-author-names` use `classical-bst`. `legacy-arxiv-article` also uses `modern`.
+The validation catalog contains `archive`, `modern`, `laboratory`, `acl`, and `classical-bst`; `archive` is reserved for ingest and is not an export profile. Export profiles with another matching ID still resolve to a separate typed value. Artifact-derived export profiles explicitly reuse the closest validation policy: `aaai`, `acm-publications`, `ieee-publications`, `ml-conferences`, and `springer-lncs` use `modern`; `lrec` uses `acl`; `eamt`, both IPSJ profiles, `jnlp-japanese`, `jsai-journal`, and `natbib-full-author-names` use `classical-bst`. `legacy-arxiv-article` also uses `modern`.
 
 These reused validation policies are general readiness baselines rather than complete validators for each referenced BST; target-specific field and entry-type compatibility is enforced by the export profile, while the selected validation policy checks the generated document's shared syntax and semantic requirements.
 
@@ -106,10 +106,9 @@ Each checked-in output profile is a complete TOML document and includes user-fac
 schema_version = "1"
 profile = "laboratory"
 display_name = "Laboratory Canonical"
-description = "Canonical laboratory output with case-protected titles, full venue names, preserved URLs, and a compact field projection."
+description = "Canonical laboratory output with case-protected titles, preserved URLs, and a compact field projection."
 validation_profile = "laboratory"
 preprint_representation = "misc-eprint"
-venue_style = "full"
 field_case = "canonical"
 case_protected_fields = ["title"]
 field_order = ["title", "author", "editor", "journal", "booktitle", "series", "volume", "number", "pages", "publisher", "institution", "school", "address", "year", "doi", "eprint", "archivePrefix", "primaryClass", "url", "note"]
@@ -124,6 +123,14 @@ excluded_fields = []
 
 `case_protected_fields` is a case-insensitive list of fields whose complete resolved value receives one additional brace group before the configured value delimiter is applied. With brace delimiters, `title = {An LLM Study}` therefore becomes `title = {{An LLM Study}}`, preventing traditional BST `change.case$` processing from lowercasing ungrouped title characters. The laboratory profile protects `title`; other profiles leave the list empty. Export recognizes an existing complete protection group, so repeated export does not add braces. Do not apply whole-value protection to `author` or `editor`, because a surrounding group changes BibTeX name-list semantics.
 
+## Application overrides
+
+The web application's Application settings sheet adds, edits, and removes effective export profiles and venue mappings. New profiles start as a copy of the selected profile so callers receive a complete typed definition. The embedded Rust configuration remains the fallback; PostgreSQL stores only changed or added documents. Deleting a custom setting removes it from the effective catalog. **Restore Default** removes only a built-in setting's shared database override, making the definition shipped with BibMgR effective again. Both operations show their confirmation directly below the editor actions. Unchanged forms cannot be saved, and an identical `PUT` is also treated as a no-op without a new revision or audit event. Effective writes require an authenticated session and CSRF token, compare `expected_revision`, and append an actor-attributed before/after audit event in the same transaction. A stale edit returns HTTP 409 instead of overwriting a concurrent change.
+
+Each settings category exposes its complete paginated history. Events identify create, built-in override, update, built-in-default restoration, and custom deletion actions and show the actor, time, revision, and before/after JSON. Because history is queried by category rather than only through the effective catalog, deleted custom profiles and venue mappings remain inspectable.
+
+Profile definitions are edited as the complete typed JSON representation of `ExportProfile`. Venue mappings use structured full name, abbreviation, kind, and alias fields. The backend validates profiles and the complete effective venue registry in Rust before committing them. These overrides are application deployment data; the standalone CLI continues to use its embedded profiles and registry unless its caller supplies an explicit registry snapshot through the library API.
+
 `month_format` is either `numeric` or `bibtex-macro`. `numeric` serializes a parsed month as a delimited number, while `bibtex-macro` emits a standard BibTeX month macro such as `jan` without braces or quotes; every artifact-derived profile uses `bibtex-macro` for compatibility with its target BST family.
 
 `supported_entry_types` is a case-insensitive target entry-type allowlist. When the original non-preprint entry type appears in this list, export preserves that BST-native type instead of replacing it with the general semantic mapping; otherwise the mapped target type must itself appear in the allowlist. An empty list leaves the general mapping unrestricted.
@@ -137,7 +144,7 @@ During semantic export, prose text escapes raw `%`, `&`, `#`, and `_`, renders a
 | Export profile | Configuration file | BST reference or role | Intended optimization |
 | --- | --- | --- | --- |
 | `modern` | `modern.toml` | General-purpose built-in | Modern BibTeX with structured identifiers, `eprint` metadata, and preserved supported extras |
-| `laboratory` | `laboratory.toml` | Laboratory convention | Full venue names, whole-title case protection, canonical field spelling, `misc-eprint`, preserved URL metadata, and no private local metadata |
+| `laboratory` | `laboratory.toml` | Laboratory convention | Whole-title case protection, canonical field spelling, `misc-eprint`, preserved URL metadata, and no private local metadata |
 | `acl` | `acl-publications.toml` | `acl_natbib.bst` | ACL publication fields, including DOI, renamed `pubmed`, eprint, and web metadata |
 | `aaai` | `aaai-conference.toml` | `aaai2026.bst` | AAAI publication, ISBN, EID, and eprint fields without DOI or URL |
 | `acm-publications` | `acm-publications.toml` | `ACM-Reference-Format.bst` | ACM identifiers, eprints, and ACM-specific publication metadata |

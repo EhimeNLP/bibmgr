@@ -1,7 +1,8 @@
 use bibmgr_core::{
-    analyze, apply_fix_plan_with_options, apply_safe_fixes, export_source, plan_fixes,
-    AnalysisOptions, Diagnostic, ExportError, ExportProfile, FixApplicability, FixId, FixSelection,
-    ParseMode, ParseOptions, ProfileId, Severity, ValidationPolicy, SCHEMA_VERSION,
+    analyze, apply_fix_plan_with_options, apply_safe_fixes, export_source_with_options, plan_fixes,
+    AnalysisOptions, Diagnostic, ExportError, ExportProfile, ExportSourceOptions, FixApplicability,
+    FixId, FixSelection, ParseMode, ParseOptions, ProfileId, Severity, ValidationPolicy,
+    VenueNameStyle, SCHEMA_VERSION,
 };
 use clap::{ArgAction, ArgGroup, Parser, Subcommand, ValueEnum};
 use rayon::prelude::*;
@@ -65,6 +66,9 @@ enum Command {
         file: PathBuf,
         #[arg(long, default_value = "laboratory")]
         profile: String,
+        /// Choose full or abbreviated venue names.
+        #[arg(long, value_enum, default_value_t = VenueName::Full)]
+        venue_name: VenueName,
         #[arg(long, value_enum, default_value_t = OutputFormat::Human)]
         format: OutputFormat,
         #[arg(short, long)]
@@ -92,6 +96,12 @@ enum Command {
 enum OutputFormat {
     Human,
     Json,
+}
+
+#[derive(Debug, Clone, Copy, ValueEnum, PartialEq, Eq)]
+enum VenueName {
+    Full,
+    Abbreviated,
 }
 
 #[derive(Debug, Serialize)]
@@ -152,9 +162,10 @@ fn run(cli: Cli) -> Result<i32, CliError> {
         Command::Export {
             file,
             profile,
+            venue_name,
             format,
             output,
-        } => export_file(&file, &profile, format, output.as_deref()),
+        } => export_file(&file, &profile, venue_name, format, output.as_deref()),
         Command::Inspect {
             file,
             ast,
@@ -297,13 +308,24 @@ fn reject_non_safe_requested_fixes(
 fn export_file(
     path: &Path,
     profile_name: &str,
+    venue_name: VenueName,
     format: OutputFormat,
     output: Option<&Path>,
 ) -> Result<i32, CliError> {
     let source = read_source(path)?;
     let profile = ExportProfile::for_profile(&ProfileId::from(profile_name))
         .map_err(|error| CliError::message(error.to_string()))?;
-    let exported = match export_source(&source, &profile) {
+    let exported = match export_source_with_options(
+        &source,
+        &profile,
+        &ExportSourceOptions {
+            venue_name_style: match venue_name {
+                VenueName::Full => VenueNameStyle::Full,
+                VenueName::Abbreviated => VenueNameStyle::Abbreviated,
+            },
+            ..ExportSourceOptions::default()
+        },
+    ) {
         Ok(exported) => exported,
         Err(ExportError::BlockingDiagnostics(codes)) => {
             eprintln!(

@@ -4,7 +4,6 @@ display_name = "ACM Publications"
 description = "Field-compatible ACM publication output retaining structured identifiers, eprints, and ACM-specific metadata."
 validation_profile = "modern"
 preprint_representation = "misc-eprint"
-venue_style = "full"
 month_format = "bibtex-macro"
 supported_entry_types = [
   "article",

@@ -4,7 +4,6 @@ display_name = "Natbib Author-Year (Full Names)"
 description = "Field-compatible author-year natbib output for full author-name rendering with identifier fields suppressed."
 validation_profile = "classical-bst"
 preprint_representation = "misc-howpublished"
-venue_style = "as-recorded"
 month_format = "bibtex-macro"
 supported_entry_types = [
   "article",

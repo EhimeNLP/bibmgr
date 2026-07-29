@@ -4,7 +4,6 @@ display_name = "LREC Language Resources"
 description = "LREC output with language-resource identifiers, publication metadata, DOI, PubMed, and web fields supported by the target bibliography style."
 validation_profile = "acl"
 preprint_representation = "misc-eprint"
-venue_style = "full"
 month_format = "bibtex-macro"
 supported_entry_types = [
   "webpage",

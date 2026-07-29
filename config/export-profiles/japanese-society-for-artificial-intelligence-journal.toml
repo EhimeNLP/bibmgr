@@ -4,7 +4,6 @@ display_name = "JSAI Journal"
 description = "Classical BibTeX output for the Japanese Society for Artificial Intelligence journal style, retaining yomi metadata."
 validation_profile = "classical-bst"
 preprint_representation = "misc-howpublished"
-venue_style = "as-recorded"
 month_format = "bibtex-macro"
 supported_entry_types = [
   "article",

@@ -24,6 +24,12 @@ Changing an alias does not change stored bibliographic identity. Removing an ali
 
 ## Display
 
-`venue_style = "full"` emits `full_name`; `short` emits `short_name` when available; `preserve` prefers the source spelling represented by provenance. Resolution and display are separate steps. A validation rule may require a resolvable venue while allowing a profile to choose any display style. The resolved kind is also retained in the semantic venue reference. Rule `BIB-SEMANTIC-004` uses it to flag `article` entries that resolve to conference or workshop venues and `inproceedings` entries that resolve to journals. The suggested entry-type edit always requires confirmation.
+Venue presentation is an export-request option rather than part of an output profile. `venue_name_style = "full"` emits `full_name` and is the default for every profile. `abbreviated` emits `short_name`; when no abbreviation is registered, export falls back to `full_name`, then the recorded source spelling, and returns a warning. The option applies consistently to conference `booktitle`, journal `journal`, and other venue-derived `howpublished` fields. It never changes stored source, AST, or CST data.
+
+Resolution tolerates a trailing publication year and common proceedings wrappers such as an ordinal edition and a volume suffix. For example, both `Findings of the Association for Computational Linguistics: EMNLP 2023` and a registered year-free alias resolve deterministically. Do not add fuzzy aliases that could identify more than one venue.
+
+The built-in registry covers the central ACL venues and journals plus common AI and machine-learning venues, including ACL, AACL, EACL, EMNLP, NAACL, CoNLL, COLING, LREC, IJCNLP, AAAI, IJCAI, NeurIPS, ICML, ICLR, AISTATS, UAI, CL, TACL, NLE, JNLP, JMLR, ML, AIJ, and JAIR. Authenticated users can add, edit, and delete effective mappings in Application settings. Database rows are overrides over the embedded registry, so deleting a built-in override restores the embedded mapping and the binary remains usable without runtime configuration. Each change uses optimistic revision checking and records its actor and before/after data.
+
+Resolution and display remain separate steps. A validation rule may require a resolvable venue while allowing either display style. The resolved kind is retained in the semantic venue reference. Rule `BIB-SEMANTIC-004` uses it to flag `article` entries that resolve to conference or workshop venues and `inproceedings` entries that resolve to journals. The suggested entry-type edit always requires confirmation.
 
 Repository entities such as arXiv are in `repositories.toml`. They additionally define identifier syntax and canonical URL construction; no runtime online lookup is performed.

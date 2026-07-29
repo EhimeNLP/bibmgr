@@ -4,7 +4,6 @@ display_name = "IEEE Journals and Conferences"
 description = "Shared field-compatible IEEE publication output for citation-order and alphabetically sorted bibliography variants."
 validation_profile = "modern"
 preprint_representation = "misc-howpublished"
-venue_style = "short"
 month_format = "bibtex-macro"
 supported_entry_types = [
   "article",

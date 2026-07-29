@@ -4,7 +4,6 @@ display_name = "ICLR / ICML / COLM"
 description = "Shared machine-learning conference output with DOI, URL, ISBN, ISSN, and electronic article identifiers supported by the target bibliography styles."
 validation_profile = "modern"
 preprint_representation = "misc-howpublished"
-venue_style = "full"
 month_format = "bibtex-macro"
 supported_entry_types = [
   "article",

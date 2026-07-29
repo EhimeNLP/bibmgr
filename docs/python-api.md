@@ -46,7 +46,11 @@ decision = bibmgr_native.validate_for_registration(
 if decision.accepted:
     persist(decision.bibliography.records, source)
 
-output = bibmgr_native.export_source(source, profile="classical-bst")
+output = bibmgr_native.export_source(
+    source,
+    profile="classical-bst",
+    venue_name_style="abbreviated",
+)
 print(output.source)
 
 catalog = bibmgr_native.export_profiles()
@@ -54,7 +58,7 @@ for profile in catalog.profiles:
     print(profile["id"], profile["display_name"])
 ```
 
-Use `decision.accepted`; do not infer registration from diagnostic severity in Python. The default `archive` policy rejects structural parse failures but accepts profile differences, incomplete metadata, and unresolved semantic values without rewriting `source`. `canonicalize_for_storage` remains an explicit opt-in CST normalization utility; database persistence does not call it. Export returns newly generated target BibTeX and never edits `source`. `export_profiles()` returns canonical built-in profile metadata in stable display order, so applications do not hardcode the selectable targets or their descriptions.
+Use `decision.accepted`; do not infer registration from diagnostic severity in Python. The default `archive` policy rejects structural parse failures but accepts profile differences, incomplete metadata, and unresolved semantic values without rewriting `source`. `canonicalize_for_storage` remains an explicit opt-in CST normalization utility; database persistence does not call it. Export returns newly generated target BibTeX and never edits `source`. Venue naming accepts `full` or `abbreviated` and defaults to `full` independently of the profile. `export_profiles()` returns canonical built-in profile metadata in stable display order, so applications do not hardcode the selectable targets or their descriptions. Host applications may pass validated `profile_json` and `venue_registry_json` snapshots; the bundled web backend uses these parameters for database-backed configuration overrides.
 
 ## Sessions
 

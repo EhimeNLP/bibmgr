@@ -4,7 +4,6 @@ display_name = "Modern BibTeX"
 description = "General-purpose modern BibTeX with structured identifiers and eprint metadata."
 validation_profile = "modern"
 preprint_representation = "misc-eprint"
-venue_style = "as-recorded"
 field_order = [
   "author",
   "editor",

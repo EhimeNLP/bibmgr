@@ -4,7 +4,6 @@ display_name = "Legacy arXiv Article"
 description = "Legacy preprint output represented as an article with an arXiv journal value."
 validation_profile = "modern"
 preprint_representation = "article-journal"
-venue_style = "as-recorded"
 field_order = [
   "author",
   "editor",

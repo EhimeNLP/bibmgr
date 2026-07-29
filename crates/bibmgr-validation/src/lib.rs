@@ -450,7 +450,7 @@ impl VenueRegistry {
                 .chain(std::iter::once(&venue.short_name))
                 .chain(&venue.aliases)
             {
-                register_alias(&mut names, name, &id, |alias, first, second| {
+                register_venue_alias(&mut names, name, &id, |alias, first, second| {
                     ConfigurationError::VenueAliasConflict {
                         alias,
                         first,
@@ -463,15 +463,15 @@ impl VenueRegistry {
     }
 
     pub fn resolve(&self, name: &str) -> Option<&VenueEntity> {
-        let normalized = normalize_alias(name);
+        let normalized = normalize_venue_alias(name);
         self.venues.iter().find(|venue| {
-            normalize_alias(&venue.id) == normalized
-                || normalize_alias(&venue.full_name) == normalized
-                || normalize_alias(&venue.short_name) == normalized
+            normalize_venue_alias(&venue.id) == normalized
+                || normalize_venue_alias(&venue.full_name) == normalized
+                || normalize_venue_alias(&venue.short_name) == normalized
                 || venue
                     .aliases
                     .iter()
-                    .any(|alias| normalize_alias(alias) == normalized)
+                    .any(|alias| normalize_venue_alias(alias) == normalized)
         })
     }
 }
@@ -607,6 +607,70 @@ fn normalize_alias(alias: &str) -> String {
         .to_lowercase()
 }
 
+fn normalize_venue_alias(alias: &str) -> String {
+    let mut normalized = normalize_alias(alias);
+    if let Some(volume) = normalized
+        .find(" (volume ")
+        .or_else(|| normalized.find(": volume "))
+    {
+        normalized.truncate(volume);
+    }
+    let Some(last_word) = normalized.split_whitespace().next_back() else {
+        return normalized;
+    };
+    let year = last_word.trim_matches(|character: char| {
+        matches!(character, ',' | '.' | ':' | ';' | '(' | ')' | '[' | ']')
+    });
+    if year.len() == 4
+        && year.bytes().all(|byte| byte.is_ascii_digit())
+        && matches!(year.parse::<u16>(), Ok(1900..=2199))
+    {
+        let new_length = normalized.rfind(last_word).unwrap_or(normalized.len());
+        normalized.truncate(new_length);
+        normalized = normalized
+            .trim_end_matches(|character: char| {
+                character.is_whitespace() || matches!(character, ',' | '.' | ':' | ';' | '-' | '–')
+            })
+            .to_owned();
+    }
+    for prefix in ["proceedings of the ", "proceedings of "] {
+        if let Some(remainder) = normalized.strip_prefix(prefix) {
+            normalized = remainder.to_owned();
+            break;
+        }
+    }
+    if let Some((first_word, remainder)) = normalized.split_once(' ') {
+        if is_edition_word(first_word) || is_year_word(first_word) {
+            normalized = remainder.to_owned();
+        }
+    }
+    normalized
+}
+
+fn is_edition_word(value: &str) -> bool {
+    let digits = value.trim_end_matches(|character: char| character.is_ascii_alphabetic());
+    !digits.is_empty()
+        && digits.len() < value.len()
+        && digits.bytes().all(|byte| byte.is_ascii_digit())
+        && matches!(&value[digits.len()..], "st" | "nd" | "rd" | "th")
+}
+
+fn is_year_word(value: &str) -> bool {
+    value.len() == 4
+        && value.bytes().all(|byte| byte.is_ascii_digit())
+        && matches!(value.parse::<u16>(), Ok(1900..=2199))
+}
+
+fn register_venue_alias(
+    aliases: &mut BTreeMap<String, String>,
+    alias: &str,
+    id: &str,
+    conflict: impl FnOnce(String, String, String) -> ConfigurationError,
+) -> Result<(), ConfigurationError> {
+    let alias = normalize_venue_alias(alias);
+    register_normalized_alias(aliases, alias, id, conflict)
+}
+
 fn register_alias(
     aliases: &mut BTreeMap<String, String>,
     alias: &str,
@@ -614,6 +678,15 @@ fn register_alias(
     conflict: impl FnOnce(String, String, String) -> ConfigurationError,
 ) -> Result<(), ConfigurationError> {
     let alias = normalize_alias(alias);
+    register_normalized_alias(aliases, alias, id, conflict)
+}
+
+fn register_normalized_alias(
+    aliases: &mut BTreeMap<String, String>,
+    alias: String,
+    id: &str,
+    conflict: impl FnOnce(String, String, String) -> ConfigurationError,
+) -> Result<(), ConfigurationError> {
     if alias.is_empty() {
         return Err(ConfigurationError::InvalidRegistryId(alias));
     }
@@ -5706,6 +5779,29 @@ exclude = []
         assert_eq!(
             venues.resolve("Proceedings of ACL").unwrap().id,
             "acl-annual-meeting"
+        );
+        assert_eq!(
+            venues
+                .resolve("Findings of the Association for Computational Linguistics: EMNLP 2023")
+                .unwrap()
+                .id,
+            "findings-emnlp"
+        );
+        assert_eq!(
+            venues
+                .resolve(
+                    "Proceedings of the 61st Annual Meeting of the Association for Computational Linguistics (Volume 1: Long Papers)"
+                )
+                .unwrap()
+                .id,
+            "acl-annual-meeting"
+        );
+        assert_eq!(
+            venues
+                .resolve("Advances in Neural Information Processing Systems 2025")
+                .unwrap()
+                .id,
+            "neurips"
         );
 
         let repositories = RepositoryRegistry::from_toml(include_str!(

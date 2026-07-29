@@ -4,7 +4,6 @@ display_name = "ACL Publications"
 description = "ACL publication output with the complete publication, DOI, PubMed, eprint, and web fields supported by the target bibliography style."
 validation_profile = "acl"
 preprint_representation = "misc-eprint"
-venue_style = "full"
 month_format = "bibtex-macro"
 supported_entry_types = [
   "webpage",

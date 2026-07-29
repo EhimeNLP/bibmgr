@@ -4,7 +4,6 @@ display_name = "AAAI Conference"
 description = "AAAI conference output with the publication, ISBN, EID, and eprint fields supported by the target bibliography style."
 validation_profile = "modern"
 preprint_representation = "misc-eprint"
-venue_style = "full"
 month_format = "bibtex-macro"
 supported_entry_types = [
   "article",
