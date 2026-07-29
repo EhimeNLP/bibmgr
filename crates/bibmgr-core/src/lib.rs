@@ -922,6 +922,27 @@ mod tests {
     }
 
     #[test]
+    fn laboratory_export_case_protects_the_complete_title() {
+        let source = "@article{k, author={Doe, Jane}, title={An LLM Study}, journal={Journal}, year={2026},}\n";
+
+        let laboratory = export_source(source, &ExportProfile::laboratory())
+            .unwrap()
+            .source;
+        let modern = export_source(source, &ExportProfile::modern())
+            .unwrap()
+            .source;
+
+        assert!(laboratory.contains("title = {{An LLM Study}}"));
+        assert!(modern.contains("title = {An LLM Study}"));
+        assert_eq!(
+            export_source(&laboratory, &ExportProfile::laboratory())
+                .unwrap()
+                .source,
+            laboratory
+        );
+    }
+
+    #[test]
     fn resolved_venue_kind_reports_entry_type_mismatches_with_confirmed_fixes() {
         for (source, expected_kind, expected_type, venue_source) in [
             (

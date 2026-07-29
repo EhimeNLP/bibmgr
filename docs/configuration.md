@@ -106,11 +106,12 @@ Each checked-in output profile is a complete TOML document and includes user-fac
 schema_version = "1"
 profile = "laboratory"
 display_name = "Laboratory Canonical"
-description = "Canonical laboratory output with full venue names, preserved URLs, and a compact field projection."
+description = "Canonical laboratory output with case-protected titles, full venue names, preserved URLs, and a compact field projection."
 validation_profile = "laboratory"
 preprint_representation = "misc-eprint"
 venue_style = "full"
 field_case = "canonical"
+case_protected_fields = ["title"]
 field_order = ["title", "author", "editor", "journal", "booktitle", "series", "volume", "number", "pages", "publisher", "institution", "school", "address", "year", "doi", "eprint", "archivePrefix", "primaryClass", "url", "note"]
 include_url = true
 
@@ -120,6 +121,8 @@ excluded_fields = []
 ```
 
 `field_order` controls only serialization order and never implicitly deletes a field. `field_selection.allowed_fields` is a case-insensitive allowlist applied to every generated candidate field, including structured identifiers and extra fields; omitting it allows every candidate. `field_selection.excluded_fields` is a case-insensitive denylist applied after the allowlist. Invalid names, duplicates, and fields present in both lists are rejected while loading.
+
+`case_protected_fields` is a case-insensitive list of fields whose complete resolved value receives one additional brace group before the configured value delimiter is applied. With brace delimiters, `title = {An LLM Study}` therefore becomes `title = {{An LLM Study}}`, preventing traditional BST `change.case$` processing from lowercasing ungrouped title characters. The laboratory profile protects `title`; other profiles leave the list empty. Export recognizes an existing complete protection group, so repeated export does not add braces. Do not apply whole-value protection to `author` or `editor`, because a surrounding group changes BibTeX name-list semantics.
 
 `month_format` is either `numeric` or `bibtex-macro`. `numeric` serializes a parsed month as a delimited number, while `bibtex-macro` emits a standard BibTeX month macro such as `jan` without braces or quotes; every artifact-derived profile uses `bibtex-macro` for compatibility with its target BST family.
 
@@ -134,7 +137,7 @@ During semantic export, prose text escapes raw `%`, `&`, `#`, and `_`, renders a
 | Export profile | Configuration file | BST reference or role | Intended optimization |
 | --- | --- | --- | --- |
 | `modern` | `modern.toml` | General-purpose built-in | Modern BibTeX with structured identifiers, `eprint` metadata, and preserved supported extras |
-| `laboratory` | `laboratory.toml` | Laboratory convention | Full venue names, canonical field spelling, `misc-eprint`, preserved URL metadata, and no private local metadata |
+| `laboratory` | `laboratory.toml` | Laboratory convention | Full venue names, whole-title case protection, canonical field spelling, `misc-eprint`, preserved URL metadata, and no private local metadata |
 | `acl` | `acl-publications.toml` | `acl_natbib.bst` | ACL publication fields, including DOI, renamed `pubmed`, eprint, and web metadata |
 | `aaai` | `aaai-conference.toml` | `aaai2026.bst` | AAAI publication, ISBN, EID, and eprint fields without DOI or URL |
 | `acm-publications` | `acm-publications.toml` | `ACM-Reference-Format.bst` | ACM identifiers, eprints, and ACM-specific publication metadata |

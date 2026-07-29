@@ -120,6 +120,9 @@ pub struct ExportProfile {
     pub supported_entry_types: Vec<String>,
     pub field_order: Vec<String>,
     pub field_case: ExportFieldCase,
+    /// Fields whose complete values receive one additional brace group so
+    /// BibTeX styles cannot change the case of ungrouped characters.
+    pub case_protected_fields: Vec<String>,
     pub value_delimiter: ValueDelimiter,
     pub line_ending: LineEnding,
     pub indent: String,
@@ -157,6 +160,7 @@ impl ExportProfile {
             supported_entry_types: Vec::new(),
             field_order: default_field_order(),
             field_case: ExportFieldCase::Canonical,
+            case_protected_fields: Vec::new(),
             value_delimiter: ValueDelimiter::Braces,
             line_ending: LineEnding::Lf,
             indent: String::from("  "),
@@ -335,6 +339,7 @@ impl ExportProfile {
             }
         }
         validate_field_set("supported_entry_types", &self.supported_entry_types)?;
+        validate_field_set("case_protected_fields", &self.case_protected_fields)?;
         validate_field_set("excluded_fields", &self.excluded_fields)?;
         if let Some(allowed_fields) = &self.field_selection.allowed_fields {
             validate_field_set("field_selection.allowed_fields", allowed_fields)?;
@@ -642,7 +647,7 @@ fn export_record(
         {
             field.value.clone()
         } else {
-            format_field_value(&field.name, &field.value, profile.value_delimiter)
+            format_profile_field_value(&field.name, &field.value, profile)
         };
         output.push_str(&profile.indent);
         output.push_str(&name);
@@ -1100,16 +1105,72 @@ fn format_person(person: &Person) -> String {
     }
 }
 
+#[cfg(test)]
 fn format_field_value(field_name: &str, value: &str, delimiter: ValueDelimiter) -> String {
+    format_field_value_with_case_protection(field_name, value, delimiter, false)
+}
+
+fn format_profile_field_value(field_name: &str, value: &str, profile: &ExportProfile) -> String {
+    let case_protected = profile
+        .case_protected_fields
+        .iter()
+        .any(|candidate| candidate.eq_ignore_ascii_case(field_name));
+    format_field_value_with_case_protection(
+        field_name,
+        value,
+        profile.value_delimiter,
+        case_protected,
+    )
+}
+
+fn format_field_value_with_case_protection(
+    field_name: &str,
+    value: &str,
+    delimiter: ValueDelimiter,
+    case_protected: bool,
+) -> String {
     let escaped = if is_raw_identifier_field(field_name) {
         escape_bibtex_with_options(value, delimiter, false)
     } else {
         escape_bibtex(value, delimiter)
     };
+    let protected = if case_protected && !is_complete_brace_group(&escaped) {
+        format!("{{{escaped}}}")
+    } else {
+        escaped
+    };
     match delimiter {
-        ValueDelimiter::Braces => format!("{{{escaped}}}"),
-        ValueDelimiter::Quotes => format!("\"{escaped}\""),
+        ValueDelimiter::Braces => format!("{{{protected}}}"),
+        ValueDelimiter::Quotes => format!("\"{protected}\""),
     }
+}
+
+fn is_complete_brace_group(value: &str) -> bool {
+    let bytes = value.as_bytes();
+    if bytes.first() != Some(&b'{') {
+        return false;
+    }
+    let (escaped, _) = tex_escape_positions(bytes);
+    let mut depth = 0_usize;
+    for (index, byte) in bytes.iter().copied().enumerate() {
+        if escaped[index] {
+            continue;
+        }
+        match byte {
+            b'{' => depth += 1,
+            b'}' => {
+                let Some(next_depth) = depth.checked_sub(1) else {
+                    return false;
+                };
+                depth = next_depth;
+                if depth == 0 {
+                    return index + 1 == bytes.len();
+                }
+            }
+            _ => {}
+        }
+    }
+    false
 }
 
 fn bibtex_month_macro(month: u8) -> &'static str {
@@ -2358,6 +2419,51 @@ mod tests {
     }
 
     #[test]
+    fn laboratory_case_protects_complete_titles_without_brace_growth() {
+        let records = bibliography(
+            "@article{k, author={Doe, Jane}, title={An LLM Study}, journal={Journal}, year={2026},}\n",
+        );
+
+        let laboratory = export(&records, &ExportProfile::laboratory())
+            .unwrap()
+            .source;
+        let modern = export(&records, &ExportProfile::modern()).unwrap().source;
+
+        assert!(laboratory.contains("title = {{An LLM Study}}"));
+        assert!(modern.contains("title = {An LLM Study}"));
+        assert!(!modern.contains("title = {{An LLM Study}}"));
+        assert_eq!(
+            export(&bibliography(&laboratory), &ExportProfile::laboratory())
+                .unwrap()
+                .source,
+            laboratory
+        );
+
+        let already_protected = bibliography(
+            "@article{k, author={Doe, Jane}, title={{NASA Study}}, journal={Journal}, year={2026},}\n",
+        );
+        let output = export(&already_protected, &ExportProfile::laboratory())
+            .unwrap()
+            .source;
+        assert!(output.contains("title = {{NASA Study}}"));
+        assert!(!output.contains("title = {{{NASA Study}}}"));
+
+        let partially_protected = bibliography(
+            "@article{k, author={Doe, Jane}, title={{D}iffu{S}eq-v2}, journal={Journal}, year={2026},}\n",
+        );
+        let output = export(&partially_protected, &ExportProfile::laboratory())
+            .unwrap()
+            .source;
+        assert!(output.contains("title = {{{D}iffu{S}eq-v2}}"));
+        assert_eq!(
+            export(&bibliography(&output), &ExportProfile::laboratory())
+                .unwrap()
+                .source,
+            output
+        );
+    }
+
+    #[test]
     fn artifact_profiles_project_style_specific_fields() {
         let records = bibliography(
             "@misc{probe, title={Probe}, year={2026}, assignee={Unused Assignee}, nationality={Japanese}, distinctURL={true}, pmid={12345}, lastchecked={2026-07-22}, eid={A1}, islrn={42-123-456-789-0}, pid={lrec_123}, yomi={ぷろーぶ}, romaji={puroobu}, refdate={2026-07-22}, custom={drop me},}\n",
@@ -2612,6 +2718,16 @@ mod tests {
         assert!(matches!(
             case_duplicate.validate(),
             Err(ExportError::InvalidProfile(ref message)) if message.contains("duplicate field")
+        ));
+
+        let mut protected_duplicate = ExportProfile::modern();
+        protected_duplicate.case_protected_fields =
+            vec![String::from("title"), String::from("TITLE")];
+        assert!(matches!(
+            protected_duplicate.validate(),
+            Err(ExportError::InvalidProfile(ref message))
+                if message.contains("case_protected_fields")
+                    && message.contains("duplicate field")
         ));
 
         let mut conflict = ExportProfile::modern();

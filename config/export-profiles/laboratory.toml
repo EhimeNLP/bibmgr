@@ -1,7 +1,7 @@
 schema_version = "1"
 profile = "laboratory"
 display_name = "Laboratory Canonical"
-description = "Canonical laboratory output with full venue names, preserved URLs, and a compact field projection."
+description = "Canonical laboratory output with case-protected titles, full venue names, preserved URLs, and a compact field projection."
 validation_profile = "laboratory"
 preprint_representation = "misc-eprint"
 venue_style = "full"
@@ -28,6 +28,7 @@ field_order = [
   "note",
 ]
 field_case = "canonical"
+case_protected_fields = ["title"]
 value_delimiter = "braces"
 line_ending = "lf"
 indent = "  "
