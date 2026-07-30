@@ -1250,7 +1250,7 @@ kind = "conference"
 
     #[test]
     fn archive_registration_preserves_rich_sources_without_profile_gating() {
-        let source = "@inproceedings{Gong_2023,\n  title = {{D}iffu{S}eq-v2},\n  year = unknownYear,\n  archivePrefix = {arXiv},\n  primaryClass = {cs.CL},\n  url = {https://example.test/paper},\n  abstract = {A long abstract\n    kept across lines.},\n}\n";
+        let source = "@inproceedings{gong-2023-diffuseq,\n  title = {{D}iffu{S}eq-v2},\n  year = unknownYear,\n  archivePrefix = {arXiv},\n  primaryClass = {cs.CL},\n  url = {https://example.test/paper},\n  abstract = {A long abstract\n    kept across lines.},\n}\n";
 
         let result = validate_for_registration(source, &RegistrationPolicy::archive());
 
@@ -1263,6 +1263,44 @@ kind = "conference"
             .iter()
             .all(|diagnostic| !diagnostic.blocking));
         assert!(result.applied_fix_ids.is_empty());
+    }
+
+    #[test]
+    fn archive_registration_requires_lowercase_hyphenated_citation_keys() {
+        let policy = RegistrationPolicy::archive();
+        let validation_policy = ValidationPolicy::archive();
+        assert_eq!(
+            validation_policy.citation_key_pattern,
+            r"^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$"
+        );
+
+        for citation_key in ["gong-2023-diffuseq", "smith2-2024-a"] {
+            let source = format!("@misc{{{citation_key}, title={{T}},}}\n");
+            let result = validate_for_registration(&source, &policy);
+            assert!(
+                result.accepted,
+                "valid citation key `{citation_key}` was rejected: {:?}",
+                result.diagnostics
+            );
+        }
+
+        for citation_key in [
+            "Gong-2023-diffuseq",
+            "gong_2023_diffuseq",
+            "2023-gong-diffuseq",
+            "gong-2023-",
+        ] {
+            let source = format!("@misc{{{citation_key}, title={{T}},}}\n");
+            let result = validate_for_registration(&source, &policy);
+            assert!(
+                !result.accepted,
+                "invalid citation key `{citation_key}` was accepted"
+            );
+            assert!(result.diagnostics.iter().any(|diagnostic| {
+                diagnostic.code.as_str() == bibmgr_validation::RULE_CITATION_KEY
+                    && diagnostic.blocking
+            }));
+        }
     }
 
     #[test]

@@ -168,8 +168,16 @@ impl ValidationPolicy {
             policy.profile = ProfileId::new("archive");
             policy.field_case = FieldCase::Preserve;
             policy.field_order.clear();
-            policy.citation_key_pattern = String::from(r"^.+$");
+            policy.citation_key_pattern = String::from(r"^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$");
             policy.required_fields.clear();
+            policy.rules.insert(
+                RuleCode::new(RULE_CITATION_KEY),
+                RuleSetting {
+                    enabled: true,
+                    severity: Severity::Warning,
+                    blocking: true,
+                },
+            );
             policy
         })
     }
@@ -5477,7 +5485,14 @@ exclude = []
 
         assert_eq!(replacement, "bad-key-2024");
         assert_ne!(replacement, "Bad_Key:2024");
-        for profile in ["default", "modern", "laboratory", "acl", "classical-bst"] {
+        for profile in [
+            "archive",
+            "default",
+            "modern",
+            "laboratory",
+            "acl",
+            "classical-bst",
+        ] {
             let policy = ValidationPolicy::builtin(profile).unwrap();
             assert!(Regex::new(&policy.citation_key_pattern)
                 .unwrap()
@@ -5507,7 +5522,14 @@ exclude = []
         ] {
             let normalized = normalize_citation_key(source);
             assert_eq!(normalized, expected);
-            for profile in ["default", "modern", "laboratory", "acl", "classical-bst"] {
+            for profile in [
+                "archive",
+                "default",
+                "modern",
+                "laboratory",
+                "acl",
+                "classical-bst",
+            ] {
                 let policy = ValidationPolicy::builtin(profile).unwrap();
                 assert!(Regex::new(&policy.citation_key_pattern)
                     .unwrap()

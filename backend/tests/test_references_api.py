@@ -968,7 +968,7 @@ def test_persistence_policy_cannot_be_overridden_by_the_client() -> None:
     assert engine.calls == []
 
 
-def test_real_native_registration_dto_maps_to_relational_storage() -> None:
+def test_real_native_registration_enforces_policy_and_maps_to_storage() -> None:
     native_module = pytest.importorskip("bibmgr_native")
     database = create_engine(
         "sqlite+pysqlite://",
@@ -1007,7 +1007,28 @@ def test_real_native_registration_dto_maps_to_relational_storage() -> None:
     assert reference["doi"] == "10.1000/native-example"
     assert reference["bibtex"] == source
 
+    rejected = client.post(
+        "/references",
+        json={
+            "bibtex": (
+                "@article{Yamada_2024, author = {山田, 太郎}, "
+                "title = {不正な引用キー}, journal = {TACL}, "
+                "year = {2024},}\n"
+            ),
+            "source": "manual",
+        },
+    )
+
+    assert rejected.status_code == 422
+    error = rejected.json()["error"]
+    assert error["code"] == "registration_rejected"
+    assert any(
+        diagnostic["code"] == "LAB-KEY-002" and diagnostic["blocking"]
+        for diagnostic in error["details"]["diagnostics"]
+    )
+
     with sessions() as session:
+        assert session.scalar(select(func.count(ReferenceRecord.id))) == 1
         event_record = session.scalar(select(ReferenceAuditEvent))
         assert event_record is not None
         assert event_record.after_data is not None
