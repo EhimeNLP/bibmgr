@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1.7
 
-FROM rust:1.83-bookworm AS builder
+FROM rust:1.86-bookworm AS builder
 
 RUN apt-get update \
     && apt-get install --yes --no-install-recommends python3.11 python3.11-venv python3-pip \
@@ -37,7 +37,7 @@ RUN /opt/bibmgr/bin/pip install \
       --no-cache-dir \
       --no-index \
       --find-links=/wheels \
-      bibmgr-backend-example \
+      bibmgr-backend \
       bibmgr-native \
     && rm -rf /wheels \
     && useradd --system --create-home --home-dir /var/lib/bibmgr bibmgr \
