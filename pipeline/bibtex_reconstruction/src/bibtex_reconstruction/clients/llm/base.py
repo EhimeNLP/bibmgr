@@ -1,10 +1,13 @@
-"""Provider-independent interface for semantic reconstruction LLMs."""
+"""Provider-independent interface for structured LLM tasks."""
 
 from __future__ import annotations
 
-from typing import Protocol
+from typing import Protocol, TypeVar
 
-from ...domain import LLMReconstruction
+from pydantic import BaseModel
+
+
+ResponseModel = TypeVar("ResponseModel", bound=BaseModel)
 
 
 class LLMProviderError(RuntimeError):
@@ -12,7 +15,11 @@ class LLMProviderError(RuntimeError):
 
 
 class LLMProvider(Protocol):
-    """Generate one structured reconstruction from a prepared prompt."""
+    """Generate one structured response from a prepared prompt."""
 
-    def generate(self, prompt: str) -> LLMReconstruction:
-        """Return a provider-independent reconstruction result."""
+    def generate(
+        self,
+        prompt: str,
+        response_model: type[ResponseModel],
+    ) -> ResponseModel:
+        """Return a provider-independent structured result."""

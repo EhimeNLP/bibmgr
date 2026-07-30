@@ -29,6 +29,11 @@ class FakeOrchestrator:
         )
 
 
+class NoopKeyGenerator:
+    def apply(self, results):
+        return None
+
+
 class FakeDoiClient:
     def fetch_bibtex(self, doi):
         assert doi == "10.1000/example"
@@ -101,6 +106,7 @@ def test_cli_writes_only_validated_entries_and_separate_review_report(tmp_path):
         output_path,
         review_path,
         orchestrator=FakeOrchestrator(),
+        key_generator=NoopKeyGenerator(),
     )
 
     assert len(entries) == 1
@@ -147,7 +153,7 @@ def test_cli_produces_a_rust_validated_bibliography_without_network(tmp_path):
         external_clients=[],
         doi_client=FakeDoiClient(),
         validator=NativeBibtexValidator(),
-        reconstructor=FailingIfCalledReconstructor(),
+        review_assistant=FailingIfCalledReconstructor(),
     )
 
     entries, report = reconstruct_file(
@@ -170,3 +176,9 @@ def test_cli_produces_a_rust_validated_bibliography_without_network(tmp_path):
     assert report_json["reconstructed_count"] == 1
     assert report_json["manual_review_count"] == 0
     assert report_json["processed_references"][0]["ref_id"] == "b0"
+    assert (
+        report_json["processed_references"][0]["citation_key"][
+            "generated_citation_key"
+        ]
+        == "doe-2024-e-example"
+    )

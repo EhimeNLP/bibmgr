@@ -5,10 +5,9 @@ from __future__ import annotations
 from typing import Any
 
 import requests
+from pydantic import BaseModel
 
-from ...domain import LLMReconstruction
-
-from .base import LLMProviderError
+from .base import LLMProviderError, ResponseModel
 
 
 class OpenAICompatibleProvider:
@@ -22,7 +21,13 @@ class OpenAICompatibleProvider:
         base_url: str,
         timeout: int = 120,
         use_json_schema: bool = False,
+        strict_json_schema: bool = False,
+        temperature: float = 0.0,
+        max_output_tokens: int = 2048,
+        seed: int | None = None,
+        extra_body: dict[str, object] | None = None,
         http_client: Any = requests,
+        provider_label: str = "api_llm",
     ) -> None:
         if not model:
             raise LLMProviderError(
@@ -39,9 +44,19 @@ class OpenAICompatibleProvider:
         self.base_url = base_url.rstrip("/")
         self.timeout = timeout
         self.use_json_schema = use_json_schema
+        self.strict_json_schema = strict_json_schema
+        self.temperature = temperature
+        self.max_output_tokens = max_output_tokens
+        self.seed = seed
+        self.extra_body = dict(extra_body or {})
         self.http_client = http_client
+        self.provider_label = provider_label
 
-    def generate(self, prompt: str) -> LLMReconstruction:
+    def generate(
+        self,
+        prompt: str,
+        response_model: type[ResponseModel],
+    ) -> ResponseModel:
         headers = {"Content-Type": "application/json"}
         if self.api_key:
             headers["Authorization"] = f"Bearer {self.api_key}"
@@ -49,8 +64,13 @@ class OpenAICompatibleProvider:
         payload = {
             "model": self.model,
             "messages": [{"role": "user", "content": prompt}],
-            "response_format": self._response_format(),
+            "response_format": self._response_format(response_model),
+            "temperature": self.temperature,
+            "max_tokens": self.max_output_tokens,
         }
+        if self.seed is not None:
+            payload["seed"] = self.seed
+        payload.update(self.extra_body)
 
         try:
             response = self.http_client.post(
@@ -69,21 +89,24 @@ class OpenAICompatibleProvider:
                 )
             if not isinstance(content, str) or not content.strip():
                 raise ValueError("response content is empty")
-            return LLMReconstruction.model_validate_json(content)
+            return response_model.model_validate_json(content)
         except Exception as exc:
             raise LLMProviderError(
                 "OpenAI-compatible provider failed: "
                 f"{type(exc).__name__}"
             ) from exc
 
-    def _response_format(self) -> dict[str, object]:
+    def _response_format(
+        self,
+        response_model: type[BaseModel],
+    ) -> dict[str, object]:
         if not self.use_json_schema:
             return {"type": "json_object"}
         return {
             "type": "json_schema",
             "json_schema": {
                 "name": "bibtex_reconstruction",
-                "strict": False,
-                "schema": LLMReconstruction.model_json_schema(),
+                "strict": self.strict_json_schema,
+                "schema": response_model.model_json_schema(),
             },
         }

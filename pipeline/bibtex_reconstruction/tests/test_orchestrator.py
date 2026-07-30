@@ -6,15 +6,15 @@ import time
 from bibtex_reconstruction.application.orchestrator import (
     ReconstructionOrchestrator,
 )
-from bibtex_reconstruction.application.semantic_reconstructor import (
-    SemanticReconstructionUnavailable,
+from bibtex_reconstruction.application.review_assistant import (
+    ReviewAssistanceUnavailable,
 )
 from bibtex_reconstruction.clients.base import APIClientError
 from bibtex_reconstruction.clients.citation_site import OfficialCitation
 from bibtex_reconstruction.config import settings
 from bibtex_reconstruction.domain import (
     InputData,
-    LLMReconstruction,
+    LLMReviewSuggestion,
     ReferenceData,
     RustValidationResult,
     ValidationDiagnostic,
@@ -118,6 +118,14 @@ class NormalizingFakeValidator:
         )
 
 
+class AcceptedNormalizingFakeValidator:
+    def validate(self, source: str) -> RustValidationResult:
+        return RustValidationResult(
+            accepted=True,
+            source="@misc{ChangedByValidator}",
+        )
+
+
 class FailingIfCalledReconstructor:
     def reconstruct(self, *args, **kwargs):
         raise AssertionError("LLM must not be called")
@@ -128,19 +136,20 @@ class FakeReconstructor:
         self.bibtex = bibtex
         self.calls = []
 
-    def reconstruct(self, evidence, **kwargs) -> LLMReconstruction:
+    def reconstruct(self, evidence, **kwargs) -> LLMReviewSuggestion:
         self.calls.append((evidence, kwargs))
-        return LLMReconstruction(
-            bibtex=self.bibtex,
-            confidence=0.95,
+        return LLMReviewSuggestion(
+            suggested_bibtex=self.bibtex,
+            search_queries=["A Reliable Paper bibliography"],
+            candidate_assessment="One candidate requires manual verification.",
             evidence_sources=["Crossref API"],
-            summary="Reconstructed from matching metadata.",
+            summary="Suggested from matching metadata.",
         )
 
 
 class UnavailableReconstructor:
     def reconstruct(self, *args, **kwargs):
-        raise SemanticReconstructionUnavailable("LLM is unavailable")
+        raise ReviewAssistanceUnavailable("LLM is unavailable")
 
 
 class FakeSearchClient:
@@ -162,6 +171,15 @@ class FakeSearchClient:
         )
 
 
+class FakeAuthoritativeSearchClient(FakeSearchClient):
+    api_name = "Official Export API"
+    authoritative_bibtex = True
+
+    def search(self, input_data):
+        metadata, _bibtex = super().search(input_data)
+        return metadata, VALID_BIBTEX
+
+
 class FailingSearchClient:
     api_name = "Unavailable API"
 
@@ -171,6 +189,27 @@ class FailingSearchClient:
             operation="metadata_search",
             error_type="HTTPError",
             status_code=503,
+        )
+
+
+class FakeLocalDBClient:
+    api_name = "BibMgR Local DB"
+
+    def __init__(self, source: str) -> None:
+        self.source = source
+        self.calls = 0
+
+    def search(self, input_data):
+        self.calls += 1
+        return (
+            VerifiedCitationInfo(
+                title="A Reliable Paper",
+                authors=["Ada Example"],
+                year=2024,
+                venue="Journal of Tests",
+                doi="10.1000/example",
+            ),
+            self.source,
         )
 
 
@@ -218,7 +257,7 @@ def test_exact_input_doi_bypasses_search_and_llm():
         doi_client=doi_client,
         citation_client=citation_client,
         validator=validator,
-        reconstructor=FailingIfCalledReconstructor(),
+        review_assistant=FailingIfCalledReconstructor(),
     )
 
     result = service.reconstruct_reference(input_data(doi="10.1000/example"))
@@ -229,6 +268,78 @@ def test_exact_input_doi_bypasses_search_and_llm():
     assert doi_client.calls == ["10.1000/example"]
     assert citation_client.calls == ["10.1000/example"]
     assert len(result.attempts) == 1
+
+
+def test_local_db_bypasses_every_external_path(monkeypatch):
+    monkeypatch.setattr(settings, "localdb_enabled", True)
+    local = FakeLocalDBClient(VALID_BIBTEX)
+    doi_client = FakeDoiClient(None)
+    service = orchestrator(
+        local_db_client=local,
+        doi_client=doi_client,
+        validator=FakeValidator([True]),
+        review_assistant=FailingIfCalledReconstructor(),
+    )
+
+    result = service.reconstruct_reference(input_data())
+
+    assert result.outcome == ReconstructionOutcome.READY
+    assert result.reconstruction_path == ReconstructionPath.LOCAL_DB
+    assert result.reconstructed_bibtex == VALID_BIBTEX
+    assert local.calls == 1
+    assert doi_client.calls == []
+
+
+def test_local_db_skips_pipeline_quality_gate(monkeypatch):
+    monkeypatch.setattr(settings, "localdb_enabled", True)
+    stored = "@misc{StoredKey, title = {Already Registered}}"
+    doi_client = FakeDoiClient(None)
+    service = orchestrator(
+        local_db_client=FakeLocalDBClient(stored),
+        doi_client=doi_client,
+        validator=FakeValidator([True]),
+        review_assistant=FailingIfCalledReconstructor(),
+    )
+
+    result = service.reconstruct_reference(input_data())
+
+    assert result.outcome == ReconstructionOutcome.READY
+    assert result.reconstruction_path == ReconstructionPath.LOCAL_DB
+    assert result.reconstructed_bibtex == stored
+    assert doi_client.calls == []
+
+
+def test_local_db_preserves_source_even_if_validator_returns_another_source(
+    monkeypatch,
+):
+    monkeypatch.setattr(settings, "localdb_enabled", True)
+    stored = "@misc{StoredKey, title = {Already Registered}}"
+    service = orchestrator(
+        local_db_client=FakeLocalDBClient(stored),
+        validator=AcceptedNormalizingFakeValidator(),
+        review_assistant=FailingIfCalledReconstructor(),
+    )
+
+    result = service.reconstruct_reference(input_data())
+
+    assert result.outcome == ReconstructionOutcome.READY
+    assert result.reconstructed_bibtex == stored
+    assert result.validation.source == stored
+
+
+def test_authoritative_external_bibtex_bypasses_llm():
+    service = orchestrator(
+        external_clients=[FakeAuthoritativeSearchClient()],
+        doi_client=FakeDoiClient(None),
+        validator=FakeValidator([True]),
+        review_assistant=FailingIfCalledReconstructor(),
+    )
+
+    result = service.reconstruct_reference(input_data())
+
+    assert result.outcome == ReconstructionOutcome.READY
+    assert result.reconstruction_path == ReconstructionPath.EXTERNAL_API
+    assert result.reconstructed_bibtex == VALID_BIBTEX
 
 
 def test_complete_official_citation_has_priority_over_complete_doi_bibtex():
@@ -246,7 +357,7 @@ def test_complete_official_citation_has_priority_over_complete_doi_bibtex():
         doi_client=FakeDoiClient(VALID_BIBTEX),
         citation_client=citation_client,
         validator=FakeValidator([True, True]),
-        reconstructor=FailingIfCalledReconstructor(),
+        review_assistant=FailingIfCalledReconstructor(),
     )
 
     result = service.reconstruct_reference(
@@ -277,7 +388,7 @@ def test_complete_doi_bibtex_wins_when_official_citation_is_incomplete():
             )
         ),
         validator=FakeValidator([True, True]),
-        reconstructor=FailingIfCalledReconstructor(),
+        review_assistant=FailingIfCalledReconstructor(),
     )
 
     result = service.reconstruct_reference(
@@ -297,7 +408,7 @@ def test_high_confidence_search_doi_bypasses_llm():
         external_clients=[FakeSearchClient()],
         doi_client=doi_client,
         validator=FakeValidator([True]),
-        reconstructor=FailingIfCalledReconstructor(),
+        review_assistant=FailingIfCalledReconstructor(),
     )
 
     result = service.reconstruct_reference(input_data())
@@ -328,7 +439,7 @@ def test_incomplete_doi_uses_official_site_citation_before_metadata_or_llm():
         doi_client=FakeDoiClient(incomplete),
         citation_client=citation_client,
         validator=FakeValidator([True, True]),
-        reconstructor=FailingIfCalledReconstructor(),
+        review_assistant=FailingIfCalledReconstructor(),
     )
 
     result = service.reconstruct_reference(
@@ -358,7 +469,7 @@ def test_incomplete_doi_is_enriched_from_matching_verified_metadata():
         external_clients=[FakeSearchClient()],
         doi_client=FakeDoiClient(incomplete),
         validator=FakeValidator([True, True]),
-        reconstructor=FailingIfCalledReconstructor(),
+        review_assistant=FailingIfCalledReconstructor(),
     )
 
     result = service.reconstruct_reference(
@@ -379,7 +490,7 @@ def test_citation_year_suffix_does_not_reject_matching_api_year():
         external_clients=[FakeSearchClient()],
         doi_client=FakeDoiClient(VALID_BIBTEX),
         validator=FakeValidator([True]),
-        reconstructor=FailingIfCalledReconstructor(),
+        review_assistant=FailingIfCalledReconstructor(),
     )
 
     result = service.reconstruct_reference(input_data(year="2024a"))
@@ -403,12 +514,14 @@ def test_search_doi_with_conflicting_authors_is_not_trusted():
         external_clients=[search_client],
         doi_client=FakeDoiClient(VALID_BIBTEX),
         validator=FakeValidator([True]),
-        reconstructor=reconstructor,
+        review_assistant=reconstructor,
     )
 
     result = service.reconstruct_reference(input_data())
 
-    assert result.reconstruction_path == ReconstructionPath.LLM
+    assert result.outcome == ReconstructionOutcome.MANUAL_REVIEW
+    assert result.reconstruction_path is None
+    assert result.llm_review is not None
     assert result.evidence.trusted_doi is None
     assert len(reconstructor.calls) == 1
 
@@ -418,7 +531,7 @@ def test_api_failure_is_reported_separately_from_not_found():
         external_clients=[FailingSearchClient()],
         doi_client=FakeDoiClient(None),
         validator=FakeValidator([True]),
-        reconstructor=FakeReconstructor(),
+        review_assistant=FakeReconstructor(),
     )
 
     result = service.reconstruct_reference(input_data())
@@ -446,20 +559,21 @@ def test_api_search_worker_count_is_bounded():
     assert tracker.maximum_active == 2
 
 
-def test_rejected_doi_candidate_is_repaired_with_rust_feedback():
-    validator = FakeValidator([False, True])
+def test_rejected_doi_candidate_is_explained_with_rust_feedback():
+    validator = FakeValidator([False])
     reconstructor = FakeReconstructor()
     service = orchestrator(
         doi_client=FakeDoiClient("@article{broken}"),
         validator=validator,
-        reconstructor=reconstructor,
+        review_assistant=reconstructor,
     )
 
     result = service.reconstruct_reference(input_data(doi="10.1000/example"))
 
-    assert result.outcome == ReconstructionOutcome.READY
-    assert result.reconstruction_path == ReconstructionPath.LLM
-    assert len(result.attempts) == 2
+    assert result.outcome == ReconstructionOutcome.MANUAL_REVIEW
+    assert result.reconstruction_path is None
+    assert len(result.attempts) == 1
+    assert result.llm_review is not None
     previous = reconstructor.calls[0][1]
     assert previous["previous_candidate"] == "@article{broken}"
     assert previous["validation"].diagnostics[0].code == "LAB-ENTRY-001"
@@ -476,41 +590,41 @@ def test_llm_feedback_uses_the_source_that_rust_diagnosed():
     service = orchestrator(
         doi_client=FakeDoiClient("@article{raw-doi-candidate}"),
         validator=NormalizingFakeValidator(),
-        reconstructor=reconstructor,
+        review_assistant=reconstructor,
     )
 
     result = service.reconstruct_reference(input_data(doi="10.1000/example"))
 
-    assert result.outcome == ReconstructionOutcome.READY
+    assert result.outcome == ReconstructionOutcome.MANUAL_REVIEW
     assert (
         reconstructor.calls[0][1]["previous_candidate"]
         == "@article{rust-normalized}"
     )
 
 
-def test_validation_retry_limit_routes_reference_to_review(monkeypatch):
-    monkeypatch.setattr(settings, "max_llm_attempts", 2)
+def test_llm_suggestion_is_never_auto_accepted():
     service = orchestrator(
         doi_client=FakeDoiClient(None),
-        validator=FakeValidator([False, False]),
-        reconstructor=FakeReconstructor(),
+        validator=FakeValidator([]),
+        review_assistant=FakeReconstructor(),
     )
 
     result = service.reconstruct_reference(input_data())
 
     assert result.outcome == ReconstructionOutcome.MANUAL_REVIEW
-    assert len(result.attempts) == 2
-    assert "2 LLM attempts" in result.review_reason
+    assert len(result.attempts) == 0
+    assert result.llm_review is not None
+    assert result.reconstructed_bibtex is None
 
 
 def test_unavailable_llm_routes_reference_to_review():
     service = orchestrator(
         doi_client=FakeDoiClient(None),
         validator=FakeValidator([]),
-        reconstructor=UnavailableReconstructor(),
+        review_assistant=UnavailableReconstructor(),
     )
 
     result = service.reconstruct_reference(input_data())
 
     assert result.outcome == ReconstructionOutcome.MANUAL_REVIEW
-    assert result.review_reason == "LLM is unavailable"
+    assert "LLM is unavailable" in result.review_reason

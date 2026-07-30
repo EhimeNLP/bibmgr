@@ -31,6 +31,10 @@ class ArxivClient(BaseAPIClient):
         """Never replace an authoritative arXiv citation with guessed BibTeX."""
         return False
 
+    @property
+    def authoritative_bibtex(self) -> bool:
+        return True
+
     def _execute_search(
         self,
         input_data: InputData,

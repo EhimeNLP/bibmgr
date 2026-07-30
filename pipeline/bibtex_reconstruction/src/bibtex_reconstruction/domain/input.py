@@ -30,8 +30,11 @@ class ReferenceData(BaseModel):
             "it may include volume, issue, or page text."
         ),
     )
+    pages: str | None = None
+    publication_info: str | None = None
     raw_text: str = Field(min_length=1)
     context: str | None = None
+    citation_contexts: list[str] = Field(default_factory=list)
 
     @field_validator("year", mode="before")
     @classmethod

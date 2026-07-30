@@ -18,13 +18,19 @@ class Settings(BaseSettings):
     reference_threads: int = Field(2, ge=1)
     api_threads: int = Field(3, ge=1)
 
-    # Semantic reconstruction LLM
+    # Optional remote LLM used only as an explicitly enabled final fallback
+    remote_llm_fallback_enabled: bool = Field(
+        False,
+        validation_alias=(
+            "BIBTEX_RECONSTRUCTION_REMOTE_LLM_FALLBACK_ENABLED"
+        ),
+    )
     llm_provider: str = Field(
         "gemini",
         validation_alias="BIBTEX_RECONSTRUCTION_LLM_PROVIDER",
     )
     llm_model: str = Field(
-        "gemini-2.5-pro",
+        "gemini-flash-lite-latest",
         validation_alias="BIBTEX_RECONSTRUCTION_LLM_MODEL",
     )
     llm_api_key: str = Field(
@@ -45,15 +51,78 @@ class Settings(BaseSettings):
         ge=1,
         validation_alias="BIBTEX_RECONSTRUCTION_LLM_MAX_OUTPUT_TOKENS",
     )
-    max_llm_attempts: int = Field(
-        3,
-        ge=1,
-        validation_alias="BIBTEX_RECONSTRUCTION_LLM_MAX_ATTEMPTS",
-    )
     llm_timeout: int = Field(
         120,
         ge=1,
         validation_alias="BIBTEX_RECONSTRUCTION_LLM_TIMEOUT",
+    )
+
+    # Primary local open-source model served through vLLM
+    local_llm_enabled: bool = Field(
+        True,
+        validation_alias="BIBTEX_RECONSTRUCTION_LOCAL_LLM_ENABLED",
+    )
+    local_llm_model: str = Field(
+        "Qwen/Qwen3.5-35B-A3B",
+        validation_alias="BIBTEX_RECONSTRUCTION_LOCAL_LLM_MODEL",
+    )
+    local_llm_base_url: str = Field(
+        "http://127.0.0.1:8001/v1",
+        validation_alias="BIBTEX_RECONSTRUCTION_LOCAL_LLM_BASE_URL",
+    )
+    local_llm_api_key: str = Field(
+        "",
+        validation_alias="BIBTEX_RECONSTRUCTION_LOCAL_LLM_API_KEY",
+    )
+    local_llm_timeout: int = Field(
+        120,
+        ge=1,
+        validation_alias="BIBTEX_RECONSTRUCTION_LOCAL_LLM_TIMEOUT",
+    )
+    local_llm_temperature: float = Field(
+        0.0,
+        ge=0.0,
+        validation_alias=(
+            "BIBTEX_RECONSTRUCTION_LOCAL_LLM_TEMPERATURE"
+        ),
+    )
+    local_llm_max_output_tokens: int = Field(
+        2048,
+        ge=1,
+        validation_alias=(
+            "BIBTEX_RECONSTRUCTION_LOCAL_LLM_MAX_OUTPUT_TOKENS"
+        ),
+    )
+    local_llm_seed: int = Field(
+        0,
+        ge=0,
+        validation_alias="BIBTEX_RECONSTRUCTION_LOCAL_LLM_SEED",
+    )
+    concept_ranking_batch_size: int = Field(
+        32,
+        ge=1,
+        validation_alias=(
+            "BIBTEX_RECONSTRUCTION_CONCEPT_RANKING_BATCH_SIZE"
+        ),
+    )
+
+    # Optional BibMgR reference-library lookup
+    localdb_enabled: bool = Field(
+        False,
+        validation_alias="BIBTEX_RECONSTRUCTION_LOCAL_DB_ENABLED",
+    )
+    localdb_base_url: str = Field(
+        "http://127.0.0.1:8000/references/page",
+        validation_alias="BIBTEX_RECONSTRUCTION_LOCAL_DB_BASE_URL",
+    )
+    localdb_timeout: int = Field(
+        5,
+        ge=1,
+        validation_alias="BIBTEX_RECONSTRUCTION_LOCAL_DB_TIMEOUT",
+    )
+    localdb_cookie: str = Field(
+        "",
+        validation_alias="BIBTEX_RECONSTRUCTION_LOCAL_DB_COOKIE",
     )
 
     # Shared API behavior

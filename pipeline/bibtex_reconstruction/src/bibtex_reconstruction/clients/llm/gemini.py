@@ -2,9 +2,7 @@
 
 from __future__ import annotations
 
-from ...domain import LLMReconstruction
-
-from .base import LLMProviderError
+from .base import LLMProviderError, ResponseModel
 
 
 class GeminiProvider:
@@ -18,6 +16,7 @@ class GeminiProvider:
         base_url: str = "",
         temperature: float = 0.1,
         max_output_tokens: int = 2048,
+        provider_label: str = "api_llm",
     ) -> None:
         if not api_key:
             raise LLMProviderError(
@@ -33,8 +32,13 @@ class GeminiProvider:
         self.base_url = base_url
         self.temperature = temperature
         self.max_output_tokens = max_output_tokens
+        self.provider_label = provider_label
 
-    def generate(self, prompt: str) -> LLMReconstruction:
+    def generate(
+        self,
+        prompt: str,
+        response_model: type[ResponseModel],
+    ) -> ResponseModel:
         try:
             from google import genai
             from google.genai import types
@@ -56,15 +60,15 @@ class GeminiProvider:
                     temperature=self.temperature,
                     max_output_tokens=self.max_output_tokens,
                     response_mime_type="application/json",
-                    response_schema=LLMReconstruction,
+                    response_schema=response_model,
                 ),
             )
-            if isinstance(response.parsed, LLMReconstruction):
+            if isinstance(response.parsed, response_model):
                 return response.parsed
             if response.parsed:
-                return LLMReconstruction.model_validate(response.parsed)
+                return response_model.model_validate(response.parsed)
             if response.text:
-                return LLMReconstruction.model_validate_json(response.text)
+                return response_model.model_validate_json(response.text)
         except Exception as exc:
             raise LLMProviderError(
                 f"Gemini provider failed: {type(exc).__name__}"

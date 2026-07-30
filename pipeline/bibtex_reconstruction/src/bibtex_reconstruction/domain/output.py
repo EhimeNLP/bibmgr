@@ -25,11 +25,12 @@ class CandidateResult(BaseModel):
     confidence_score: Optional[float] = Field(0.0, ge=0.0, le=1.0, description="Similarity score calculated for this specific result (0.0 to 1.0)")
     verified_info: Optional[VerifiedCitationInfo] = Field(None, description="Verified metadata obtained from the API. None if not found.")
     bibtex: Optional[str] = Field(None, description="Formatted BibTeX string from this API")
+    bibtex_authoritative: bool = False
     error: Optional[str] = Field(None, description="Non-sensitive API failure summary")
 
 
 class EvidenceBundle(BaseModel):
-    """Source-preserving evidence supplied to semantic reconstruction."""
+    """Source-preserving evidence supplied to recovery and manual review."""
 
     raw_text: str
     original: ReferenceData
@@ -57,14 +58,44 @@ class RustValidationResult(BaseModel):
     applied_fix_ids: List[str] = Field(default_factory=list)
 
 
-class LLMReconstruction(BaseModel):
-    """Structured response produced by the semantic reconstruction model."""
+class LLMReviewSuggestion(BaseModel):
+    """Non-authoritative guidance retained only for manual review."""
 
-    bibtex: str
-    confidence: float = Field(ge=0.0, le=1.0)
+    search_queries: List[str] = Field(default_factory=list)
+    candidate_assessment: str = ""
+    suggested_bibtex: Optional[str] = None
     evidence_sources: List[str] = Field(default_factory=list)
     unresolved_fields: List[str] = Field(default_factory=list)
     summary: str = ""
+
+
+class ConceptRankingItem(BaseModel):
+    """A model-selected ordering over rule-derived concept candidates."""
+
+    ref_id: str
+    candidate_indices: List[int] = Field(default_factory=list)
+
+
+class ConceptRankingResponse(BaseModel):
+    """Batch response used by API and local vLLM concept rankers."""
+
+    rankings: List[ConceptRankingItem] = Field(default_factory=list)
+
+
+class CitationKeyAudit(BaseModel):
+    """Auditable details for one preserved or generated citation key."""
+
+    original_citation_key: str
+    generated_citation_key: str
+    key_preserved: bool = False
+    surname: Optional[str] = None
+    year: Optional[str] = None
+    venue: Optional[str] = None
+    concept: Optional[str] = None
+    concept_candidates: List[str] = Field(default_factory=list)
+    selected_candidate_rank: Optional[int] = Field(default=None, ge=1)
+    concept_method: str
+    collision_keys: List[str] = Field(default_factory=list)
 
 
 class ReconstructionAttempt(BaseModel):
@@ -75,7 +106,6 @@ class ReconstructionAttempt(BaseModel):
     source_url: Optional[str] = None
     quality_issues: List[str] = Field(default_factory=list)
     filled_fields: List[str] = Field(default_factory=list)
-    llm_result: Optional[LLMReconstruction] = None
 
 
 class ProcessedReference(BaseModel):
@@ -94,6 +124,8 @@ class ProcessedReference(BaseModel):
     reconstructed_bibtex: Optional[str] = None
     validation: Optional[RustValidationResult] = None
     attempts: List[ReconstructionAttempt] = Field(default_factory=list)
+    llm_review: Optional[LLMReviewSuggestion] = None
+    citation_key: Optional[CitationKeyAudit] = None
     review_reason: Optional[str] = None
 
 

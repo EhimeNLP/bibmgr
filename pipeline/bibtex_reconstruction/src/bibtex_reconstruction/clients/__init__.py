@@ -7,6 +7,7 @@ from .semantic_scholar import SemanticScholarClient
 from .jstage import JStageClient
 from .doi import DoiContentNegotiationClient
 from .citation_site import OfficialCitation, OfficialCitationClient
+from .local_db import LocalDBClient
 
 __all__ = [
     "CrossrefClient",
@@ -17,4 +18,5 @@ __all__ = [
     "DoiContentNegotiationClient",
     "OfficialCitation",
     "OfficialCitationClient",
+    "LocalDBClient",
 ]

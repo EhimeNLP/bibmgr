@@ -9,6 +9,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 
 from .application.orchestrator import ReconstructionOrchestrator
+from .application.key_generation import CitationKeyGenerator
 from .application.source_loader import load_metadata_document
 from .config import settings
 from .domain import InputData, ProcessedReference, ReconstructionReport
@@ -25,6 +26,7 @@ def reconstruct_file(
     report_path: Path,
     *,
     orchestrator: ReconstructionOrchestrator | None = None,
+    key_generator: CitationKeyGenerator | None = None,
     reference_threads: int | None = None,
     api_threads: int | None = None,
 ) -> tuple[list[str], ReconstructionReport]:
@@ -76,6 +78,7 @@ def reconstruct_file(
             )
 
     processed = [result for result in results if result is not None]
+    (key_generator or CitationKeyGenerator()).apply(processed)
     entries = [
         result.reconstructed_bibtex.strip()
         for result in processed

@@ -14,6 +14,7 @@ from ..clients import (
     CrossrefClient,
     DoiContentNegotiationClient,
     JStageClient,
+    LocalDBClient,
     OfficialCitationClient,
     SemanticScholarClient,
 )
@@ -23,7 +24,7 @@ from ..domain import (
     CandidateResult,
     EvidenceBundle,
     InputData,
-    LLMReconstruction,
+    LLMReviewSuggestion,
     ProcessedReference,
     ReconstructionAttempt,
     RustValidationResult,
@@ -43,10 +44,10 @@ from ..parsing.bibtex import (
 from ..parsing.identifiers import extract_dois, normalize_doi
 from ..parsing.source_clues import enrich_search_clues
 from ..validation import NativeBibtexValidator
-from .semantic_reconstructor import (
-    ConfiguredSemanticReconstructor,
-    SemanticReconstructionUnavailable,
-    SemanticReconstructor,
+from .review_assistant import (
+    ConfiguredReviewAssistant,
+    ReviewAssistanceUnavailable,
+    ReviewAssistant,
 )
 
 
@@ -67,7 +68,7 @@ class _EvaluatedCandidate:
 
 
 class ReconstructionOrchestrator:
-    """Coordinate deterministic DOI recovery, search, LLM repair, and Rust checks."""
+    """Coordinate trusted recovery, review guidance, and Rust checks."""
 
     def __init__(
         self,
@@ -76,7 +77,8 @@ class ReconstructionOrchestrator:
         doi_client: DoiContentNegotiationClient | None = None,
         citation_client: OfficialCitationClient | None = None,
         validator: NativeBibtexValidator | None = None,
-        reconstructor: SemanticReconstructor | None = None,
+        review_assistant: ReviewAssistant | None = None,
+        local_db_client: LocalDBClient | None = None,
         search_workers: int | None = None,
     ) -> None:
         self.external_clients = list(external_clients) if external_clients is not None else [
@@ -89,7 +91,10 @@ class ReconstructionOrchestrator:
         self.doi_client = doi_client or DoiContentNegotiationClient()
         self.citation_client = citation_client or OfficialCitationClient()
         self.validator = validator or NativeBibtexValidator()
-        self.reconstructor = reconstructor or ConfiguredSemanticReconstructor()
+        self.review_assistant = (
+            review_assistant or ConfiguredReviewAssistant()
+        )
+        self.local_db_client = local_db_client or LocalDBClient()
         self.search_workers = search_workers or settings.api_threads
 
     def reconstruct_reference(self, input_data: InputData) -> ProcessedReference:
@@ -112,6 +117,54 @@ class ReconstructionOrchestrator:
         last_validation: RustValidationResult | None = None
         last_quality_issues: tuple[str, ...] = ()
         doi_evaluations: dict[str, _EvaluatedCandidate] = {}
+
+        if settings.localdb_enabled:
+            try:
+                local_metadata, local_bibtex = self.local_db_client.search(
+                    search_input
+                )
+            except Exception as exc:
+                logger.warning(
+                    "local DB lookup failed ref_id=%s error_type=%s",
+                    reference.id,
+                    exc.__class__.__name__,
+                )
+            else:
+                if local_metadata is not None and local_bibtex:
+                    local_result = self._evaluate_candidate(
+                        local_bibtex,
+                        path=ReconstructionPath.LOCAL_DB,
+                        attempts=attempts,
+                    )
+                    if local_result.validation.accepted:
+                        preserved_validation = (
+                            local_result.validation.model_copy(
+                                update={"source": local_bibtex}
+                            )
+                        )
+                        evidence = self._build_evidence(
+                            original_input,
+                            search_input=search_input,
+                            extracted_dois=extracted_dois,
+                            trusted_doi=normalize_doi(local_metadata.doi),
+                            candidates=[
+                                CandidateResult(
+                                    source_api=self.local_db_client.api_name,
+                                    status=CandidateStatus.MATCH,
+                                    confidence_score=1.0,
+                                    verified_info=local_metadata,
+                                    bibtex=local_bibtex,
+                                    bibtex_authoritative=True,
+                                )
+                            ],
+                        )
+                        return self._accepted_result(
+                            original_input,
+                            evidence=evidence,
+                            path=ReconstructionPath.LOCAL_DB,
+                            validation=preserved_validation,
+                            attempts=attempts,
+                        )
 
         # Exact identifiers present in the input are the strongest evidence.
         for doi in extracted_dois:
@@ -198,77 +251,48 @@ class ReconstructionOrchestrator:
                     attempts=attempts,
                 )
 
+        authoritative = self._try_authoritative_api_candidate(
+            candidates,
+            attempts=attempts,
+        )
+        if authoritative is not None:
+            return self._accepted_result(
+                original_input,
+                evidence=evidence,
+                path=authoritative.path,
+                validation=authoritative.validation,
+                attempts=attempts,
+            )
+
+        llm_review: LLMReviewSuggestion | None = None
+        review_reason = (
+            "trusted deterministic sources did not produce a complete BibTeX entry"
+        )
         try:
-            for _ in range(settings.max_llm_attempts):
-                llm_result = self.reconstructor.reconstruct(
-                    evidence,
-                    previous_candidate=last_candidate,
-                    validation=last_validation,
-                    quality_issues=last_quality_issues,
-                )
-                produced_candidate = llm_result.bibtex.strip()
-                evaluated = self._evaluate_candidate(
-                    produced_candidate,
-                    path=ReconstructionPath.LLM,
-                    attempts=attempts,
-                    llm_result=llm_result,
-                )
-                last_validation = evaluated.validation
-                last_candidate = last_validation.source
-                last_quality_issues = evaluated.quality_issues
-                logger.info(
-                    (
-                        "LLM candidate checked ref_id=%s accepted=%s "
-                        "complete=%s attempt=%d"
-                    ),
-                    reference.id,
-                    last_validation.accepted,
-                    evaluated.ready,
-                    len(attempts),
-                )
-                if evaluated.ready:
-                    return self._accepted_result(
-                        original_input,
-                        evidence=evidence,
-                        path=ReconstructionPath.LLM,
-                        validation=last_validation,
-                        attempts=attempts,
-                    )
-        except SemanticReconstructionUnavailable as exc:
+            llm_review = self.review_assistant.reconstruct(
+                evidence,
+                previous_candidate=last_candidate,
+                validation=last_validation,
+                quality_issues=last_quality_issues,
+            )
+        except ReviewAssistanceUnavailable as exc:
             logger.warning(
-                "semantic reconstruction unavailable ref_id=%s reason=%s",
+                "review assistant unavailable ref_id=%s reason=%s",
                 reference.id,
                 exc,
             )
-            return self._review_result(
-                input_data,
-                evidence=evidence,
-                candidates=candidates,
-                validation=last_validation,
-                attempts=attempts,
-                reason=str(exc),
-            )
+            review_reason = f"{review_reason}; {exc}"
         except Exception:
-            logger.exception("semantic reconstruction failed ref_id=%s", reference.id)
-            return self._review_result(
-                input_data,
-                evidence=evidence,
-                candidates=candidates,
-                validation=last_validation,
-                attempts=attempts,
-                reason="semantic reconstruction failed",
-            )
-
+            logger.exception("review assistance failed ref_id=%s", reference.id)
+            review_reason = f"{review_reason}; review assistance failed"
         return self._review_result(
             input_data,
             evidence=evidence,
             candidates=candidates,
             validation=last_validation,
             attempts=attempts,
-            reason=(
-                "Rust validation or core metadata quality did not pass after "
-                f"{settings.max_llm_attempts} LLM attempts"
-            ),
+            reason=review_reason,
+            llm_review=llm_review,
         )
 
     def _search_candidates(self, input_data: InputData) -> list[CandidateResult]:
@@ -326,6 +350,13 @@ class ReconstructionOrchestrator:
                             confidence_score=score,
                             verified_info=metadata,
                             bibtex=bibtex,
+                            bibtex_authoritative=bool(
+                                getattr(
+                                    client,
+                                    "authoritative_bibtex",
+                                    False,
+                                )
+                            ),
                         )
                     )
                 except APIClientError as exc:
@@ -414,6 +445,28 @@ class ReconstructionOrchestrator:
             return doi
         return None
 
+    def _try_authoritative_api_candidate(
+        self,
+        candidates: Sequence[CandidateResult],
+        *,
+        attempts: list[ReconstructionAttempt],
+    ) -> _EvaluatedCandidate | None:
+        for candidate in candidates:
+            if (
+                candidate.status != CandidateStatus.MATCH
+                or not candidate.bibtex_authoritative
+                or not candidate.bibtex
+            ):
+                continue
+            evaluated = self._evaluate_candidate(
+                candidate.bibtex,
+                path=ReconstructionPath.EXTERNAL_API,
+                attempts=attempts,
+            )
+            if evaluated.ready:
+                return evaluated
+        return None
+
     @staticmethod
     def _authors_are_consistent(
         original_authors: Sequence[str],
@@ -458,8 +511,8 @@ class ReconstructionOrchestrator:
             return doi_result
 
         # When neither representation is complete, keep a structurally
-        # accepted official export as the base for metadata enrichment and LLM
-        # repair. A usable content-negotiation result is the next fallback.
+        # accepted official export as the base for deterministic metadata
+        # enrichment. A usable content-negotiation result is the next fallback.
         if (
             citation_result is not None
             and citation_result.validation.accepted
@@ -628,7 +681,6 @@ class ReconstructionOrchestrator:
         attempts: list[ReconstructionAttempt],
         source_url: str | None = None,
         filled_fields: Sequence[str] = (),
-        llm_result: LLMReconstruction | None = None,
     ) -> _EvaluatedCandidate:
         validation = self.validator.validate(source)
         inspection = inspect_bibtex(validation.source)
@@ -642,7 +694,6 @@ class ReconstructionOrchestrator:
                 source_url=source_url,
                 quality_issues=list(quality_issues),
                 filled_fields=list(filled_fields),
-                llm_result=llm_result,
             )
         )
         return _EvaluatedCandidate(
@@ -702,6 +753,7 @@ class ReconstructionOrchestrator:
         validation: RustValidationResult | None,
         attempts: list[ReconstructionAttempt],
         reason: str,
+        llm_review: LLMReviewSuggestion | None = None,
     ) -> ProcessedReference:
         return ProcessedReference(
             ref_id=input_data.parsed_data.id,
@@ -711,5 +763,6 @@ class ReconstructionOrchestrator:
             evidence=evidence,
             validation=validation,
             attempts=attempts,
+            llm_review=llm_review,
             review_reason=reason,
         )

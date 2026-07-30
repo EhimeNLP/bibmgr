@@ -4,18 +4,21 @@ import json
 
 import pytest
 
-from bibtex_reconstruction.application.semantic_reconstructor import (
-    ConfiguredSemanticReconstructor,
+from bibtex_reconstruction.application.review_assistant import (
+    ConfiguredReviewAssistant,
 )
 from bibtex_reconstruction.clients.llm import (
+    GeminiProvider,
     LLMProviderError,
     OpenAICompatibleProvider,
+    VLLMProvider,
     create_llm_provider,
+    create_preferred_llm_providers,
 )
 from bibtex_reconstruction.config import Settings
 from bibtex_reconstruction.domain import (
     EvidenceBundle,
-    LLMReconstruction,
+    LLMReviewSuggestion,
     ReferenceData,
 )
 
@@ -49,11 +52,12 @@ class FakeProvider:
     def __init__(self) -> None:
         self.prompts: list[str] = []
 
-    def generate(self, prompt: str) -> LLMReconstruction:
+    def generate(self, prompt: str, response_model):
         self.prompts.append(prompt)
-        return LLMReconstruction(
-            bibtex="@misc{example, title = {Recovered}}",
-            confidence=0.8,
+        return response_model(
+            suggested_bibtex="@misc{example, title = {Suggested}}",
+            search_queries=["Damaged title bibliography"],
+            candidate_assessment="The title is not corroborated.",
             evidence_sources=["raw input"],
         )
 
@@ -61,8 +65,9 @@ class FakeProvider:
 def reconstruction_json() -> str:
     return json.dumps(
         {
-            "bibtex": "@article{example, title = {Recovered}}",
-            "confidence": 0.9,
+            "suggested_bibtex": "@article{example, title = {Suggested}}",
+            "search_queries": ["example bibliography"],
+            "candidate_assessment": "One matching source.",
             "evidence_sources": ["Crossref API"],
             "unresolved_fields": [],
             "summary": "Recovered from evidence.",
@@ -80,9 +85,9 @@ def test_openai_compatible_provider_uses_configured_endpoint_and_key():
         http_client=http_client,
     )
 
-    result = provider.generate("reconstruct this")
+    result = provider.generate("review this", LLMReviewSuggestion)
 
-    assert result.confidence == 0.9
+    assert result.candidate_assessment == "One matching source."
     call = http_client.calls[0]
     assert call["url"] == "https://llm.example.test/v1/chat/completions"
     assert call["headers"]["Authorization"] == "Bearer secret"
@@ -100,9 +105,30 @@ def test_openai_compatible_provider_allows_keyless_local_server():
         http_client=http_client,
     )
 
-    provider.generate("reconstruct this")
+    provider.generate("review this", LLMReviewSuggestion)
 
     assert "Authorization" not in http_client.calls[0]["headers"]
+
+
+def test_vllm_provider_uses_deterministic_json_schema_inference():
+    http_client = FakeHttpClient(reconstruction_json())
+    provider = VLLMProvider(
+        api_key="",
+        model="Qwen/Qwen3.5-35B-A3B",
+        base_url="http://127.0.0.1:8001/v1",
+        http_client=http_client,
+    )
+
+    provider.generate("review this", LLMReviewSuggestion)
+
+    payload = http_client.calls[0]["json"]
+    assert payload["temperature"] == 0.0
+    assert payload["seed"] == 0
+    assert payload["response_format"]["type"] == "json_schema"
+    assert payload["response_format"]["json_schema"]["strict"] is True
+    assert payload["chat_template_kwargs"] == {
+        "enable_thinking": False
+    }
 
 
 def test_openai_provider_defaults_to_official_endpoint_and_json_schema():
@@ -127,6 +153,40 @@ def test_openai_compatible_provider_requires_base_url():
 
     with pytest.raises(LLMProviderError, match="LLM_BASE_URL"):
         create_llm_provider(configured)
+
+
+def test_local_vllm_is_preferred_before_opt_in_remote_fallback():
+    configured = Settings(
+        _env_file=None,
+        BIBTEX_RECONSTRUCTION_REMOTE_LLM_FALLBACK_ENABLED=True,
+        BIBTEX_RECONSTRUCTION_LLM_PROVIDER="gemini",
+        BIBTEX_RECONSTRUCTION_LLM_MODEL="remote-model",
+        BIBTEX_RECONSTRUCTION_LLM_API_KEY="secret",
+        BIBTEX_RECONSTRUCTION_LOCAL_LLM_MODEL="local-model",
+        BIBTEX_RECONSTRUCTION_LOCAL_LLM_BASE_URL=(
+            "http://localhost:8001/v1"
+        ),
+    )
+
+    providers = create_preferred_llm_providers(configured)
+
+    assert isinstance(providers[0], VLLMProvider)
+    assert isinstance(providers[1], GeminiProvider)
+    assert providers[0].provider_label == "local_vllm"
+    assert providers[1].provider_label == "api_llm"
+
+
+def test_remote_api_is_disabled_by_default_even_when_key_exists():
+    configured = Settings(
+        _env_file=None,
+        BIBTEX_RECONSTRUCTION_LLM_PROVIDER="gemini",
+        BIBTEX_RECONSTRUCTION_LLM_API_KEY="secret",
+    )
+
+    providers = create_preferred_llm_providers(configured)
+
+    assert len(providers) == 1
+    assert isinstance(providers[0], VLLMProvider)
 
 
 def test_unknown_provider_reports_supported_values():
@@ -165,7 +225,7 @@ def test_environment_overrides_yaml_llm_settings(monkeypatch):
     assert configured.llm_base_url == "http://localhost:1234/v1"
 
 
-def test_semantic_reconstructor_builds_provider_independent_prompt():
+def test_review_assistant_builds_provider_independent_prompt():
     provider = FakeProvider()
     reference = ReferenceData(
         id="ref-1",
@@ -177,17 +237,17 @@ def test_semantic_reconstructor_builds_provider_independent_prompt():
         original=reference,
         search_clues=reference,
     )
-    reconstructor = ConfiguredSemanticReconstructor(provider)
+    assistant = ConfiguredReviewAssistant(provider)
 
-    result = reconstructor.reconstruct(
+    result = assistant.reconstruct(
         evidence,
         quality_issues=["title", "year"],
     )
 
-    assert result.confidence == 0.8
+    assert result.suggested_bibtex is not None
     assert "Damaged title" in provider.prompts[0]
     assert '"output_schema"' in provider.prompts[0]
-    assert '"unresolved_fields"' in provider.prompts[0]
+    assert '"search_queries"' in provider.prompts[0]
     assert '"quality_issues": [' in provider.prompts[0]
     assert '"title"' in provider.prompts[0]
     assert '"year"' in provider.prompts[0]

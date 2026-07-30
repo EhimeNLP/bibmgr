@@ -1,4 +1,4 @@
-"""Evidence-grounded semantic reconstruction with a structured LLM response."""
+"""Evidence-grounded manual-review assistance using structured LLM output."""
 
 from __future__ import annotations
 
@@ -9,20 +9,20 @@ from typing import Protocol
 from ..clients.llm import (
     LLMProvider,
     LLMProviderError,
-    create_llm_provider,
+    create_preferred_llm_providers,
 )
 from ..domain import (
     EvidenceBundle,
-    LLMReconstruction,
+    LLMReviewSuggestion,
     RustValidationResult,
 )
 
 
-class SemanticReconstructionUnavailable(RuntimeError):
-    """Raised when semantic reconstruction cannot be invoked."""
+class ReviewAssistanceUnavailable(RuntimeError):
+    """Raised when no configured review assistant can be invoked."""
 
 
-class SemanticReconstructor(Protocol):
+class ReviewAssistant(Protocol):
     def reconstruct(
         self,
         evidence: EvidenceBundle,
@@ -30,15 +30,17 @@ class SemanticReconstructor(Protocol):
         previous_candidate: str | None = None,
         validation: RustValidationResult | None = None,
         quality_issues: Sequence[str] = (),
-    ) -> LLMReconstruction:
-        """Produce one evidence-grounded BibTeX candidate."""
+    ) -> LLMReviewSuggestion:
+        """Produce non-authoritative guidance for a human reviewer."""
 
 
-class ConfiguredSemanticReconstructor:
-    """Use the configured LLM provider to repair one bibliographic record."""
+class ConfiguredReviewAssistant:
+    """Use configured LLM providers to assist one unresolved reference."""
 
     def __init__(self, provider: LLMProvider | None = None) -> None:
-        self.provider = provider
+        self.providers = (
+            [provider] if provider is not None else create_preferred_llm_providers()
+        )
 
     def reconstruct(
         self,
@@ -47,18 +49,24 @@ class ConfiguredSemanticReconstructor:
         previous_candidate: str | None = None,
         validation: RustValidationResult | None = None,
         quality_issues: Sequence[str] = (),
-    ) -> LLMReconstruction:
+    ) -> LLMReviewSuggestion:
         prompt = self._build_prompt(
             evidence,
             previous_candidate=previous_candidate,
             validation=validation,
             quality_issues=quality_issues,
         )
-        try:
-            provider = self.provider or create_llm_provider()
-            return provider.generate(prompt)
-        except LLMProviderError as exc:
-            raise SemanticReconstructionUnavailable(str(exc)) from exc
+        if not self.providers:
+            raise ReviewAssistanceUnavailable(
+                "no API or local vLLM review assistant is configured"
+            )
+        errors: list[str] = []
+        for provider in self.providers:
+            try:
+                return provider.generate(prompt, LLMReviewSuggestion)
+            except LLMProviderError as exc:
+                errors.append(str(exc))
+        raise ReviewAssistanceUnavailable("; ".join(errors))
 
     @staticmethod
     def _build_prompt(
@@ -82,29 +90,27 @@ class ConfiguredSemanticReconstructor:
             ]
 
         task = {
-            "output_schema": LLMReconstruction.model_json_schema(),
+            "output_schema": LLMReviewSuggestion.model_json_schema(),
             "evidence_bundle": evidence.model_dump(mode="json"),
             "previous_candidate": previous_candidate,
             "rust_diagnostics": diagnostics,
             "quality_issues": list(quality_issues),
         }
         return (
-            "You reconstruct one academic BibTeX entry from damaged input and "
-            "source-attributed API evidence.\n"
-            "Return exactly one entry in the bibtex field of the required JSON "
-            "schema. Do not wrap it in Markdown.\n"
+            "You assist a human reviewing one unresolved academic citation.\n"
+            "Your response is advisory and will never be accepted automatically. "
+            "Return only the required JSON object without Markdown.\n"
             "Use only facts supported by the raw input or API evidence. Never "
-            "invent a DOI, author, venue, year, volume, issue, or pages.\n"
-            "Resolve conflicts by preferring exact identifiers, then agreement "
-            "between independent sources. Preserve meaningful TeX bracing.\n"
-            "Choose the bibliographic entry type from the evidence; do not force "
-            "preprints into @article. Omit unsupported optional fields.\n"
+            "invent a DOI, author, venue, year, volume, issue, or pages. Put "
+            "uncertain or conflicting fields in unresolved_fields.\n"
+            "Explain candidate agreement and disagreement in candidate_assessment. "
+            "Provide concise search_queries that a reviewer can verify. A "
+            "suggested_bibtex value is optional and must remain evidence-grounded.\n"
             "Treat a trailing letter in an extracted year such as 2017a or "
             "2017b as a citation disambiguation label, not part of the BibTeX "
             "year value.\n"
-            "If Rust diagnostics are present, repair the previous candidate while "
-            "preserving supported information. If quality_issues are present, "
-            "fill those core fields only when supported by the evidence. List "
-            "any unresolved fields and the source_api names actually used.\n\n"
+            "If Rust diagnostics or quality_issues are present, explain what must "
+            "be checked rather than claiming the record is repaired. List the "
+            "source_api names actually used.\n\n"
             f"INPUT:\n{json.dumps(task, ensure_ascii=False, indent=2)}"
         )

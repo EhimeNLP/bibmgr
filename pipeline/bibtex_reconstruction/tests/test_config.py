@@ -13,6 +13,7 @@ def test_settings_defaults_are_valid_without_yaml(monkeypatch):
         "BIBTEX_RECONSTRUCTION_API_THREADS",
         "BIBTEX_RECONSTRUCTION_LLM_PROVIDER",
         "BIBTEX_RECONSTRUCTION_LLM_MODEL",
+        "BIBTEX_RECONSTRUCTION_LOCAL_LLM_MODEL",
     ):
         monkeypatch.delenv(name, raising=False)
 
@@ -23,6 +24,11 @@ def test_settings_defaults_are_valid_without_yaml(monkeypatch):
     assert configured.reference_threads == 2
     assert configured.api_threads == 3
     assert configured.arxiv_wait_sec == 3
+    assert configured.local_llm_enabled is True
+    assert configured.local_llm_model == "Qwen/Qwen3.5-35B-A3B"
+    assert configured.local_llm_base_url == "http://127.0.0.1:8001/v1"
+    assert configured.local_llm_temperature == 0.0
+    assert configured.remote_llm_fallback_enabled is False
     assert configured.llm_provider == "gemini"
     assert configured.llm_model
 
@@ -41,8 +47,8 @@ def test_prefixed_environment_overrides_runtime_tuning(monkeypatch):
         "2",
     )
     monkeypatch.setenv(
-        "BIBTEX_RECONSTRUCTION_LLM_MAX_ATTEMPTS",
-        "5",
+        "BIBTEX_RECONSTRUCTION_LOCAL_LLM_TIMEOUT",
+        "45",
     )
 
     configured = Settings(_env_file=None)
@@ -50,7 +56,7 @@ def test_prefixed_environment_overrides_runtime_tuning(monkeypatch):
     assert configured.similarity_threshold == 0.98
     assert configured.reference_threads == 4
     assert configured.api_threads == 2
-    assert configured.max_llm_attempts == 5
+    assert configured.local_llm_timeout == 45
 
 
 def test_invalid_environment_value_fails_at_startup(monkeypatch):

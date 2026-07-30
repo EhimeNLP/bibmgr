@@ -102,6 +102,11 @@ class BaseAPIClient(ABC):
         """Whether metadata may be converted to a locally generated entry."""
         return True
 
+    @property
+    def authoritative_bibtex(self) -> bool:
+        """Whether this provider's direct BibTeX export may be auto-accepted."""
+        return False
+
     def search(self, input_data: InputData) -> Tuple[Optional[VerifiedCitationInfo], Optional[str]]:
         """
         Executes the common search pipeline including validation, rate limiting, and BibTeX retrieval.

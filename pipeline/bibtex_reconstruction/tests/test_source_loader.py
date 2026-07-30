@@ -24,8 +24,13 @@ def metadata_payload() -> dict:
                 "year": "2020",
                 "doi": "10.1000/example",
                 "venue": "Example Journal 1(2), 3-4",
+                "pages": "3-4",
+                "publication_info": "Example Journal 1(2), 3-4",
                 "raw_text": "First Author. First cited work. 2020.",
                 "context": "Example citation context.",
+                "citation_contexts": [
+                    "First cited work is used as a baseline."
+                ],
             },
             {
                 "id": "b1",
@@ -56,6 +61,10 @@ def test_loader_accepts_metadata_extraction_document(tmp_path):
     assert document.reference_count == 2
     assert len(document.references) == 2
     assert document.references[0].id == "b0"
+    assert document.references[0].pages == "3-4"
+    assert document.references[0].citation_contexts == [
+        "First cited work is used as a baseline."
+    ]
     assert document.references[1].year == "2017a"
     assert document.references[1].comparison_year == 2017
 
