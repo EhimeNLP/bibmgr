@@ -1005,24 +1005,23 @@ mod tests {
     }
 
     #[test]
-    fn laboratory_export_case_protects_the_complete_title() {
+    fn every_builtin_export_profile_case_protects_the_complete_title() {
         let source = "@article{k, author={Doe, Jane}, title={An LLM Study}, journal={Journal}, year={2026},}\n";
 
-        let laboratory = export_source(source, &ExportProfile::laboratory())
-            .unwrap()
-            .source;
-        let modern = export_source(source, &ExportProfile::modern())
-            .unwrap()
-            .source;
-
-        assert!(laboratory.contains("title = {{An LLM Study}}"));
-        assert!(modern.contains("title = {An LLM Study}"));
-        assert_eq!(
-            export_source(&laboratory, &ExportProfile::laboratory())
-                .unwrap()
-                .source,
-            laboratory
-        );
+        for profile in ExportProfile::builtins().unwrap() {
+            let first = export_source(source, &profile).unwrap().source;
+            assert!(
+                first.contains("title = {{An LLM Study}}"),
+                "profile `{}` did not protect the complete title:\n{first}",
+                profile.profile
+            );
+            assert_eq!(
+                export_source(&first, &profile).unwrap().source,
+                first,
+                "profile `{}` grew or removed title protection on re-export",
+                profile.profile
+            );
+        }
     }
 
     #[test]

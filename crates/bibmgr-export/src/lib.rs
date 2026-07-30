@@ -2476,48 +2476,61 @@ mod tests {
     }
 
     #[test]
-    fn laboratory_case_protects_complete_titles_without_brace_growth() {
+    fn every_builtin_profile_case_protects_complete_titles_without_brace_growth() {
         let records = bibliography(
             "@article{k, author={Doe, Jane}, title={An LLM Study}, journal={Journal}, year={2026},}\n",
-        );
-
-        let laboratory = export(&records, &ExportProfile::laboratory())
-            .unwrap()
-            .source;
-        let modern = export(&records, &ExportProfile::modern()).unwrap().source;
-
-        assert!(laboratory.contains("title = {{An LLM Study}}"));
-        assert!(modern.contains("title = {An LLM Study}"));
-        assert!(!modern.contains("title = {{An LLM Study}}"));
-        assert_eq!(
-            export(&bibliography(&laboratory), &ExportProfile::laboratory())
-                .unwrap()
-                .source,
-            laboratory
         );
 
         let already_protected = bibliography(
             "@article{k, author={Doe, Jane}, title={{NASA Study}}, journal={Journal}, year={2026},}\n",
         );
-        let output = export(&already_protected, &ExportProfile::laboratory())
-            .unwrap()
-            .source;
-        assert!(output.contains("title = {{NASA Study}}"));
-        assert!(!output.contains("title = {{{NASA Study}}}"));
-
         let partially_protected = bibliography(
             "@article{k, author={Doe, Jane}, title={{D}iffu{S}eq-v2}, journal={Journal}, year={2026},}\n",
         );
-        let output = export(&partially_protected, &ExportProfile::laboratory())
-            .unwrap()
-            .source;
-        assert!(output.contains("title = {{{D}iffu{S}eq-v2}}"));
-        assert_eq!(
-            export(&bibliography(&output), &ExportProfile::laboratory())
-                .unwrap()
-                .source,
-            output
-        );
+
+        for profile in ExportProfile::builtins().unwrap() {
+            let plain_output = export(&records, &profile).unwrap().source;
+            assert!(
+                plain_output.contains("title = {{An LLM Study}}"),
+                "profile `{}` did not protect the complete title:\n{plain_output}",
+                profile.profile
+            );
+            assert_eq!(
+                export(&bibliography(&plain_output), &profile)
+                    .unwrap()
+                    .source,
+                plain_output,
+                "profile `{}` grew or removed title protection on re-export",
+                profile.profile
+            );
+
+            let protected_output = export(&already_protected, &profile).unwrap().source;
+            assert!(
+                protected_output.contains("title = {{NASA Study}}"),
+                "profile `{}` changed an already protected title:\n{protected_output}",
+                profile.profile
+            );
+            assert!(
+                !protected_output.contains("title = {{{NASA Study}}}"),
+                "profile `{}` added a redundant protection group:\n{protected_output}",
+                profile.profile
+            );
+
+            let partial_output = export(&partially_protected, &profile).unwrap().source;
+            assert!(
+                partial_output.contains("title = {{{D}iffu{S}eq-v2}}"),
+                "profile `{}` did not protect the complete partially protected title:\n{partial_output}",
+                profile.profile
+            );
+            assert_eq!(
+                export(&bibliography(&partial_output), &profile)
+                    .unwrap()
+                    .source,
+                partial_output,
+                "profile `{}` changed partial title protection on re-export",
+                profile.profile
+            );
+        }
     }
 
     #[test]
@@ -2702,7 +2715,7 @@ mod tests {
         allowlist.field_selection.allowed_fields =
             Some(["TITLE", "custom"].into_iter().map(str::to_owned).collect());
         let selected = export(&bibliography, &allowlist).unwrap().source;
-        assert!(selected.contains("title = {Parsing \\& Generation}"));
+        assert!(selected.contains("title = {{Parsing \\& Generation}}"));
         assert!(selected.contains("custom = {Modern only}"));
         for excluded in [
             "author =",
@@ -3320,7 +3333,7 @@ validation_profile = "modern"
         let profile = ExportProfile::modern();
 
         let first = export(&records, &profile).unwrap().source;
-        assert!(first.contains(r"title = {Energy $E=mc^2$ with \(x_1\), 50\% complete}"));
+        assert!(first.contains(r"title = {{Energy $E=mc^2$ with \(x_1\), 50\% complete}}"));
         let second = export(&bibliography(&first), &profile).unwrap().source;
         assert_eq!(second, first);
     }
@@ -3339,7 +3352,7 @@ validation_profile = "modern"
 
         let first = export(&records, &profile).unwrap().source;
         assert!(first.contains(
-            r"title = {Outside 50\% \& C\_1 \# \$5 \url{https://example.test/{part_1}/a%20_b?x=1&cost=$5#frag_1} after 60\% \textbf{Bold 70\% \& C\_2 \# \$6}}"
+            r"title = {{Outside 50\% \& C\_1 \# \$5 \url{https://example.test/{part_1}/a%20_b?x=1&cost=$5#frag_1} after 60\% \textbf{Bold 70\% \& C\_2 \# \$6}}}"
         ), "{first}");
         assert!(first.contains(
             r"note = {Note 20\% \nolinkurl{https://example.test/b%20_c?x=2&cost=$6#frag_2} \verb|100% & C_3 # $7| \verb*+90% & C_4 # $8+ \Verb!80% & C_5 # $9!}"
@@ -3373,7 +3386,7 @@ validation_profile = "modern"
 
         let first = export(&records, &profile).unwrap().source;
         assert!(first.contains(
-            r#"title = "Say \"outside\" 50\% \url{https://example.test/a%20_b?label=\"inside\"&cost=$5#frag_1} \verb|\"literal\" 20% & C_1 # $5| after 30\%""#
+            r#"title = "{Say \"outside\" 50\% \url{https://example.test/a%20_b?label=\"inside\"&cost=$5#frag_1} \verb|\"literal\" 20% & C_1 # $5| after 30\%}""#
         ), "{first}");
 
         let second = export(&bibliography(&first), &profile).unwrap().source;
@@ -3455,7 +3468,7 @@ validation_profile = "modern"
             .unwrap();
 
         let output = export(&records, &ExportProfile::modern()).unwrap().source;
-        assert!(output.contains("title = {50\\% ready \\& C\\_1 \\# \\$5}"));
+        assert!(output.contains("title = {{50\\% ready \\& C\\_1 \\# \\$5}}"));
         assert!(output.contains(&format!("doi = {{{DOI}}}")));
         assert!(output.contains(&format!("url = {{{URL}}}")));
         assert!(output.contains(&format!("file = {{{FILE}}}")));
