@@ -49,7 +49,7 @@ test("authenticated access, CRUD, restore, and accessibility", async ({
   await page.getByRole("button", { name: "Add reference" }).click();
   await page.getByLabel("BibTeX entry").fill(
     [
-      `@article{bibmgre2e${runId},`,
+      `@article{researcher-2026-e2e-${runId},`,
       "  author = {Researcher, Example},",
       `  title = {${referenceTitle}},`,
       "  journal = {Transactions of the Association for Computational Linguistics},",
