@@ -35,20 +35,38 @@ uv run poe --help
 
 ## CLI installation (optional)
 
-To use BibTeX validation from the command line, install the CLI directly from GitHub without cloning the repository. The executable is named `bibmgr`.
+To use BibTeX validation from the command line on Linux or macOS, install the latest prebuilt CLI:
 
 ```bash
-cargo install --git https://github.com/EhimeNLP/bibmgr.git --locked bibmgr-cli
+curl --proto '=https' --tlsv1.2 -LsSf \
+  https://github.com/EhimeNLP/bibmgr/releases/latest/download/bibmgr-installer.sh |
+  sh
 bibmgr --version
 ```
 
-To update an existing installation, reinstall it with `--force`:
+The installer verifies the release archive with SHA-256 and writes the `bibmgr` executable to `~/.local/bin` by default. If that directory is not already on `PATH`, add it in your shell configuration:
 
 ```bash
-cargo install --git https://github.com/EhimeNLP/bibmgr.git --locked --force bibmgr-cli
+export PATH="$HOME/.local/bin:$PATH"
 ```
 
-If you clone the repository for development or inspection, you can instead install from the local path:
+Set `BIBMGR_INSTALL_DIR` to select another destination, or `BIBMGR_VERSION` to install a specific release. A version may be written with or without the leading `v`.
+
+```bash
+curl --proto '=https' --tlsv1.2 -LsSf \
+  https://github.com/EhimeNLP/bibmgr/releases/latest/download/bibmgr-installer.sh |
+  BIBMGR_INSTALL_DIR="$HOME/bin" BIBMGR_VERSION=v0.1.0 sh
+```
+
+Run the installer again to update an existing installation. Windows x86_64 users can download `bibmgr-x86_64-pc-windows-msvc.zip` from the [latest release](https://github.com/EhimeNLP/bibmgr/releases/latest), extract `bibmgr.exe`, and place it on `PATH`.
+
+To build and install the CLI from GitHub instead, use Cargo:
+
+```bash
+cargo install --git https://github.com/EhimeNLP/bibmgr.git --locked bibmgr-cli
+```
+
+Add `--force` to replace an existing Cargo installation. If you clone the repository for development or inspection, you can install from the local path:
 
 ```bash
 git clone https://github.com/EhimeNLP/bibmgr.git
