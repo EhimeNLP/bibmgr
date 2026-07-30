@@ -25,7 +25,7 @@ def test_settings_defaults_are_valid_without_yaml(monkeypatch):
     assert configured.api_threads == 3
     assert configured.arxiv_wait_sec == 3
     assert configured.local_llm_enabled is True
-    assert configured.local_llm_model == "Qwen/Qwen3.5-35B-A3B"
+    assert configured.local_llm_model == "Qwen/Qwen3-32B-AWQ"
     assert configured.local_llm_base_url == "http://127.0.0.1:8001/v1"
     assert configured.local_llm_temperature == 0.0
     assert configured.remote_llm_fallback_enabled is False

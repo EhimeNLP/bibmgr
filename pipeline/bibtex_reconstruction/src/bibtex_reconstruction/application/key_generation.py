@@ -92,7 +92,7 @@ class ConceptRequest:
 
 
 class ConfiguredConceptRanker:
-    """Prefer a configured API model, then local vLLM, then rule order."""
+    """Prefer local vLLM, then opt-in remote LLM, then rule order."""
 
     def __init__(
         self,

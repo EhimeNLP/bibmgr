@@ -3,3 +3,7 @@
 
 # Local input and reconstruction outputs
 /data/
+
+# Slurm server logs
+/logs/*.log
+!/logs/.gitkeep

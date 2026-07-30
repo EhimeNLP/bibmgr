@@ -63,7 +63,7 @@ class Settings(BaseSettings):
         validation_alias="BIBTEX_RECONSTRUCTION_LOCAL_LLM_ENABLED",
     )
     local_llm_model: str = Field(
-        "Qwen/Qwen3.5-35B-A3B",
+        "Qwen/Qwen3-32B-AWQ",
         validation_alias="BIBTEX_RECONSTRUCTION_LOCAL_LLM_MODEL",
     )
     local_llm_base_url: str = Field(
