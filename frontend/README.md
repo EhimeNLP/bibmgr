@@ -72,5 +72,3 @@ npm run test:e2e
 ## API configuration
 
 `BIBMGR_BASE_PATH` sets Vite's build-time public base path. It defaults to `/`; a value such as `/bibmgr` emits assets and API requests below `/bibmgr/`. `VITE_API_BASE_URL` can override only the API base URL; otherwise the client appends `api` to the application base path. Same-origin API access is recommended for session cookies and CSRF.
-
-The registration contract is documented in [`fe-registration.md`](fe-registration.md).

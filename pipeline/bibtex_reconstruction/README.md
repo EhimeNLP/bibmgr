@@ -1,38 +1,41 @@
 **BibTeX Reconstruction**
 
-簡単な説明: 画像やPDFから抽出した参照文字列を基に外部APIと照合し、整形済みのBibTeXを再構築する小さなパイプラインです。FastAPIで公開されたエンドポイントから利用できます。
+This small pipeline compares reference strings extracted from images or PDFs against external APIs and reconstructs normalized BibTeX. It is available through an endpoint exposed by FastAPI.
 
 **Requirements**
-- **Python**: 3.12以上（`.python-version`に3.12を指定）
-- 依存関係は `pyproject.toml`  `uv.lock` に記載されています。
+- **Python**: 3.12 or later (`.python-version` specifies 3.12)
+- Dependencies are declared in `pyproject.toml` and `uv.lock`.
 
 **Project Structure**
-- `main.py`: FastAPI アプリケーション (`POST /reconstruct`)。
-- `config.yml`: パイプライン設定（類似度閾値、APIエンドポイント、会議名辞書など）。
-- `api_clients/`: Crossref, CiNii, Semantic Scholar, J-Stage, arXiv, およびローカルDBクライアント。
-- `core/`: 設定読み込み・ユーティリティ関数。
-- `models/`: `InputData` / `OutputData` のPydanticモデル。
-- `services/`: 検索の Orchestrator (`orchestrator.py`) と BibTeX 整形ロジック (`formatter.py`)。
-- `test_data/`: サンプルレスポンスやテスト用JSON。
+- `main.py`: FastAPI application (`POST /reconstruct`).
+- `config.yml`: Pipeline settings such as similarity thresholds, API endpoints, and the venue-name dictionary.
+- `api_clients/`: Crossref, CiNii, Semantic Scholar, J-Stage, arXiv, and local database clients.
+- `core/`: Configuration loading and utility functions.
+- `models/`: Pydantic models for `InputData` and `OutputData`.
+- `services/`: Search orchestrator (`orchestrator.py`) and BibTeX formatting logic (`formatter.py`).
+- `test_data/`: Sample responses and test JSON.
 
-**セットアップ（ローカル）**
+**Local Setup**
+
 ```bash
 uv sync
 ```
 
-`.env` にAPIキーやメールアドレスなどの環境変数を設定してください（例: `CINII_APPID`, `SEMANTIC_SCHOLAR_API_KEY`, `CROSSREF_MAILTO`）。
+Set environment variables such as API keys and email addresses in `.env`, for example `CINII_APPID`, `SEMANTIC_SCHOLAR_API_KEY`, and `CROSSREF_MAILTO`.
 
-**起動方法**
+**Running the Service**
 
-開発モードで FastAPI サーバを起動するには:
+Start the FastAPI server in development mode with:
+
 ```bash
-uv run uvicorn main:app --reload 
+uv run uvicorn main:app --reload
 ```
 
-起動後、OpenAPIドキュメントは `http://localhost:8000/docs` で確認できます。
+After startup, the OpenAPI documentation is available at `http://localhost:8000/docs`.
 
 **API (POST /reconstruct)**
-- 入力モデルは `models.InputData` を参照します。最小例:
+
+The input model is `models.InputData`. A minimal example follows:
 
 ```json
 {
@@ -49,16 +52,18 @@ uv run uvicorn main:app --reload
 }
 ```
 
-- 戻り値は `models.OutputData` を返します。`status` は `success` / `needs_review` / `not_found` のいずれかになります。
+The endpoint returns `models.OutputData`. Its `status` is one of `success`, `needs_review`, or `not_found`.
 
+**Configuration**
 
-**設定**
-- しきい値や外部APIのエンドポイントは `config.yml` で管理されています。
-- APIキー等は `.env` で指定します。`core.config` がこれらを読み込みます。
+- Similarity thresholds and external API endpoints are managed in `config.yml`.
+- Specify API keys and related secrets in `.env`; `core.config` loads these values.
 
-**テストデータ**
-- `test_data/` にサンプルJSONが入っています。動作確認や単体デバッグに利用してください。
+**Test Data**
 
-**開発メモ**
-- 検索の流れ: `services.orchestrator` がローカルDBをまず確認し、見つからなければ外部クライアント群に順次問い合わせ、最も高い類似度の結果を `needs_review` として返します。
-- 整形ルール: `services.formatter.apply_lab_rules` がBibTeXのフィールド抽出・補完・キー生成を行います。
+- `test_data/` contains sample JSON for verification and isolated debugging.
+
+**Development Notes**
+
+- Search flow: `services.orchestrator` checks the local database first. If no match is found, it queries the external clients in sequence and returns the result with the highest similarity as `needs_review`.
+- Formatting rules: `services.formatter.apply_lab_rules` extracts and completes BibTeX fields and generates citation keys.

@@ -77,4 +77,4 @@ BibmgrError
 
 Document diagnostics are regular successful results. Exceptions represent an operation/configuration failure. CPU-heavy core calls release the GIL, so the same extension can be used from a threaded HTTP service.
 
-The example backend in [`backend/`](../backend) demonstrates DTO conversion without reimplementing any rule.
+The backend in [`backend/`](../backend) performs DTO conversion without reimplementing any rule.
