@@ -23,6 +23,7 @@ config/
 |  |- natbib-full-author-names.toml
 |  `- springer-lncs.toml
 |- policies/
+|  |- archive.toml
 |  |- laboratory.toml
 |  |- modern.toml
 |  |- acl.toml
@@ -43,11 +44,11 @@ Rust hosts can inject immutable `VenueRegistry` and `RepositoryRegistry` snapsho
 ```toml
 schema_version = "1"
 profile = "laboratory"
-field_case = "lowercase"
+field_case = "canonical"
 field_order = ["title", "author", "booktitle", "pages", "year", "doi", "url"]
 citation_key_pattern = '^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$'
 forbidden_fields = ["file", "timestamp"]
-url_policy = "discourage"
+url_policy = "allow"
 arxiv_representation = "eprint"
 prefer_braces = true
 
@@ -63,13 +64,13 @@ blocking = true
 
 `field_case` is `lowercase`, `canonical`, or `preserve`. `url_policy` is `allow`, `discourage`, or `forbid`. Rule entries may override enabled state, severity, and blocking independently. Omitted registered rules use embedded defaults; an unknown code is an error.
 
-The syntax style catalog includes `BIB-SYNTAX-006`, which normalizes each simple horizontal whitespace gap adjacent to a field's `=` to one space, `BIB-SYNTAX-007`, which reports percent comments located inside an entry, and `BIB-SYNTAX-008`, which reports an unsafe raw TeX-special character in a field value that can be emitted as TeX text. The whitespace fix never rewrites a gap containing a line break or comment. Inline percent comments are diagnostic only and should be moved between entries manually.
+The syntax style catalog includes `BIB-SYNTAX-006`, which normalizes each simple horizontal whitespace gap adjacent to a field's `=` to one space, `BIB-SYNTAX-007`, which reports percent comments located inside an entry, `BIB-SYNTAX-008`, which reports an unsafe raw TeX-special character in a field value that can be emitted as TeX text, and `BIB-SYNTAX-009`, which safely replaces line boundaries inside braced or quoted field values with one space. The value-line fix retains braces and all other BibTeX bytes, including title case-protection groups. The equals-whitespace fix never rewrites a gap containing a line break or comment. Inline percent comments are diagnostic only and should be moved between entries manually.
 
 `BIB-SYNTAX-008` covers raw `%`, `&`, `#`, and `_` in text mode, raw `^` in text mode, and an unmatched `$`. Plain `%`, `&`, `#`, and `_` in conventional prose fields receive safe backslash fixes; a literal caret uses `\textasciicircum{}` and an unmatched dollar uses `\$`, both with confirmation because they can represent unfinished TeX. Complete `$...$`, `$$...$$`, `\(...\)`, `\[...\]`, and `\ensuremath{...}` spans preserve math syntax, although raw `%` remains unsafe and raw `#` requires review within math. A math delimiter pair must close within the same balanced brace group and optional argument scope; delimiters cannot become valid merely by pairing across either boundary. Paired dollar signs are therefore interpreted as math; literal currency or dollar text must use `\$`. Raw `~` remains a valid nonbreaking space, while backslashes and balanced braces remain TeX command and grouping syntax rather than literal-character diagnostics.
 
 The TeX-special rule excludes raw identifier fields used for URLs, repository identifiers, and publication identifiers, plus literal content only inside complete braced arguments of `\url{...}`, `\nolinkurl{...}`, and `\path{...}`. Complete delimiter forms of `\verb`, `\verb*`, `\Verb`, and `\lstinline` are treated as verbatim and are not diagnosed, while incomplete or ambiguous literal forms and ordinary TeX command arguments require confirmation. Referenced `@string` definitions are followed recursively in the context of every consuming field; simple aliases retain the leaf applicability, command or math context that crosses a macro or concatenation boundary requires confirmation, a definition used only by excluded fields is not diagnosed, and a definition shared by prose and excluded fields is diagnosed without an automatic fix. Macro traversal is bounded by global visit and expansion-depth limits; if either limit is reached before traversal completes, an incomplete-analysis diagnostic is emitted and automatic fixes for all referenced `@string` values are disabled.
 
-The `laboratory` profile treats field spelling, field order, trailing commas, value delimiters, whitespace around `=`, and discouraged retention of a valid URL as non-blocking presentation guidance. Correctness, identity, required-data, malformed URLs, entry-internal percent comments that require parser recovery, unsafe raw TeX-special characters in text values, and explicit laboratory-convention rules remain blocking.
+The `archive` profile is the database-ingest boundary. It preserves field spelling and order, has no required or forbidden fields, accepts unresolved semantics, and leaves only strict parser diagnostics blocking. It never applies fixes. The `laboratory` validation profile remains available for linting and for validating generated laboratory output; its field spelling, field order, required-data, and representation rules do not decide whether source may be archived. No URL policy offers a metadata-deleting fix.
 
 The duplicate semantic analyzer codes `BIB-SEMANTIC-103`, `BIB-SEMANTIC-104`, and `BIB-SEMANTIC-105` are retired in favor of the canonical DOI, arXiv, and date codes `BIB-SEMANTIC-001`, `BIB-SEMANTIC-002`, and `BIB-SEMANTIC-007`. TOML loaders migrate the retired codes to their canonical replacements and reject conflicting settings.
 
@@ -79,32 +80,23 @@ Parse mode is an analysis option rather than policy content: editors use toleran
 
 ## Registration policy
 
-Registration resolves one validation profile and then applies independent acceptance settings:
+Registration resolves one validation profile and then applies independent acceptance settings. The application default is the built-in Rust policy:
 
-```toml
-schema_version = "1"
-validation_profile = "laboratory"
-minimum_severity = "error"
-allow_unresolved_semantics = false
-apply_safe_fixes = false
-
-[blocking_rules]
-all = false
-include = ["LAB-KEY-002", "LAB-ENTRY-003"]
-exclude = []
+```rust
+let policy = RegistrationPolicy::archive();
 ```
 
-An empty `blocking_rules.include` list does not disable per-diagnostic blocking or the optional severity threshold. The built-in `laboratory` registration policy blocks all errors plus rules explicitly marked blocking, rejects unresolved semantics, and does not promote every warning to blocking. The core returns the final `accepted` decision; adapters do not re-evaluate these fields.
+This selects validation profile `archive`, sets `minimum_severity` to `None`, allows unresolved semantics, applies no fixes, and adds no blocking-rule selectors. Severity alone therefore cannot block archival. Diagnostics already marked blocking by the `archive` validation profile are still honored; those are strict parser diagnostics. The core returns the final `accepted` decision, and adapters do not re-evaluate these fields. The stricter `laboratory` registration policy remains selectable for deployments that intentionally want profile-gated ingest, but it is not the application default.
 
 ## Export profile
 
-Export profiles are typed separately and include serialization-only fields such as `preprint_representation`, `venue_style`, `field_case`, `value_delimiter`, `line_ending`, `indent`, and `trailing_comma`. Each profile also names an explicit `validation_profile`. The generated BibTeX is re-analyzed with that policy; an unavailable validation profile is an error rather than a skipped readiness check. Supported preprint values are:
+Export profiles are typed separately and include serialization-only fields such as `preprint_representation`, `field_case`, `value_delimiter`, `line_ending`, `indent`, and `trailing_comma`. Venue naming is deliberately not a profile field: every profile accepts the request-scoped `venue_name_style` values `full` and `abbreviated`, with `full` as the default. Each profile also names an explicit `validation_profile`. The generated BibTeX is re-analyzed with that policy; an unavailable validation profile is an error rather than a skipped readiness check. Supported preprint values are:
 
 - `misc-eprint`: `@misc`, `eprint`, and `archivePrefix`;
 - `misc-howpublished`: `@misc` and `howpublished`;
 - `article-journal`: legacy `@article` and `journal`.
 
-Venue styles are `full`, `short`, and `as-recorded`. The validation catalog contains `modern`, `laboratory`, `acl`, and `classical-bst`; export profiles with one of those IDs still resolve to a separate typed value. Artifact-derived export profiles explicitly reuse the closest validation policy: `aaai`, `acm-publications`, `ieee-publications`, `ml-conferences`, and `springer-lncs` use `modern`; `lrec` uses `acl`; `eamt`, both IPSJ profiles, `jnlp-japanese`, `jsai-journal`, and `natbib-full-author-names` use `classical-bst`. `legacy-arxiv-article` also uses `modern`.
+The validation catalog contains `archive`, `modern`, `laboratory`, `acl`, and `classical-bst`; `archive` is reserved for ingest and is not an export profile. Export profiles with another matching ID still resolve to a separate typed value. Artifact-derived export profiles explicitly reuse the closest validation policy: `aaai`, `acm-publications`, `ieee-publications`, `ml-conferences`, and `springer-lncs` use `modern`; `lrec` uses `acl`; `eamt`, both IPSJ profiles, `jnlp-japanese`, `jsai-journal`, and `natbib-full-author-names` use `classical-bst`. `legacy-arxiv-article` also uses `modern`.
 
 These reused validation policies are general readiness baselines rather than complete validators for each referenced BST; target-specific field and entry-type compatibility is enforced by the export profile, while the selected validation policy checks the generated document's shared syntax and semantic requirements.
 
@@ -114,20 +106,32 @@ Each checked-in output profile is a complete TOML document and includes user-fac
 schema_version = "1"
 profile = "laboratory"
 display_name = "Laboratory Canonical"
-description = "Canonical laboratory output with full venue names and a compact field projection."
+description = "Canonical laboratory output with case-protected titles, preserved URLs, and a compact field projection."
 validation_profile = "laboratory"
 preprint_representation = "misc-eprint"
-venue_style = "full"
-field_case = "lowercase"
-field_order = ["title", "author", "editor", "journal", "booktitle", "series", "volume", "number", "pages", "publisher", "institution", "school", "address", "year", "doi", "eprint", "archiveprefix", "primaryclass", "url", "note"]
-include_url = false
+field_case = "canonical"
+case_protected_fields = ["title"]
+field_order = ["title", "author", "editor", "journal", "booktitle", "series", "volume", "number", "pages", "publisher", "institution", "school", "address", "year", "doi", "eprint", "archivePrefix", "primaryClass", "url", "note"]
+include_url = true
 
 [field_selection]
-allowed_fields = ["title", "author", "editor", "journal", "booktitle", "series", "volume", "number", "pages", "publisher", "institution", "school", "address", "year", "doi", "eprint", "archiveprefix", "primaryclass", "note"]
-excluded_fields = ["url"]
+allowed_fields = ["title", "author", "editor", "journal", "booktitle", "series", "volume", "number", "pages", "publisher", "institution", "school", "address", "year", "doi", "eprint", "archivePrefix", "primaryClass", "url", "note"]
+excluded_fields = []
 ```
 
 `field_order` controls only serialization order and never implicitly deletes a field. `field_selection.allowed_fields` is a case-insensitive allowlist applied to every generated candidate field, including structured identifiers and extra fields; omitting it allows every candidate. `field_selection.excluded_fields` is a case-insensitive denylist applied after the allowlist. Invalid names, duplicates, and fields present in both lists are rejected while loading.
+
+`case_protected_fields` is a case-insensitive list of fields whose complete resolved value receives one additional brace group before the configured value delimiter is applied. With brace delimiters, `title = {An LLM Study}` therefore becomes `title = {{An LLM Study}}`, preventing traditional BST `change.case$` processing from lowercasing ungrouped title characters. The laboratory profile protects `title`; other profiles leave the list empty. Export recognizes an existing complete protection group, so repeated export does not add braces. Do not apply whole-value protection to `author` or `editor`, because a surrounding group changes BibTeX name-list semantics.
+
+## Application overrides
+
+The web application's Application settings sheet adds, edits, and removes effective export profiles and venue mappings. New profiles start as a copy of the selected profile so callers receive a complete typed definition. The embedded Rust configuration remains the fallback; PostgreSQL stores only changed or added documents. Deleting a custom setting removes it from the effective catalog. **Restore Default** removes only a built-in setting's shared database override, making the definition shipped with BibMgR effective again. Both operations show their confirmation directly below the editor actions. Unchanged forms cannot be saved, and an identical `PUT` is also treated as a no-op without a new revision or audit event. Effective writes require an authenticated session and CSRF token, compare `expected_revision`, and append an actor-attributed before/after audit event in the same transaction. A stale edit returns HTTP 409 instead of overwriting a concurrent change.
+
+Each settings category exposes its complete paginated history. Events identify create, built-in override, update, built-in-default restoration, and custom deletion actions and show the actor, time, revision, and before/after JSON. Because history is queried by category rather than only through the effective catalog, deleted custom profiles and venue mappings remain inspectable.
+
+Profile definitions use a schema-aware form rather than an editable JSON document. It groups identity and validation choices, field projection/order/case protection/renames, BibTeX formatting, supported entry types, and less common candidate-generation switches. Controls use the finite enum values and boolean types accepted by `ExportProfile`; field names receive inline validation. The Advanced disclosure retains a read-only canonical JSON view for inspection and copying, but it is not a second editing surface.
+
+The form renders an unsaved draft through `POST /settings/export-profiles/preview` after a short debounce. Preview validation and export use the same Rust implementation as a saved profile plus the current effective venue registry, but the request performs no write and creates no configuration revision or audit event. The editor action bar stays visible while the long field table scrolls. Venue mappings use structured full name, abbreviation, kind, and alias fields. The backend validates profiles and the complete effective venue registry in Rust before committing them. These overrides are application deployment data; the standalone CLI continues to use its embedded profiles and registry unless its caller supplies an explicit registry snapshot through the library API.
 
 `month_format` is either `numeric` or `bibtex-macro`. `numeric` serializes a parsed month as a delimited number, while `bibtex-macro` emits a standard BibTeX month macro such as `jan` without braces or quotes; every artifact-derived profile uses `bibtex-macro` for compatibility with its target BST family.
 
@@ -142,7 +146,7 @@ During semantic export, prose text escapes raw `%`, `&`, `#`, and `_`, renders a
 | Export profile | Configuration file | BST reference or role | Intended optimization |
 | --- | --- | --- | --- |
 | `modern` | `modern.toml` | General-purpose built-in | Modern BibTeX with structured identifiers, `eprint` metadata, and preserved supported extras |
-| `laboratory` | `laboratory.toml` | Laboratory convention | Full venue names, lowercase laboratory order, `misc-eprint`, and no discouraged URL or private metadata |
+| `laboratory` | `laboratory.toml` | Laboratory convention | Whole-title case protection, canonical field spelling, `misc-eprint`, preserved URL metadata, and no private local metadata |
 | `acl` | `acl-publications.toml` | `acl_natbib.bst` | ACL publication fields, including DOI, renamed `pubmed`, eprint, and web metadata |
 | `aaai` | `aaai-conference.toml` | `aaai2026.bst` | AAAI publication, ISBN, EID, and eprint fields without DOI or URL |
 | `acm-publications` | `acm-publications.toml` | `ACM-Reference-Format.bst` | ACM identifiers, eprints, and ACM-specific publication metadata |

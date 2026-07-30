@@ -2,7 +2,7 @@
 
 ## Scope
 
-文献登録UIは、次の2つのBibTeX入力方法を提供する。
+文献登録UIは、次の2つの入力方法を提供する。
 
 - BibTeX entryをエディタへ直接入力する。
 - `.bib` ファイルをブラウザ内で読み込み、内容を確認・編集して登録する。
@@ -28,11 +28,11 @@ PDFアップロードとPDFからの候補抽出は対象外とする。登録�
 
 - `VITE_API_BASE_URL`
   - フロントエンドが呼び出すAPIベースURL。
-  - 未設定時は `/api` を使用する。
+  - 未設定時はViteの公開ベースパスへ `/api` を追加したURLを使用する。
   - 開発時はVite proxyで `/api` を `http://localhost:8000` へ転送する。
-- `VITE_BIBMGR_API_KEY`
-  - 設定されている場合、APIリクエストに `X-API-Key` ヘッダとして付与する。
-  - 未設定時はヘッダを付与しない。
+- `BIBMGR_BASE_PATH`
+  - 本番ビルドをサブパスで公開する場合のベースパス。
+  - 未設定時は `/` を使用する。
 
 ## API Contract
 
@@ -75,16 +75,28 @@ Response:
     "doi": "10.0000/example",
     "url": "https://example.com",
     "bibtexKey": "author-2024-venue-key",
-    "bibtex": "@article{...}"
-  }
+    "bibtex": "@article{...}",
+    "sourceRevision": "sha256:..."
+  },
+  "references": []
 }
 ```
 
-## Required Backend Definitions
+`reference`は既存UIとの互換性のための先頭entryであり, `references`には同じトランザクションで登録された全entryを格納する. 単一entryの場合も`references`は1件を含む.
 
-バックエンドの文献登録APIはまだリポジトリ内に実装されていないため、次の定義は今後必要となる。
+## Backend Decisions
 
-- DB登録APIの正式なエンドポイント名と認証方式
-- 重複判定でBibTeX key、DOI、titleのどれを優先するか
-- 登録後レスポンスに含める正式な文献スキーマ
-- 複数BibTeX entryの一括登録と部分失敗時のレスポンス形式
+- 永続化APIは`/references`に統一する.
+- 登録時のポリシーはサーバー側の`BIBMGR_REGISTRATION_POLICY`で固定し, クライアントから変更できない.
+- DOIとarXiv IDはDBの一意インデックスで強い重複として扱う. BibTeX keyとtitleはグローバルな一意条件にしない.
+- 複数BibTeX entryは1トランザクションで登録する. 1件でも検証または一意制約に失敗した場合は全件をロールバックする.
+- 既定の`archive`登録ポリシーはstrict parse failureのみを拒否し, 研究室ルール, field不足, 未解決semantic valueは登録を妨げない.
+- フロントエンドの検査とfixは任意の補助機能とし, 登録ボタンは現在の入力を1回で永続化APIへ送る. 保存前のcanonical previewや再確認は行わない.
+- 登録・ファイル登録・編集画面には保存処理から独立したoutput previewを1つ表示する. 既定は`laboratory`で, profile選択時は同じpreviewをexport APIで再生成する. 選択profileと生成結果は保存payloadへ反映しない.
+- DBの現在値は入力BibTeXをprofileで書き換えず保存し, semantic snapshotを検索用projectionとして併記する. revision履歴も正確な保存sourceとsemantic snapshotを保持する.
+- 編集は`PUT /references/{id}`で行い, 保存済み`sourceRevision`を`source_revision`として要求する.
+- 削除は`DELETE /references/{id}`で行い, 関連する著者, 識別子, URL, 引用文脈も削除する.
+- 削除は読み込み時の`sourceRevision`をquoted `If-Match` headerとして送り, staleな削除をHTTP 409で拒否する.
+- 編集・削除は完全な関係データを連番revisionとして保持する. `GET /reference-history`は削除済み文献も返し, `GET /references/{id}/history`は保存BibTeXを返し, `POST /references/{id}/revert`は選択した過去状態を新しいrevisionとして復元する.
+- 検索, 詳細取得, BibTeX検査・出力は未ログインでも利用できる.
+- 登録, 編集, 削除はメール認証済みセッションを要求する. フロントエンドはHttpOnly Cookieを`credentials: "include"`で送信し, セッションAPIから取得したCSRFトークンを`X-CSRF-Token`へ設定する.

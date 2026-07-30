@@ -317,11 +317,19 @@
     },
     "ExportResult": {
       "type": "object",
-      "required": ["schema_version", "source", "profile", "record_count", "warnings"],
+      "required": [
+        "schema_version",
+        "source",
+        "profile",
+        "venue_name_style",
+        "record_count",
+        "warnings"
+      ],
       "properties": {
         "schema_version": { "$ref": "#/$defs/SchemaVersion" },
         "source": { "type": "string" },
         "profile": { "$ref": "#/$defs/OpaqueId" },
+        "venue_name_style": { "$ref": "#/$defs/VenueNameStyle" },
         "record_count": { "type": "integer", "minimum": 0 },
         "warnings": {
           "type": "array",
@@ -363,6 +371,10 @@
     "PreprintRepresentation": {
       "type": "string",
       "enum": ["misc-eprint", "misc-howpublished", "article-journal"]
+    },
+    "VenueNameStyle": {
+      "type": "string",
+      "enum": ["full", "abbreviated"]
     },
     "ExportProfileSummary": {
       "type": "object",

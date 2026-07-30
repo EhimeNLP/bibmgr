@@ -10,11 +10,8 @@ import type {
   RegistrationValidationResult,
   ValidateRegistrationRequest,
 } from "../types/bibtex";
-
-const API_BASE_URL = (
-  (import.meta.env.VITE_API_BASE_URL as string | undefined) ?? "/api"
-).replace(/\/$/, "");
-const API_KEY = import.meta.env.VITE_BIBMGR_API_KEY as string | undefined;
+import { handleAuthenticationFailure } from "./auth";
+import { API_BASE_URL } from "./base";
 
 export type BibtexRequestOptions = {
   signal?: AbortSignal;
@@ -62,6 +59,17 @@ export function validateBibtexForRegistration(
   return postVersionedJson("/bibtex/registration/validate", request, options);
 }
 
+export function canonicalizeBibtexForStorage(
+  request: ValidateRegistrationRequest,
+  options?: BibtexRequestOptions,
+): Promise<RegistrationValidationResult> {
+  return postVersionedJson(
+    "/bibtex/registration/canonicalize",
+    request,
+    options,
+  );
+}
+
 export function exportBibtex(
   request: ExportBibtexRequest,
   options?: BibtexRequestOptions,
@@ -81,6 +89,7 @@ async function getVersionedJson<T extends { schema_version: "1" }>(
 ): Promise<T> {
   const response = await fetch(`${API_BASE_URL}${path}`, {
     method: "GET",
+    credentials: "include",
     headers: jsonHeaders(),
     signal: options?.signal,
   });
@@ -94,6 +103,7 @@ async function postVersionedJson<T extends { schema_version: "1" }>(
 ): Promise<T> {
   const response = await fetch(`${API_BASE_URL}${path}`, {
     method: "POST",
+    credentials: "include",
     headers: jsonHeaders(),
     body: JSON.stringify(body),
     signal: options?.signal,
@@ -107,6 +117,7 @@ async function versionedResponse<T extends { schema_version: "1" }>(
   const payload = await readResponsePayload(response);
 
   if (!response.ok) {
+    handleAuthenticationFailure(response.status);
     throw apiError(payload, response.status);
   }
   if (!isRecord(payload) || payload.schema_version !== "1") {
@@ -120,11 +131,7 @@ async function versionedResponse<T extends { schema_version: "1" }>(
 }
 
 function jsonHeaders(): Headers {
-  const headers = new Headers({ "Content-Type": "application/json" });
-  if (API_KEY) {
-    headers.set("X-API-Key", API_KEY);
-  }
-  return headers;
+  return new Headers({ "Content-Type": "application/json" });
 }
 
 async function readResponsePayload(response: Response): Promise<unknown> {

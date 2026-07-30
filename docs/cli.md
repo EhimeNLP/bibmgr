@@ -13,6 +13,7 @@ bibmgr fix FILE --fix-id BIB-SYNTAX-004:0 --source-revision sha256:...
 bibmgr fix FILE --safe --fix-id BIB-SYNTAX-004:0 --source-revision sha256:...
 bibmgr fix FILE --dry-run
 bibmgr export FILE --profile laboratory
+bibmgr export FILE --profile laboratory --venue-name abbreviated
 bibmgr export FILE --profile classical-bst
 bibmgr export FILE --profile laboratory --format json
 bibmgr inspect FILE --ast
@@ -40,7 +41,7 @@ Warnings alone do not determine the exit status; the resolved policy's `blocking
 
 ## Profiles and configuration
 
-The default profile is `laboratory`. Use `--profile ID` to select another embedded profile. An invalid profile is an exit-code-2 configuration error. See [Configuration](configuration.md).
+The default profile is `laboratory`. Use `--profile ID` to select another embedded profile. `--venue-name full|abbreviated` selects venue rendering independently of the profile and defaults to `full`; it affects conference, journal, and other venue-derived fields. An invalid profile or venue-name value is an exit-code-2 configuration error. See [Configuration](configuration.md).
 
 ## Automation examples
 

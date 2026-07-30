@@ -39,7 +39,7 @@ cwd = "frontend"
 
 [tool.poe.tasks.setup-native]
 help = "Build and install the native extension in the uv environment."
-cmd = "maturin develop --manifest-path crates/bibmgr-python/Cargo.toml"
+cmd = "maturin develop --uv --manifest-path crates/bibmgr-python/Cargo.toml"
 
 [tool.poe.tasks.dev]
 help = "Run the backend and frontend development servers together."
@@ -58,6 +58,66 @@ cwd = "frontend"
 [tool.poe.tasks.start-backend]
 help = "Run the backend without reload for production-style operation."
 cmd = "uvicorn bibmgr_backend.app:app --host ${HOST:-0.0.0.0} --port ${PORT:-8000}"
+
+[tool.poe.tasks.db-up]
+help = "Start the local PostgreSQL development database."
+cmd = "docker compose up -d --wait postgres"
+
+[tool.poe.tasks.dev-services-up]
+help = "Start the local PostgreSQL database and Mailpit email inbox."
+cmd = "docker compose up -d --wait postgres mailpit"
+
+[tool.poe.tasks.mail-up]
+help = "Start the local Mailpit email inbox."
+cmd = "docker compose up -d --wait mailpit"
+
+[tool.poe.tasks.db-migrate]
+help = "Apply all PostgreSQL schema migrations."
+cmd = "bibmgr-db upgrade"
+
+[tool.poe.tasks.db-status]
+help = "Show the current PostgreSQL migration revision."
+cmd = "bibmgr-db current"
+
+[tool.poe.tasks.db-reset]
+help = "Delete and recreate the local development database schema."
+cmd = "bibmgr-db reset"
+
+[tool.poe.tasks.auth-cleanup]
+help = "Delete expired login challenges and old expired or revoked sessions."
+cmd = "bibmgr-admin cleanup-auth"
+
+[tool.poe.tasks.users]
+help = "List BibMgR user accounts."
+cmd = "bibmgr-admin users"
+
+[tool.poe.tasks.db-backup]
+help = "Create a private PostgreSQL custom-format backup under backups/."
+cmd = "bibmgr-ops backup"
+
+[tool.poe.tasks.prod-direct-config]
+help = "Render the direct-HTTPS production Compose configuration."
+cmd = "docker compose --env-file .env.production -f compose.production.yaml -f compose.production.direct.yaml config"
+
+[tool.poe.tasks.prod-direct-up]
+help = "Deploy production with Caddy-managed public HTTPS."
+cmd = "docker compose --env-file .env.production -f compose.production.yaml -f compose.production.direct.yaml up --detach --build --wait"
+
+[tool.poe.tasks.prod-direct-down]
+help = "Stop the direct-HTTPS production deployment."
+cmd = "docker compose --env-file .env.production -f compose.production.yaml -f compose.production.direct.yaml down"
+
+[tool.poe.tasks.prod-proxy-config]
+help = "Render the external-proxy production Compose configuration."
+cmd = "docker compose --env-file .env.production -f compose.production.yaml -f compose.production.proxy.yaml config"
+
+[tool.poe.tasks.prod-proxy-up]
+help = "Deploy production behind an external reverse proxy."
+cmd = "docker compose --env-file .env.production -f compose.production.yaml -f compose.production.proxy.yaml up --detach --build --wait"
+
+[tool.poe.tasks.prod-proxy-down]
+help = "Stop the external-proxy production deployment."
+cmd = "docker compose --env-file .env.production -f compose.production.yaml -f compose.production.proxy.yaml down"
 
 [tool.poe.tasks.test]
 help = "Run all Rust, backend, frontend, and adapter parity tests."

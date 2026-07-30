@@ -1,0 +1,17 @@
+:80 {
+	import /etc/caddy/bibmgr/common.caddy
+
+	redir {$BIBMGR_BASE_PATH:/bibmgr} {$BIBMGR_BASE_PATH:/bibmgr}/ 308
+
+	handle_path {$BIBMGR_BASE_PATH:/bibmgr}/api/* {
+		reverse_proxy backend:8000
+	}
+
+	handle_path {$BIBMGR_BASE_PATH:/bibmgr}/* {
+		root * /srv
+		try_files {path} /index.html
+		file_server
+	}
+
+	respond 404
+}

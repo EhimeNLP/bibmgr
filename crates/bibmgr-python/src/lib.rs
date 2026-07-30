@@ -1,9 +1,9 @@
 //! Thin Python DTO and exception adapter over [`bibmgr_core`].
 
 use bibmgr_core::{
-    AnalysisOptions, DocumentSession as CoreDocumentSession, ExportProfile, FixId, FixSelection,
-    ParseMode, ProfileId, RegistrationPolicy, SourceRevision, TextEdit, TextRange,
-    ValidationPolicy, SCHEMA_VERSION,
+    AnalysisOptions, DocumentSession as CoreDocumentSession, ExportProfile, ExportSourceOptions,
+    FixId, FixSelection, ParseMode, ProfileId, RegistrationPolicy, SourceRevision, TextEdit,
+    TextRange, ValidationPolicy, VenueNameStyle, VenueRegistry, SCHEMA_VERSION,
 };
 use pyo3::create_exception;
 use pyo3::exceptions::PyException;
@@ -443,6 +443,11 @@ impl PyExportResult {
     }
 
     #[getter]
+    fn venue_name_style(&self) -> String {
+        string_at(&self.value, &["venue_name_style"])
+    }
+
+    #[getter]
     fn record_count(&self) -> usize {
         get_at(&self.value, &["record_count"])
             .and_then(Value::as_u64)
@@ -533,7 +538,7 @@ impl PyDocumentSession {
     #[new]
     #[pyo3(signature = (source, profile="laboratory", tolerant=true))]
     fn new(py: Python<'_>, source: String, profile: &str, tolerant: bool) -> PyResult<Self> {
-        let options = options_for(profile, tolerant)?;
+        let options = options_for(profile, tolerant, None)?;
         let inner = py.detach(move || CoreDocumentSession::open(source, options));
         Ok(Self { inner })
     }
@@ -565,13 +570,14 @@ impl PyDocumentSession {
     }
 }
 
-#[pyfunction(name = "analyze", signature = (source, profile="laboratory", tolerant=true, *, mode=None))]
+#[pyfunction(name = "analyze", signature = (source, profile="laboratory", tolerant=true, *, mode=None, venue_registry_json=None))]
 fn py_analyze(
     py: Python<'_>,
     source: String,
     profile: &str,
     tolerant: bool,
     mode: Option<&str>,
+    venue_registry_json: Option<&str>,
 ) -> PyResult<PyAnalysisResult> {
     let tolerant = mode.map_or(Ok(tolerant), |mode| match mode {
         "tolerant" => Ok(true),
@@ -580,20 +586,21 @@ fn py_analyze(
             "unknown parse mode `{other}`"
         ))),
     })?;
-    let options = options_for(profile, tolerant)?;
+    let options = options_for(profile, tolerant, venue_registry_json)?;
     let result = py.detach(move || bibmgr_core::analyze(&source, &options));
     PyAnalysisResult::from_serializable(&result)
 }
 
-#[pyfunction(signature = (source, fix_ids=None, profile="laboratory", *, source_revision=None))]
+#[pyfunction(signature = (source, fix_ids=None, profile="laboratory", *, source_revision=None, venue_registry_json=None))]
 fn apply_fixes(
     py: Python<'_>,
     source: String,
     fix_ids: Option<Vec<String>>,
     profile: &str,
     source_revision: Option<String>,
+    venue_registry_json: Option<&str>,
 ) -> PyResult<PyApplyFixResult> {
-    let options = options_for(profile, true)?;
+    let options = options_for(profile, true, venue_registry_json)?;
     let result = py.detach(move || {
         if fix_ids.is_some() && source_revision.is_none() {
             return Err(EditConflictError::new_err(
@@ -623,31 +630,93 @@ fn apply_fixes(
     PyApplyFixResult::from_serializable(&result)
 }
 
-#[pyfunction(name = "validate_for_registration", signature = (source, policy="laboratory"))]
+#[pyfunction(name = "validate_for_registration", signature = (source, policy="archive", *, venue_registry_json=None))]
 fn py_validate_for_registration(
     py: Python<'_>,
     source: String,
     policy: &str,
+    venue_registry_json: Option<&str>,
 ) -> PyResult<PyRegistrationValidation> {
     let policy = RegistrationPolicy::for_profile(&ProfileId::from(policy))
         .map_err(|error| ConfigurationError::new_err(error.to_string()))?;
-    let result = py.detach(move || bibmgr_core::validate_for_registration(&source, &policy));
+    let venue_registry = venue_registry_from_json(venue_registry_json)?;
+    let validation_policy = ValidationPolicy::for_profile(&policy.validation_profile)
+        .map_err(|error| ConfigurationError::new_err(error.to_string()))?;
+    let result = py.detach(move || {
+        bibmgr_core::validate_for_registration_with_options(
+            &source,
+            &policy,
+            &AnalysisOptions {
+                parse_mode: ParseMode::Strict,
+                validation_policy,
+                venue_registry,
+                ..AnalysisOptions::default()
+            },
+        )
+    });
     PyRegistrationValidation::from_serializable(&result)
 }
 
-#[pyfunction(name = "export", signature = (source, profile="laboratory"))]
-fn py_export(py: Python<'_>, source: String, profile: &str) -> PyResult<PyExportResult> {
-    let profile = ExportProfile::for_profile(&ProfileId::from(profile))
+#[pyfunction(name = "canonicalize_for_storage", signature = (source, policy="archive", *, venue_registry_json=None))]
+fn py_canonicalize_for_storage(
+    py: Python<'_>,
+    source: String,
+    policy: &str,
+    venue_registry_json: Option<&str>,
+) -> PyResult<PyRegistrationValidation> {
+    let policy = RegistrationPolicy::for_profile(&ProfileId::from(policy))
         .map_err(|error| ConfigurationError::new_err(error.to_string()))?;
+    let venue_registry = venue_registry_from_json(venue_registry_json)?;
+    let result = py.detach(move || {
+        bibmgr_core::canonicalize_for_storage_with_options(&source, &policy, venue_registry)
+    });
+    PyRegistrationValidation::from_serializable(&result)
+}
+
+#[pyfunction(name = "export", signature = (source, profile="laboratory", *, venue_name_style="full", profile_json=None, venue_registry_json=None))]
+fn py_export(
+    py: Python<'_>,
+    source: String,
+    profile: &str,
+    venue_name_style: &str,
+    profile_json: Option<&str>,
+    venue_registry_json: Option<&str>,
+) -> PyResult<PyExportResult> {
+    let profile = export_profile(profile, profile_json)?;
+    let venue_name_style = parse_venue_name_style(venue_name_style)?;
+    let venue_registry = venue_registry_from_json(venue_registry_json)?;
     let result = py
-        .detach(move || bibmgr_core::export_source(&source, &profile))
+        .detach(move || {
+            bibmgr_core::export_source_with_options(
+                &source,
+                &profile,
+                &ExportSourceOptions {
+                    venue_name_style,
+                    venue_registry,
+                },
+            )
+        })
         .map_err(|error| ExportError::new_err(error.to_string()))?;
     PyExportResult::from_serializable(&result)
 }
 
-#[pyfunction(signature = (source, profile="laboratory"))]
-fn export_source(py: Python<'_>, source: String, profile: &str) -> PyResult<PyExportResult> {
-    py_export(py, source, profile)
+#[pyfunction(signature = (source, profile="laboratory", *, venue_name_style="full", profile_json=None, venue_registry_json=None))]
+fn export_source(
+    py: Python<'_>,
+    source: String,
+    profile: &str,
+    venue_name_style: &str,
+    profile_json: Option<&str>,
+    venue_registry_json: Option<&str>,
+) -> PyResult<PyExportResult> {
+    py_export(
+        py,
+        source,
+        profile,
+        venue_name_style,
+        profile_json,
+        venue_registry_json,
+    )
 }
 
 #[pyfunction]
@@ -658,7 +727,48 @@ fn export_profiles(py: Python<'_>) -> PyResult<PyExportProfileCatalog> {
     PyExportProfileCatalog::from_serializable(&result)
 }
 
-fn options_for(profile: &str, tolerant: bool) -> PyResult<AnalysisOptions> {
+#[pyfunction]
+fn builtin_configuration() -> PyResult<String> {
+    let export_profiles = ExportProfile::builtins()
+        .map_err(|error| ConfigurationError::new_err(error.to_string()))?;
+    let venue_registry =
+        VenueRegistry::builtin().map_err(|error| ConfigurationError::new_err(error.to_string()))?;
+    serde_json::to_string(&serde_json::json!({
+        "schema_version": SCHEMA_VERSION,
+        "export_profiles": export_profiles,
+        "venue_registry": venue_registry,
+    }))
+    .map_err(json_error)
+}
+
+#[pyfunction]
+fn validate_export_profile(profile_json: &str) -> PyResult<String> {
+    let profile = export_profile("", Some(profile_json))?;
+    ValidationPolicy::for_profile(&profile.validation_profile)
+        .map_err(|error| ConfigurationError::new_err(error.to_string()))?;
+    serde_json::to_string(&serde_json::json!({
+        "schema_version": SCHEMA_VERSION,
+        "profile": profile,
+    }))
+    .map_err(json_error)
+}
+
+#[pyfunction]
+fn validate_venue_registry(venue_registry_json: &str) -> PyResult<String> {
+    let registry = venue_registry_from_json(Some(venue_registry_json))?
+        .ok_or_else(|| ConfigurationError::new_err("venue registry is required"))?;
+    serde_json::to_string(&serde_json::json!({
+        "schema_version": SCHEMA_VERSION,
+        "venue_registry": registry,
+    }))
+    .map_err(json_error)
+}
+
+fn options_for(
+    profile: &str,
+    tolerant: bool,
+    venue_registry_json: Option<&str>,
+) -> PyResult<AnalysisOptions> {
     let validation_policy = ValidationPolicy::for_profile(&ProfileId::from(profile))
         .map_err(|error| ConfigurationError::new_err(error.to_string()))?;
     Ok(AnalysisOptions {
@@ -668,8 +778,50 @@ fn options_for(profile: &str, tolerant: bool) -> PyResult<AnalysisOptions> {
             ParseMode::Strict
         },
         validation_policy,
+        venue_registry: venue_registry_from_json(venue_registry_json)?,
         ..AnalysisOptions::default()
     })
+}
+
+fn export_profile(profile: &str, profile_json: Option<&str>) -> PyResult<ExportProfile> {
+    let parsed = match profile_json {
+        Some(value) => serde_json::from_str(value)
+            .map_err(|error| ConfigurationError::new_err(error.to_string()))?,
+        None => ExportProfile::for_profile(&ProfileId::from(profile))
+            .map_err(|error| ConfigurationError::new_err(error.to_string()))?,
+    };
+    parsed
+        .validate()
+        .map_err(|error| ConfigurationError::new_err(error.to_string()))?;
+    if !profile.is_empty() && parsed.profile.as_str() != profile {
+        return Err(ConfigurationError::new_err(format!(
+            "profile document id `{}` does not match requested profile `{profile}`",
+            parsed.profile
+        )));
+    }
+    Ok(parsed)
+}
+
+fn venue_registry_from_json(input: Option<&str>) -> PyResult<Option<VenueRegistry>> {
+    let Some(input) = input else {
+        return Ok(None);
+    };
+    let registry: VenueRegistry = serde_json::from_str(input)
+        .map_err(|error| ConfigurationError::new_err(error.to_string()))?;
+    registry
+        .validate()
+        .map_err(|error| ConfigurationError::new_err(error.to_string()))?;
+    Ok(Some(registry))
+}
+
+fn parse_venue_name_style(value: &str) -> PyResult<VenueNameStyle> {
+    match value {
+        "full" => Ok(VenueNameStyle::Full),
+        "abbreviated" => Ok(VenueNameStyle::Abbreviated),
+        other => Err(ConfigurationError::new_err(format!(
+            "unknown venue name style `{other}`"
+        ))),
+    }
 }
 
 fn get_at<'a>(value: &'a Value, path: &[&str]) -> Option<&'a Value> {
@@ -758,9 +910,13 @@ fn bibmgr_native(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_function(wrap_pyfunction!(py_analyze, module)?)?;
     module.add_function(wrap_pyfunction!(apply_fixes, module)?)?;
     module.add_function(wrap_pyfunction!(py_validate_for_registration, module)?)?;
+    module.add_function(wrap_pyfunction!(py_canonicalize_for_storage, module)?)?;
     module.add_function(wrap_pyfunction!(py_export, module)?)?;
     module.add_function(wrap_pyfunction!(export_source, module)?)?;
     module.add_function(wrap_pyfunction!(export_profiles, module)?)?;
+    module.add_function(wrap_pyfunction!(builtin_configuration, module)?)?;
+    module.add_function(wrap_pyfunction!(validate_export_profile, module)?)?;
+    module.add_function(wrap_pyfunction!(validate_venue_registry, module)?)?;
     Ok(())
 }
 

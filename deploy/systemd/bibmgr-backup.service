@@ -1,0 +1,11 @@
+[Unit]
+Description=Back up the BibMgR PostgreSQL database
+Requires=bibmgr.service
+After=bibmgr.service
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/bibmgr
+Environment=BIBMGR_DEPLOYMENT_MODE=direct
+EnvironmentFile=-/etc/default/bibmgr
+ExecStart=/usr/bin/docker compose --env-file .env.production -f compose.production.yaml -f compose.production.${BIBMGR_DEPLOYMENT_MODE}.yaml run --rm --no-deps backend bibmgr-ops backup --output-dir /var/lib/bibmgr/backups

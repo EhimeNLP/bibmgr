@@ -1,0 +1,13 @@
+{$BIBMGR_SITE_ADDRESS} {
+	import /etc/caddy/bibmgr/common.caddy
+
+	handle_path /api/* {
+		reverse_proxy backend:8000
+	}
+
+	handle {
+		root * /srv
+		try_files {path} /index.html
+		file_server
+	}
+}

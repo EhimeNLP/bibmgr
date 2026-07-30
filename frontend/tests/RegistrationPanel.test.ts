@@ -8,8 +8,6 @@ import type {
   ApplyBibtexFixesResult,
   BibtexAnalysisResult,
   BibtexDiagnostic,
-  RegistrationValidationResult,
-  ValidateRegistrationRequest,
 } from "../src/types/bibtex";
 import type {
   RegisterBibtexPayload,
@@ -30,9 +28,8 @@ const bibtexApiMocks = vi.hoisted(() => ({
   applyBibtexFixes: vi.fn<
     (request: ApplyBibtexFixesRequest) => Promise<ApplyBibtexFixesResult>
   >(),
-  validateBibtexForRegistration: vi.fn<
-    (request: ValidateRegistrationRequest) => Promise<RegistrationValidationResult>
-  >(),
+  exportBibtex: vi.fn(),
+  listBibtexExportProfiles: vi.fn(),
 }));
 
 vi.mock("../src/api/registration", () => apiMocks);
@@ -40,8 +37,9 @@ vi.mock("../src/api/bibtex", () => bibtexApiMocks);
 
 const wrappers: Array<ReturnType<typeof mount>> = [];
 
-function renderPanel() {
+function renderPanel(authenticated = true) {
   const wrapper = mount(RegistrationPanel, {
+    props: { authenticated },
     attachTo: document.body,
     global: {
       stubs: { Teleport: true },
@@ -86,6 +84,22 @@ async function chooseFile(wrapper: ReturnType<typeof mount>, file: File) {
 }
 
 const sourceRevision = `sha256:${"0".repeat(64)}`;
+const exportProfiles = [
+  {
+    id: "laboratory",
+    display_name: "Laboratory",
+    description: "Laboratory-standard optimized BibTeX.",
+    validation_profile: "laboratory",
+    preprint_representation: "misc-eprint",
+  },
+  {
+    id: "modern",
+    display_name: "Modern",
+    description: "General-purpose modern BibTeX.",
+    validation_profile: "modern",
+    preprint_representation: "misc-eprint",
+  },
+];
 
 function analysisResult(
   diagnostics: BibtexDiagnostic[] = [],
@@ -110,17 +124,20 @@ beforeEach(() => {
     applied_fix_ids: request.fix_ids,
     analysis: analysisResult(),
   }));
-  bibtexApiMocks.validateBibtexForRegistration.mockImplementation(
-    async (request) => ({
-      schema_version: "1",
-      accepted: true,
-      source: request.source,
-      source_revision: sourceRevision,
-      diagnostics: [],
-      bibliography: { records: [], diagnostics: [] },
-      applied_fix_ids: [],
-      unresolved_semantics: false,
-    }),
+  bibtexApiMocks.listBibtexExportProfiles.mockResolvedValue({
+    schema_version: "1",
+    profiles: exportProfiles,
+  });
+  bibtexApiMocks.exportBibtex.mockImplementation(
+    ({ source, profile }: { source: string; profile: string }) =>
+      Promise.resolve({
+        schema_version: "1",
+        source: `${source}\n% ${profile}`,
+        profile,
+        venue_name_style: "full",
+        record_count: 1,
+        warnings: [],
+      }),
   );
 });
 
@@ -131,6 +148,15 @@ afterEach(() => {
 });
 
 describe("RegistrationPanel", () => {
+  it("requests login instead of opening for an anonymous visitor", async () => {
+    const wrapper = renderPanel(false);
+
+    await wrapper.get("button.registration-trigger").trigger("click");
+
+    expect(wrapper.find(".registration-sheet").exists()).toBe(false);
+    expect(wrapper.emitted("loginRequired")).toEqual([[]]);
+  });
+
   it("opens as a modal sheet and restores focus when dismissed", async () => {
     const wrapper = renderPanel();
     const trigger = wrapper.get("button.registration-trigger");
@@ -158,7 +184,7 @@ describe("RegistrationPanel", () => {
 
     expect(manualTab.attributes("aria-selected")).toBe("true");
     expect(wrapper.get("#registration-panel-manual").isVisible()).toBe(true);
-    expect(wrapper.get("#registration-panel-file").isVisible()).toBe(false);
+    expect(wrapper.find("#registration-panel-file").exists()).toBe(false);
 
     await manualTab.trigger("keydown", { key: "ArrowRight" });
 
@@ -170,7 +196,7 @@ describe("RegistrationPanel", () => {
     });
     expect(document.activeElement).toBe(fileTab.element);
     expect(wrapper.get("#registration-panel-file").isVisible()).toBe(true);
-    expect(wrapper.get("#registration-panel-manual").isVisible()).toBe(false);
+    expect(wrapper.find("#registration-panel-manual").exists()).toBe(false);
     expect(wrapper.text()).not.toContain("PDF");
   });
 
@@ -217,7 +243,7 @@ describe("RegistrationPanel", () => {
     expect(wrapper.get<HTMLTextAreaElement>("#manual-bibtex").element.value).toBe(
       "",
     );
-    expect(wrapper.emitted("registered")).toEqual([[reference]]);
+    expect(wrapper.emitted("registered")).toEqual([[[reference]]]);
   });
 
   it("surfaces manual registration failures and preserves the entry", async () => {
@@ -241,6 +267,68 @@ describe("RegistrationPanel", () => {
       bibtex,
     );
     expect(wrapper.emitted("registered")).toBeUndefined();
+  });
+
+  it("stores the submitted source without a canonicalization confirmation step", async () => {
+    const submitted = "@misc{demo,Title={A useful paper}}";
+    const reference = {
+      id: "demo",
+      title: "A useful paper",
+      authors: [],
+      bibtex: submitted,
+    };
+    apiMocks.registerBibtexToDatabase.mockResolvedValueOnce({ reference });
+    const wrapper = renderPanel();
+    await openRegistration(wrapper);
+    await wrapper.get("#manual-bibtex").setValue(submitted);
+    const button = wrapper.get(
+      "#registration-panel-manual button.button-primary",
+    );
+
+    await button.trigger("click");
+    await flushPromises();
+
+    expect(apiMocks.registerBibtexToDatabase).toHaveBeenCalledWith({
+      bibtex: submitted,
+      source: "manual",
+    });
+    expect(wrapper.find('[data-testid="manual-canonical-preview"]').exists()).toBe(
+      false,
+    );
+    expect(wrapper.emitted("registered")).toEqual([[[reference]]]);
+  });
+
+  it("previews the selected output profile without changing registration input", async () => {
+    const source = "@misc{demo, title={A useful paper}}";
+    const wrapper = renderPanel();
+    await openRegistration(wrapper);
+    await wrapper.get("#manual-bibtex").setValue(source);
+    await flushPromises();
+
+    expect(bibtexApiMocks.exportBibtex).toHaveBeenCalledWith(
+      { source, profile: "laboratory", venue_name_style: "full" },
+      expect.objectContaining({ signal: expect.any(AbortSignal) }),
+    );
+    expect(
+      wrapper.get(".registration-output-preview select").element.value,
+    ).toBe("laboratory");
+    expect(
+      wrapper.get('[data-testid="bibtex-export-preview"]').text(),
+    ).toBe(`${source}\n% laboratory`);
+
+    await wrapper
+      .get(".registration-output-preview select")
+      .setValue("modern");
+    await flushPromises();
+
+    expect(bibtexApiMocks.exportBibtex).toHaveBeenLastCalledWith(
+      { source, profile: "modern", venue_name_style: "full" },
+      expect.objectContaining({ signal: expect.any(AbortSignal) }),
+    );
+    expect(
+      wrapper.get('[data-testid="bibtex-export-preview"]').text(),
+    ).toBe(`${source}\n% modern`);
+    expect(apiMocks.registerBibtexToDatabase).not.toHaveBeenCalled();
   });
 
   it("shows shared lint diagnostics and applies a safe quick fix", async () => {
@@ -289,7 +377,7 @@ describe("RegistrationPanel", () => {
     await flushPromises();
 
     expect(bibtexApiMocks.analyzeBibtex).toHaveBeenCalledWith(
-      { source, profile: "laboratory", mode: "tolerant" },
+      { source, profile: "archive", mode: "tolerant" },
       { signal: expect.any(AbortSignal) },
     );
 
@@ -310,7 +398,7 @@ describe("RegistrationPanel", () => {
       source,
       source_revision: sourceRevision,
       fix_ids: [fix.id],
-      profile: "laboratory",
+      profile: "archive",
     });
     await vi.waitFor(() => {
       expect(wrapper.get<HTMLTextAreaElement>("#manual-bibtex").element.value).toBe(
@@ -359,30 +447,11 @@ describe("RegistrationPanel", () => {
     ).toBe("Title");
   });
 
-  it("uses the native registration decision and preserves blocked input", async () => {
+  it("delegates structural acceptance to registration and preserves rejected input", async () => {
     const source = "@article{demo, title={Missing required data}}";
-    const diagnostic: BibtexDiagnostic = {
-      id: "LAB-ENTRY-003:0",
-      code: "LAB-ENTRY-003",
-      severity: "error",
-      blocking: true,
-      message: "required field `author` is missing",
-      primary_location: null,
-      related_locations: [],
-      notes: [],
-      fixes: [],
-    };
-    bibtexApiMocks.validateBibtexForRegistration.mockResolvedValueOnce({
-      schema_version: "1",
-      accepted: false,
-      source,
-      source_revision: sourceRevision,
-      diagnostics: [diagnostic],
-      bibliography: { records: [], diagnostics: [] },
-      applied_fix_ids: [],
-      unresolved_semantics: false,
-    });
-    bibtexApiMocks.analyzeBibtex.mockResolvedValueOnce(analysisResult([diagnostic]));
+    apiMocks.registerBibtexToDatabase.mockRejectedValueOnce(
+      new Error("BibTeX is structurally invalid."),
+    );
     const wrapper = renderPanel();
     await openRegistration(wrapper);
     await wrapper.get("#manual-bibtex").setValue(source);
@@ -392,9 +461,12 @@ describe("RegistrationPanel", () => {
       .trigger("click");
     await flushPromises();
 
-    expect(apiMocks.registerBibtexToDatabase).not.toHaveBeenCalled();
-    expect(wrapper.get('#registration-panel-manual [role="alert"]').text()).toContain(
-      "Registration is blocked by 1 diagnostic",
+    expect(apiMocks.registerBibtexToDatabase).toHaveBeenCalledWith({
+      bibtex: source,
+      source: "manual",
+    });
+    expect(wrapper.get('#registration-panel-manual [role="alert"]').text()).toBe(
+      "BibTeX is structurally invalid.",
     );
     expect(wrapper.get<HTMLTextAreaElement>("#manual-bibtex").element.value).toBe(
       source,
@@ -438,18 +510,27 @@ describe("RegistrationPanel", () => {
       "reference.BIB was registered.",
     );
     expect(wrapper.find("#file-bibtex-preview").exists()).toBe(false);
-    expect(wrapper.emitted("registered")).toEqual([[reference]]);
+    expect(wrapper.emitted("registered")).toEqual([[[reference]]]);
   });
 
   it("accepts and preserves multiple entries from one .bib file", async () => {
     const bibtex = "@article{one, title={One}}\n\n@book{two, title={Two}}";
     const reference = {
-      id: "library",
-      title: "Imported library",
+      id: "one",
+      title: "One",
       authors: [],
-      bibtex,
+      bibtex: "@article{one, title={One}}",
     };
-    apiMocks.registerBibtexToDatabase.mockResolvedValueOnce({ reference });
+    const secondReference = {
+      id: "two",
+      title: "Two",
+      authors: [],
+      bibtex: "@book{two, title={Two}}",
+    };
+    apiMocks.registerBibtexToDatabase.mockResolvedValueOnce({
+      reference,
+      references: [reference, secondReference],
+    });
     const wrapper = renderPanel();
     await openFilePanel(wrapper);
 
@@ -473,35 +554,21 @@ describe("RegistrationPanel", () => {
       bibtex,
       source: "file",
     });
+    expect(wrapper.emitted("registered")).toEqual([
+      [[reference, secondReference]],
+    ]);
   });
 
-  it("sends a braced raw percent value unchanged to native validation", async () => {
+  it("sends a braced raw percent value unchanged to registration", async () => {
     const bibtex = "@misc{key, title = {100% Effective}, }";
-    const percentOffset = bibtex.indexOf("%");
-    bibtexApiMocks.validateBibtexForRegistration.mockResolvedValueOnce({
-      schema_version: "1",
-      accepted: false,
-      source: bibtex,
-      source_revision: sourceRevision,
-      diagnostics: [
-        {
-          id: "BIB-SYNTAX-008:0",
-          code: "BIB-SYNTAX-008",
-          severity: "error",
-          blocking: true,
-          message: "field `title` contains an unescaped `%`",
-          primary_location: {
-            source_id: "source:0",
-            range: { start: percentOffset, end: percentOffset + 1 },
-          },
-          related_locations: [],
-          notes: [],
-          fixes: ["BIB-SYNTAX-008:0"],
-        },
-      ],
-      bibliography: { records: [], diagnostics: [] },
-      applied_fix_ids: [],
-      unresolved_semantics: false,
+    const reference = {
+      id: "percent",
+      title: "100% Effective",
+      authors: [],
+      bibtex,
+    };
+    apiMocks.registerBibtexToDatabase.mockResolvedValueOnce({
+      reference,
     });
     const wrapper = renderPanel();
     await openFilePanel(wrapper);
@@ -516,25 +583,18 @@ describe("RegistrationPanel", () => {
       .trigger("click");
     await flushPromises();
 
-    expect(bibtexApiMocks.validateBibtexForRegistration).toHaveBeenCalledWith({
-      source: bibtex,
-      policy: "laboratory",
+    expect(apiMocks.registerBibtexToDatabase).toHaveBeenCalledWith({
+      bibtex,
+      source: "file",
     });
-    expect(apiMocks.registerBibtexToDatabase).not.toHaveBeenCalled();
+    expect(wrapper.emitted("registered")).toEqual([[[reference]]]);
   });
 
-  it("uses native validation rather than the estimated entry count as authority", async () => {
+  it("uses the backend rather than the estimated entry count as authority", async () => {
     const source = "% metadata without a detected entry\n";
-    bibtexApiMocks.validateBibtexForRegistration.mockResolvedValueOnce({
-      schema_version: "1",
-      accepted: false,
-      source,
-      source_revision: sourceRevision,
-      diagnostics: [],
-      bibliography: { records: [], diagnostics: [] },
-      applied_fix_ids: [],
-      unresolved_semantics: false,
-    });
+    apiMocks.registerBibtexToDatabase.mockRejectedValueOnce(
+      new Error("BibTeX does not contain a bibliographic entry."),
+    );
     const wrapper = renderPanel();
     await openFilePanel(wrapper);
 
@@ -552,11 +612,13 @@ describe("RegistrationPanel", () => {
     await registerButton.trigger("click");
     await flushPromises();
 
-    expect(bibtexApiMocks.validateBibtexForRegistration).toHaveBeenCalledWith({
-      source,
-      policy: "laboratory",
+    expect(apiMocks.registerBibtexToDatabase).toHaveBeenCalledWith({
+      bibtex: source,
+      source: "file",
     });
-    expect(apiMocks.registerBibtexToDatabase).not.toHaveBeenCalled();
+    expect(wrapper.get('#registration-panel-file [role="alert"]').text()).toBe(
+      "BibTeX does not contain a bibliographic entry.",
+    );
   });
 
   it("rejects invalid and empty files without stale content", async () => {

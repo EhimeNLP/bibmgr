@@ -121,14 +121,17 @@ describe("BibtexExportPanel", () => {
     expect(wrapper.get("select").element.value).toBe("laboratory");
     expect(apiMocks.exportBibtex).toHaveBeenNthCalledWith(
       1,
-      { source, profile: "laboratory" },
+      { source, profile: "laboratory", venue_name_style: "full" },
       expect.objectContaining({ signal: expect.any(AbortSignal) }),
     );
     expect(wrapper.get('[data-testid="bibtex-export-preview"]').text()).toContain(
       "eprint",
     );
     expect(wrapper.get('[aria-label="Export warnings"]').text()).toContain(
-      "Entry 1: Only the first URL was exported.",
+      "Only the first URL was exported.",
+    );
+    expect(wrapper.get('[aria-label="Export warnings"]').text()).not.toContain(
+      "Entry 1:",
     );
 
     await wrapper.get("select").setValue("classical-bst");
@@ -136,7 +139,11 @@ describe("BibtexExportPanel", () => {
 
     expect(apiMocks.exportBibtex).toHaveBeenNthCalledWith(
       2,
-      { source, profile: "classical-bst" },
+      {
+        source,
+        profile: "classical-bst",
+        venue_name_style: "full",
+      },
       expect.objectContaining({ signal: expect.any(AbortSignal) }),
     );
     expect(wrapper.get('[data-testid="bibtex-export-preview"]').text()).toContain(
@@ -173,6 +180,71 @@ describe("BibtexExportPanel", () => {
     await flushPromises();
     expect(wrapper.get('[data-testid="bibtex-export-preview"]').text()).toBe(
       "CLASSICAL OUTPUT",
+    );
+
+    wrapper.unmount();
+  });
+
+  it("identifies warning entries only for multi-entry exports", async () => {
+    apiMocks.exportBibtex.mockResolvedValue(
+      exportResult(
+        "laboratory",
+        "@misc{first}\n\n@misc{second}\n",
+        [{ record_index: 1, message: "Used the full venue name." }],
+        "full",
+        2,
+      ),
+    );
+    const wrapper = mount(BibtexExportPanel, {
+      props: { source: "@misc{first}\n@misc{second}" },
+    });
+
+    await flushPromises();
+
+    expect(wrapper.get('[aria-label="Export warnings"]').text()).toContain(
+      "Entry 2: Used the full venue name.",
+    );
+
+    wrapper.unmount();
+  });
+
+  it("uses full venue names by default and re-exports with abbreviations", async () => {
+    apiMocks.exportBibtex.mockImplementation(
+      ({ venue_name_style }: { venue_name_style: "full" | "abbreviated" }) =>
+        Promise.resolve(
+          exportResult(
+            "laboratory",
+            venue_name_style === "full"
+              ? "booktitle = {Annual Meeting of the Association for Computational Linguistics}"
+              : "booktitle = {ACL}",
+            [],
+            venue_name_style,
+          ),
+        ),
+    );
+    const source = "@inproceedings{paper, booktitle={ACL}}";
+    const wrapper = mount(BibtexExportPanel, { props: { source } });
+
+    await flushPromises();
+    expect(
+      wrapper.get<HTMLInputElement>('input[value="full"]').element.checked,
+    ).toBe(true);
+
+    await wrapper.get<HTMLInputElement>(
+      'input[value="abbreviated"]',
+    ).setValue();
+    await flushPromises();
+
+    expect(apiMocks.exportBibtex).toHaveBeenLastCalledWith(
+      {
+        source,
+        profile: "laboratory",
+        venue_name_style: "abbreviated",
+      },
+      expect.objectContaining({ signal: expect.any(AbortSignal) }),
+    );
+    expect(wrapper.get('[data-testid="bibtex-export-preview"]').text()).toContain(
+      "booktitle = {ACL}",
     );
 
     wrapper.unmount();
@@ -303,12 +375,15 @@ function exportResult(
   profile: string,
   source: string,
   warnings: BibtexExportResult["warnings"] = [],
+  venueNameStyle: BibtexExportResult["venue_name_style"] = "full",
+  recordCount = 1,
 ): BibtexExportResult {
   return {
     schema_version: "1",
     source,
     profile,
-    record_count: 1,
+    venue_name_style: venueNameStyle,
+    record_count: recordCount,
     warnings,
   };
 }
