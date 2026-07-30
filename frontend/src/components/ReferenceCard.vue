@@ -22,13 +22,8 @@ defineProps<{
       {{ reference.authors.length > 0 ? reference.authors.join(", ") : "Unknown authors" }}
     </p>
 
-    <div class="reference-card__meta">
-      <span v-if="reference.year">{{ reference.year }}</span>
-      <span v-if="reference.venue">{{ reference.venue }}</span>
-    </div>
-
-    <p v-if="reference.doi" class="doi">
-      <span>DOI</span> {{ reference.doi }}
+    <p class="reference-card__year">
+      {{ reference.year ?? "Unknown year" }}
     </p>
   </button>
 </template>

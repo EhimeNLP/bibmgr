@@ -5,7 +5,7 @@
 
 pub use bibmgr_edit::{EditError, FixPlan, FixPlanError, FixSelection};
 pub use bibmgr_export::{
-    ExportError, ExportProfile, ExportResult, PreprintRepresentation, VenueStyle,
+    ExportError, ExportOptions, ExportProfile, ExportResult, PreprintRepresentation, VenueNameStyle,
 };
 pub use bibmgr_model::{
     Diagnostic, DiagnosticId, Fix, FixApplicability, FixId, RuleCode, SourceId, SourceRevision,
@@ -15,7 +15,7 @@ pub use bibmgr_model::{ProfileId, Severity};
 pub use bibmgr_semantics::Bibliography;
 pub use bibmgr_syntax::{ParseMode, ParseOptions, SyntaxSummary};
 pub use bibmgr_validation::{
-    RegistrationPolicy, RepositoryRegistry, ValidationPolicy, VenueRegistry,
+    RegistrationPolicy, RepositoryRegistry, ValidationPolicy, VenueEntity, VenueRegistry,
 };
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeSet;
@@ -303,6 +303,120 @@ pub fn validate_for_registration(
     validate_for_registration_with_options(source, policy, &options)
 }
 
+/// Produce the information-preserving source representation stored by the
+/// reference library.
+///
+/// Registration validation remains a read-only decision. Storage
+/// canonicalization is an explicit second operation that applies only fixes
+/// classified as safe, revalidates the result, and refuses any rewrite that
+/// changes the document's entry/field inventory.
+pub fn canonicalize_for_storage(
+    source: &str,
+    policy: &RegistrationPolicy,
+) -> RegistrationValidation {
+    canonicalize_for_storage_with_options(source, policy, None)
+}
+
+/// Canonicalize source while using an optional immutable venue-registry snapshot.
+pub fn canonicalize_for_storage_with_options(
+    source: &str,
+    policy: &RegistrationPolicy,
+    venue_registry: Option<VenueRegistry>,
+) -> RegistrationValidation {
+    let mut validation_policy = policy.clone();
+    validation_policy.apply_safe_fixes = false;
+    let analysis_policy = match ValidationPolicy::for_profile(&policy.validation_profile) {
+        Ok(policy) => policy,
+        Err(error) => return registration_configuration_failure(source, &error.to_string()),
+    };
+    let initial = validate_for_registration_with_options(
+        source,
+        &validation_policy,
+        &AnalysisOptions {
+            parse_mode: ParseMode::Strict,
+            validation_policy: analysis_policy.clone(),
+            venue_registry: venue_registry.clone(),
+            ..AnalysisOptions::default()
+        },
+    );
+    if !initial.accepted {
+        return initial;
+    }
+
+    let original_inventory = storage_inventory(source);
+    let mut canonicalization_policy = policy.clone();
+    canonicalization_policy.apply_safe_fixes = true;
+    let mut canonicalized = validate_for_registration_with_options(
+        source,
+        &canonicalization_policy,
+        &AnalysisOptions {
+            parse_mode: ParseMode::Strict,
+            validation_policy: analysis_policy,
+            venue_registry,
+            ..AnalysisOptions::default()
+        },
+    );
+
+    if canonicalized.accepted
+        && original_inventory != storage_inventory(canonicalized.source.as_str())
+    {
+        canonicalized.accepted = false;
+        canonicalized.diagnostics.push(Diagnostic::new(
+            "storage:BIB-STORAGE-001:0",
+            RuleCode::new("BIB-STORAGE-001"),
+            bibmgr_model::Severity::Error,
+            true,
+            "storage canonicalization would change the document's bibliographic field inventory",
+            None,
+        ));
+        normalize_diagnostics(&mut canonicalized.diagnostics);
+    }
+
+    canonicalized
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct StorageInventory {
+    entries: Vec<(String, Vec<String>, usize)>,
+    strings: Vec<String>,
+    preambles: usize,
+    comments: usize,
+}
+
+fn storage_inventory(source: &str) -> StorageInventory {
+    let document = bibmgr_syntax::parse(source, ParseOptions::strict());
+    let entries = document
+        .entries()
+        .iter()
+        .map(|entry| {
+            let mut fields = entry
+                .fields
+                .iter()
+                .map(|field| field.name.text.to_ascii_lowercase())
+                .collect::<Vec<_>>();
+            fields.sort();
+            (
+                entry.entry_type.text.to_ascii_lowercase(),
+                fields,
+                entry.inline_comments.len(),
+            )
+        })
+        .collect();
+    let mut strings = document
+        .strings()
+        .iter()
+        .map(|definition| definition.name.text.to_ascii_lowercase())
+        .collect::<Vec<_>>();
+    strings.sort();
+
+    StorageInventory {
+        entries,
+        strings,
+        preambles: document.preambles().len(),
+        comments: document.comments().len(),
+    }
+}
+
 /// Validate registration with an externally loaded validation policy and
 /// optional registry snapshots. Registration always forces strict parsing.
 pub fn validate_for_registration_with_options(
@@ -439,8 +553,28 @@ pub fn export_profiles() -> Result<ExportProfileCatalog, ExportError> {
 
 /// Analyze strictly and serialize the semantic records using an export profile.
 pub fn export_source(source: &str, profile: &ExportProfile) -> Result<ExportResult, ExportError> {
+    export_source_with_options(source, profile, &ExportSourceOptions::default())
+}
+
+/// Request-scoped export options shared by all adapters.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(default, deny_unknown_fields)]
+pub struct ExportSourceOptions {
+    pub venue_name_style: VenueNameStyle,
+    /// `None` selects the embedded registry; `Some` pins this export to a
+    /// caller-supplied immutable registry snapshot.
+    pub venue_registry: Option<VenueRegistry>,
+}
+
+/// Analyze strictly and serialize with a profile plus request-scoped options.
+pub fn export_source_with_options(
+    source: &str,
+    profile: &ExportProfile,
+    export_options: &ExportSourceOptions,
+) -> Result<ExportResult, ExportError> {
     let options = AnalysisOptions {
         parse_mode: ParseMode::Strict,
+        venue_registry: export_options.venue_registry.clone(),
         ..AnalysisOptions::default()
     };
     let analysis = analyze(source, &options);
@@ -455,7 +589,13 @@ pub fn export_source(source: &str, profile: &ExportProfile) -> Result<ExportResu
     if !blocking_codes.is_empty() {
         return Err(ExportError::BlockingDiagnostics(blocking_codes));
     }
-    let exported = bibmgr_export::export(&analysis.bibliography, profile)?;
+    let exported = bibmgr_export::export_with_options(
+        &analysis.bibliography,
+        profile,
+        &ExportOptions {
+            venue_name_style: export_options.venue_name_style,
+        },
+    )?;
 
     // Validate the generated representation, not the input spelling, against
     // the export profile's explicit target policy. This lets profiles
@@ -473,6 +613,7 @@ pub fn export_source(source: &str, profile: &ExportProfile) -> Result<ExportResu
         &AnalysisOptions {
             parse_mode: ParseMode::Strict,
             validation_policy,
+            venue_registry: export_options.venue_registry.clone(),
             ..AnalysisOptions::default()
         },
     );
@@ -832,10 +973,55 @@ mod tests {
             "booktitle = {Annual Meeting of the Association for Computational Linguistics}"
         ));
 
-        let mut short_profile = ExportProfile::modern();
-        short_profile.venue_style = VenueStyle::Short;
-        let short = export_source(source, &short_profile).unwrap().source;
+        let short = export_source_with_options(
+            source,
+            &ExportProfile::modern(),
+            &ExportSourceOptions {
+                venue_name_style: VenueNameStyle::Abbreviated,
+                ..ExportSourceOptions::default()
+            },
+        )
+        .unwrap()
+        .source;
         assert!(short.contains("booktitle = {ACL}"));
+
+        let journal =
+            "@article{j, author={Doe, Jane}, title={T}, journal={JMLR 2024}, year={2024},}\n";
+        let journal_full = export_source(journal, &ExportProfile::modern())
+            .unwrap()
+            .source;
+        assert!(journal_full.contains("journal = {Journal of Machine Learning Research}"));
+        let journal_abbreviated = export_source_with_options(
+            journal,
+            &ExportProfile::modern(),
+            &ExportSourceOptions {
+                venue_name_style: VenueNameStyle::Abbreviated,
+                ..ExportSourceOptions::default()
+            },
+        )
+        .unwrap()
+        .source;
+        assert!(journal_abbreviated.contains("journal = {JMLR}"));
+    }
+
+    #[test]
+    fn every_builtin_export_profile_case_protects_the_complete_title() {
+        let source = "@article{k, author={Doe, Jane}, title={An LLM Study}, journal={Journal}, year={2026},}\n";
+
+        for profile in ExportProfile::builtins().unwrap() {
+            let first = export_source(source, &profile).unwrap().source;
+            assert!(
+                first.contains("title = {{An LLM Study}}"),
+                "profile `{}` did not protect the complete title:\n{first}",
+                profile.profile
+            );
+            assert_eq!(
+                export_source(&first, &profile).unwrap().source,
+                first,
+                "profile `{}` grew or removed title protection on re-export",
+                profile.profile
+            );
+        }
     }
 
     #[test]
@@ -1063,6 +1249,77 @@ kind = "conference"
     }
 
     #[test]
+    fn archive_registration_preserves_rich_sources_without_profile_gating() {
+        let source = "@inproceedings{gong-2023-diffuseq,\n  title = {{D}iffu{S}eq-v2},\n  year = unknownYear,\n  archivePrefix = {arXiv},\n  primaryClass = {cs.CL},\n  url = {https://example.test/paper},\n  abstract = {A long abstract\n    kept across lines.},\n}\n";
+
+        let result = validate_for_registration(source, &RegistrationPolicy::archive());
+
+        assert!(result.accepted);
+        assert_eq!(result.source, source);
+        assert_eq!(result.bibliography.records.len(), 1);
+        assert!(result.unresolved_semantics);
+        assert!(result
+            .diagnostics
+            .iter()
+            .all(|diagnostic| !diagnostic.blocking));
+        assert!(result.applied_fix_ids.is_empty());
+    }
+
+    #[test]
+    fn archive_registration_requires_author_year_and_suffix_citation_keys() {
+        let policy = RegistrationPolicy::archive();
+        let validation_policy = ValidationPolicy::archive();
+        assert_eq!(
+            validation_policy.citation_key_pattern,
+            r"^[a-z][a-z0-9]*(?:-[a-z0-9]+)*-[0-9]{4}-[a-z0-9]+(?:-[a-z0-9]+)*$"
+        );
+
+        for citation_key in ["asada-2026-principled", "gong-etal-2023-diffuseq-v2"] {
+            let source = format!("@misc{{{citation_key}, title={{T}},}}\n");
+            let result = validate_for_registration(&source, &policy);
+            assert!(
+                result.accepted,
+                "valid citation key `{citation_key}` was rejected: {:?}",
+                result.diagnostics
+            );
+        }
+
+        for citation_key in [
+            "asada-2026any",
+            "asada2026any",
+            "asada-2026",
+            "Gong-2023-diffuseq",
+            "gong_2023_diffuseq",
+            "2023-gong-diffuseq",
+            "gong-2023-",
+        ] {
+            let source = format!("@misc{{{citation_key}, title={{T}},}}\n");
+            let result = validate_for_registration(&source, &policy);
+            assert!(
+                !result.accepted,
+                "invalid citation key `{citation_key}` was accepted"
+            );
+            assert!(result.diagnostics.iter().any(|diagnostic| {
+                diagnostic.code.as_str() == bibmgr_validation::RULE_CITATION_KEY
+                    && diagnostic.blocking
+            }));
+        }
+    }
+
+    #[test]
+    fn archive_registration_still_rejects_structurally_invalid_bibtex() {
+        let source = "@misc{key, title={Unclosed}\n";
+
+        let result = validate_for_registration(source, &RegistrationPolicy::archive());
+
+        assert!(!result.accepted);
+        assert!(result
+            .diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.blocking));
+    }
+
+    #[test]
     fn registration_accepts_an_external_validated_policy_snapshot() {
         let source = "@article{key, title={T}, author={Doe, Jane}, journal={J}, year={2024},}\n";
         let mut validation_policy = ValidationPolicy::modern();
@@ -1088,5 +1345,70 @@ kind = "conference"
             .diagnostics
             .iter()
             .any(|diagnostic| diagnostic.code.as_str() == "BIB-CONFIG-001"));
+    }
+
+    #[test]
+    fn storage_canonicalization_applies_safe_laboratory_style_without_losing_url() {
+        let source = "@misc{smith-2024, author={Smith, Jane}, Title={T}, year={2024}, eprint={2401.01234}, archiveprefix={arXiv}, primaryclass={cs.CL}, URL={https://example.test/paper}}\n";
+
+        let result = canonicalize_for_storage(source, &RegistrationPolicy::laboratory());
+
+        assert!(result.accepted);
+        assert_ne!(result.source, source);
+        assert!(result.source.contains("title = {T}"));
+        assert!(result.source.contains("archivePrefix = {arXiv}"));
+        assert!(result.source.contains("primaryClass = {cs.CL}"));
+        assert!(result.source.contains("url = {https://example.test/paper}"));
+        assert!(!result.applied_fix_ids.is_empty());
+
+        let repeated = canonicalize_for_storage(&result.source, &RegistrationPolicy::laboratory());
+        assert!(repeated.accepted);
+        assert_eq!(repeated.source, result.source);
+        assert!(repeated.applied_fix_ids.is_empty());
+    }
+
+    #[test]
+    fn storage_canonicalization_normalizes_value_lines_without_changing_title_groups() {
+        let source = concat!(
+            "@inproceedings{gong-etal-2023-diffuseq,\n",
+            "  title = {{D}iffu{S}eq-v2: Bridging Text Spaces},\n",
+            "  author = {Gong, Shansan and\n",
+            "    Li, Mukai},\n",
+            "  booktitle = {Findings of ACL},\n",
+            "  year = {2023},\n",
+            "  abstract = {First sentence.\n",
+            "    Second sentence.},\n",
+            "}\n",
+        );
+
+        let result = canonicalize_for_storage(source, &RegistrationPolicy::laboratory());
+
+        assert!(
+            result.accepted,
+            "unexpected diagnostics: {:?}",
+            result.diagnostics
+        );
+        assert!(result
+            .source
+            .contains("title = {{D}iffu{S}eq-v2: Bridging Text Spaces}"));
+        assert!(result
+            .source
+            .contains("author = {Gong, Shansan and Li, Mukai}"));
+        assert!(result
+            .source
+            .contains("abstract = {First sentence. Second sentence.}"));
+    }
+
+    #[test]
+    fn storage_inventory_detects_field_or_comment_loss() {
+        let complete = "% retained\n@misc{k, title={T}, url={https://example.test},}\n";
+        let missing_url = "% retained\n@misc{k, title={T},}\n";
+        let missing_comment = "@misc{k, title={T}, url={https://example.test},}\n";
+
+        assert_ne!(storage_inventory(complete), storage_inventory(missing_url));
+        assert_ne!(
+            storage_inventory(complete),
+            storage_inventory(missing_comment)
+        );
     }
 }

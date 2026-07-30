@@ -6,7 +6,12 @@ import vueParser from "vue-eslint-parser";
 
 export default tseslint.config(
   {
-    ignores: ["dist/**", "node_modules/**"],
+    ignores: [
+      "dist/**",
+      "node_modules/**",
+      "playwright-report/**",
+      "test-results/**",
+    ],
   },
   eslint.configs.recommended,
   ...tseslint.configs.recommended,
@@ -27,13 +32,13 @@ export default tseslint.config(
     },
   },
   {
-    files: ["src/**/*.{ts,tsx,vue}"],
+    files: ["src/**/*.{ts,tsx,vue}", "public/**/*.js"],
     languageOptions: {
       globals: globals.browser,
     },
   },
   {
-    files: ["src/api/registration.ts", "src/data/testReferences.ts"],
+    files: ["src/api/registration.ts"],
     rules: {
       "no-useless-escape": "off",
     },

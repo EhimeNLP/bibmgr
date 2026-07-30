@@ -1,19 +1,28 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, reactive, ref } from "vue";
-import { validateBibtexForRegistration } from "../api/bibtex";
 import { registerBibtexToDatabase } from "../api/registration";
 import type { BibtexDiagnostic } from "../types/bibtex";
-import type { Reference } from "../types/reference";
+import type {
+  Reference,
+  RegisterBibtexResult,
+} from "../types/reference";
 import { countBibliographicEntries } from "../utils/bibtexHighlight";
 import BibtexEditor from "./BibtexEditor.vue";
+import BibtexExportPanel from "./BibtexExportPanel.vue";
 import BibtexValidationPanel from "./BibtexValidationPanel.vue";
+import AppIcon from "./AppIcon.vue";
 
 type RegistrationMode = "manual" | "file";
 
 const MAX_BIB_FILE_SIZE = 2 * 1024 * 1024;
 
+const props = defineProps<{
+  authenticated: boolean;
+}>();
+
 const emit = defineEmits<{
-  registered: [reference: Reference];
+  registered: [references: Reference[]];
+  loginRequired: [];
 }>();
 
 const isOpen = ref(false);
@@ -62,12 +71,20 @@ const fileRegistrationLabel = computed(() => {
     ? "Register 1 reference"
     : `Register ${fileEntryCount.value} references`;
 });
+const manualRegistrationLabel = computed(() => {
+  if (isManualRegistering.value) return "Registering…";
+  return "Register BibTeX";
+});
 
 onBeforeUnmount(() => {
   document.body.classList.remove("registration-open");
 });
 
 async function openRegistration() {
+  if (!props.authenticated) {
+    emit("loginRequired");
+    return;
+  }
   isOpen.value = true;
   document.body.classList.add("registration-open");
   await nextTick();
@@ -131,22 +148,14 @@ async function registerManualBibtex() {
   manualMessage.value = null;
 
   try {
-    const validation = await validateBibtexForRegistration({
-      source: bibtex,
-      policy: "laboratory",
-    });
-    if (!validation.accepted) {
-      manualError.value = registrationBlockedMessage(validation.diagnostics);
-      return;
-    }
     const result = await registerBibtexToDatabase({
-      bibtex: validation.source,
+      bibtex,
       source: "manual",
     });
     manualBibtex.value = "";
     replaceDiagnostics(manualDiagnostics, []);
     manualMessage.value = "Registered.";
-    emit("registered", result.reference);
+    emitRegisteredReferences(result);
   } catch (error) {
     manualError.value =
       error instanceof Error ? error.message : "Failed to register BibTeX.";
@@ -212,16 +221,8 @@ async function registerFileBibtex() {
   fileMessage.value = null;
 
   try {
-    const validation = await validateBibtexForRegistration({
-      source: bibtex,
-      policy: "laboratory",
-    });
-    if (!validation.accepted) {
-      fileError.value = registrationBlockedMessage(validation.diagnostics);
-      return;
-    }
     const result = await registerBibtexToDatabase({
-      bibtex: validation.source,
+      bibtex,
       source: "file",
     });
     selectedBibFile.value = null;
@@ -229,7 +230,7 @@ async function registerFileBibtex() {
     replaceDiagnostics(fileDiagnostics, []);
     resetFileInput();
     fileMessage.value = `${fileName} was registered.`;
-    emit("registered", result.reference);
+    emitRegisteredReferences(result);
   } catch (error) {
     fileError.value =
       error instanceof Error ? error.message : "Failed to register BibTeX.";
@@ -251,6 +252,12 @@ function resetFileInput() {
   if (fileInput.value) fileInput.value.value = "";
 }
 
+function emitRegisteredReferences(result: RegisterBibtexResult) {
+  const references =
+    result.references?.length ? result.references : [result.reference];
+  emit("registered", references);
+}
+
 function replaceDiagnostics(
   target: BibtexDiagnostic[],
   diagnostics: BibtexDiagnostic[],
@@ -264,19 +271,6 @@ function onManualDiagnostics(diagnostics: BibtexDiagnostic[]) {
 
 function onFileDiagnostics(diagnostics: BibtexDiagnostic[]) {
   replaceDiagnostics(fileDiagnostics, diagnostics);
-}
-
-function registrationBlockedMessage(
-  diagnostics: Array<{ blocking: boolean }>,
-): string {
-  const blockingCount = diagnostics.filter((diagnostic) => diagnostic.blocking).length;
-  if (blockingCount === 0) {
-    return "Registration is blocked by the active policy. Run Check BibTeX to review the source.";
-  }
-  if (blockingCount === 1) {
-    return "Registration is blocked by 1 diagnostic. Run Check BibTeX to review it.";
-  }
-  return `Registration is blocked by ${blockingCount} diagnostics. Run Check BibTeX to review them.`;
 }
 
 function onManualFixApplied() {
@@ -299,17 +293,15 @@ function onFileFixApplied() {
       aria-label="Add reference"
       aria-haspopup="dialog"
       :aria-expanded="isOpen"
+      :title="authenticated ? undefined : 'Log in to add references'"
       @click="openRegistration"
     >
-      <svg aria-hidden="true" viewBox="0 0 18 18" fill="none">
-        <path d="M9 3.5v11M3.5 9h11" />
-      </svg>
+      <AppIcon name="plus-lg" />
       <span>Add reference</span>
     </button>
 
-    <Teleport to="body">
+    <Teleport v-if="isOpen" to="body">
       <div
-        v-if="isOpen"
         class="registration-backdrop"
         @click.self="closeRegistration"
       >
@@ -333,9 +325,7 @@ function onFileFixApplied() {
               aria-label="Close add references"
               @click="closeRegistration"
             >
-              <svg aria-hidden="true" viewBox="0 0 18 18" fill="none">
-                <path d="m5 5 8 8M13 5l-8 8" />
-              </svg>
+              <AppIcon name="x-lg" />
             </button>
           </header>
 
@@ -377,7 +367,7 @@ function onFileFixApplied() {
           </div>
 
           <div
-            v-show="mode === 'manual'"
+            v-if="mode === 'manual'"
             id="registration-panel-manual"
             class="registration-body"
             role="tabpanel"
@@ -397,11 +387,26 @@ function onFileFixApplied() {
             />
             <BibtexValidationPanel
               :source="manualBibtex"
+              profile="archive"
               :disabled="isManualRegistering"
               @update:source="manualBibtex = $event"
               @update:diagnostics="onManualDiagnostics"
               @fixed="onManualFixApplied"
             />
+
+            <p class="registration-help">
+              The source is stored exactly as submitted. Profile checks are
+              advisory; structural errors and database conflicts can still
+              reject registration.
+            </p>
+            <section
+              v-if="manualBibtex.trim()"
+              class="registration-output-preview"
+              aria-label="Output preview"
+            >
+              <h3>Output preview</h3>
+              <BibtexExportPanel :source="manualBibtex" />
+            </section>
 
             <div class="registration-actions">
               <p
@@ -430,13 +435,13 @@ function onFileFixApplied() {
                   class="button-spinner"
                   aria-hidden="true"
                 />
-                {{ isManualRegistering ? "Registering…" : "Register BibTeX" }}
+                {{ manualRegistrationLabel }}
               </button>
             </div>
           </div>
 
           <div
-            v-show="mode === 'file'"
+            v-if="mode === 'file'"
             id="registration-panel-file"
             class="registration-body"
             role="tabpanel"
@@ -452,10 +457,7 @@ function onFileFixApplied() {
                 @change="onBibFileChange"
               />
               <span class="file-picker__icon" aria-hidden="true">
-                <svg viewBox="0 0 20 20" fill="none">
-                  <path d="M11.5 2.5H5A1.5 1.5 0 0 0 3.5 4v12A1.5 1.5 0 0 0 5 17.5h10a1.5 1.5 0 0 0 1.5-1.5V7.5l-5-5Z" />
-                  <path d="M11.5 2.5v5h5M7 12.5h6M7 9.5h2.5" />
-                </svg>
+                <AppIcon name="file-earmark-text" />
               </span>
               <span class="file-picker__copy">
                 <strong>{{ selectedBibFile ? "BibTeX file selected" : "Choose a .bib file" }}</strong>
@@ -497,11 +499,24 @@ function onFileFixApplied() {
               />
               <BibtexValidationPanel
                 :source="fileBibtex"
+                profile="archive"
                 :disabled="isFileRegistering"
                 @update:source="fileBibtex = $event"
                 @update:diagnostics="onFileDiagnostics"
                 @fixed="onFileFixApplied"
               />
+              <p class="registration-help">
+                Each entry is stored without applying an output profile.
+                Structural errors and database conflicts can still reject the
+                batch.
+              </p>
+              <section
+                class="registration-output-preview"
+                aria-label="Output preview"
+              >
+                <h3>Output preview</h3>
+                <BibtexExportPanel :source="fileBibtex" />
+              </section>
             </template>
 
             <div class="registration-actions registration-actions--file">
@@ -521,6 +536,7 @@ function onFileFixApplied() {
               </button>
             </div>
           </div>
+
         </section>
       </div>
     </Teleport>

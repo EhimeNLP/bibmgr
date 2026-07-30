@@ -20,6 +20,7 @@ pub const RULE_VALUE_DELIMITER: &str = "BIB-SYNTAX-005";
 pub const RULE_EQUALS_WHITESPACE: &str = "BIB-SYNTAX-006";
 pub const RULE_INLINE_PERCENT_COMMENT: &str = "BIB-SYNTAX-007";
 pub const RULE_UNESCAPED_TEX_SPECIAL: &str = "BIB-SYNTAX-008";
+pub const RULE_VALUE_LINE_BREAKS: &str = "BIB-SYNTAX-009";
 pub const RULE_UNESCAPED_PERCENT: &str = RULE_UNESCAPED_TEX_SPECIAL;
 pub const RULE_DOI: &str = "BIB-SEMANTIC-001";
 pub const RULE_ARXIV: &str = "BIB-SEMANTIC-002";
@@ -60,6 +61,7 @@ pub const REGISTERED_RULE_CODES: &[&str] = &[
     RULE_EQUALS_WHITESPACE,
     RULE_INLINE_PERCENT_COMMENT,
     RULE_UNESCAPED_TEX_SPECIAL,
+    RULE_VALUE_LINE_BREAKS,
     "BIB-SEMANTIC-101",
     "BIB-SEMANTIC-102",
     "BIB-SEMANTIC-106",
@@ -160,6 +162,27 @@ impl Default for ValidationPolicy {
 }
 
 impl ValidationPolicy {
+    pub fn archive() -> Self {
+        Self::builtin("archive").unwrap_or_else(|_| {
+            let mut policy = Self::baseline();
+            policy.profile = ProfileId::new("archive");
+            policy.field_case = FieldCase::Preserve;
+            policy.field_order.clear();
+            policy.citation_key_pattern =
+                String::from(r"^[a-z][a-z0-9]*(?:-[a-z0-9]+)*-[0-9]{4}-[a-z0-9]+(?:-[a-z0-9]+)*$");
+            policy.required_fields.clear();
+            policy.rules.insert(
+                RuleCode::new(RULE_CITATION_KEY),
+                RuleSetting {
+                    enabled: true,
+                    severity: Severity::Warning,
+                    blocking: true,
+                },
+            );
+            policy
+        })
+    }
+
     pub fn modern() -> Self {
         Self::builtin("modern").unwrap_or_else(|_| Self::baseline())
     }
@@ -207,6 +230,7 @@ impl ValidationPolicy {
 
     pub fn builtin(profile: &str) -> Result<Self, ConfigurationError> {
         match profile {
+            "archive" => Self::from_toml(include_str!("../../../config/policies/archive.toml")),
             "default" | "modern" => {
                 Self::from_toml(include_str!("../../../config/policies/modern.toml"))
             }
@@ -435,7 +459,7 @@ impl VenueRegistry {
                 .chain(std::iter::once(&venue.short_name))
                 .chain(&venue.aliases)
             {
-                register_alias(&mut names, name, &id, |alias, first, second| {
+                register_venue_alias(&mut names, name, &id, |alias, first, second| {
                     ConfigurationError::VenueAliasConflict {
                         alias,
                         first,
@@ -448,15 +472,15 @@ impl VenueRegistry {
     }
 
     pub fn resolve(&self, name: &str) -> Option<&VenueEntity> {
-        let normalized = normalize_alias(name);
+        let normalized = normalize_venue_alias(name);
         self.venues.iter().find(|venue| {
-            normalize_alias(&venue.id) == normalized
-                || normalize_alias(&venue.full_name) == normalized
-                || normalize_alias(&venue.short_name) == normalized
+            normalize_venue_alias(&venue.id) == normalized
+                || normalize_venue_alias(&venue.full_name) == normalized
+                || normalize_venue_alias(&venue.short_name) == normalized
                 || venue
                     .aliases
                     .iter()
-                    .any(|alias| normalize_alias(alias) == normalized)
+                    .any(|alias| normalize_venue_alias(alias) == normalized)
         })
     }
 }
@@ -592,6 +616,70 @@ fn normalize_alias(alias: &str) -> String {
         .to_lowercase()
 }
 
+fn normalize_venue_alias(alias: &str) -> String {
+    let mut normalized = normalize_alias(alias);
+    if let Some(volume) = normalized
+        .find(" (volume ")
+        .or_else(|| normalized.find(": volume "))
+    {
+        normalized.truncate(volume);
+    }
+    let Some(last_word) = normalized.split_whitespace().next_back() else {
+        return normalized;
+    };
+    let year = last_word.trim_matches(|character: char| {
+        matches!(character, ',' | '.' | ':' | ';' | '(' | ')' | '[' | ']')
+    });
+    if year.len() == 4
+        && year.bytes().all(|byte| byte.is_ascii_digit())
+        && matches!(year.parse::<u16>(), Ok(1900..=2199))
+    {
+        let new_length = normalized.rfind(last_word).unwrap_or(normalized.len());
+        normalized.truncate(new_length);
+        normalized = normalized
+            .trim_end_matches(|character: char| {
+                character.is_whitespace() || matches!(character, ',' | '.' | ':' | ';' | '-' | '–')
+            })
+            .to_owned();
+    }
+    for prefix in ["proceedings of the ", "proceedings of "] {
+        if let Some(remainder) = normalized.strip_prefix(prefix) {
+            normalized = remainder.to_owned();
+            break;
+        }
+    }
+    if let Some((first_word, remainder)) = normalized.split_once(' ') {
+        if is_edition_word(first_word) || is_year_word(first_word) {
+            normalized = remainder.to_owned();
+        }
+    }
+    normalized
+}
+
+fn is_edition_word(value: &str) -> bool {
+    let digits = value.trim_end_matches(|character: char| character.is_ascii_alphabetic());
+    !digits.is_empty()
+        && digits.len() < value.len()
+        && digits.bytes().all(|byte| byte.is_ascii_digit())
+        && matches!(&value[digits.len()..], "st" | "nd" | "rd" | "th")
+}
+
+fn is_year_word(value: &str) -> bool {
+    value.len() == 4
+        && value.bytes().all(|byte| byte.is_ascii_digit())
+        && matches!(value.parse::<u16>(), Ok(1900..=2199))
+}
+
+fn register_venue_alias(
+    aliases: &mut BTreeMap<String, String>,
+    alias: &str,
+    id: &str,
+    conflict: impl FnOnce(String, String, String) -> ConfigurationError,
+) -> Result<(), ConfigurationError> {
+    let alias = normalize_venue_alias(alias);
+    register_normalized_alias(aliases, alias, id, conflict)
+}
+
 fn register_alias(
     aliases: &mut BTreeMap<String, String>,
     alias: &str,
@@ -599,6 +687,15 @@ fn register_alias(
     conflict: impl FnOnce(String, String, String) -> ConfigurationError,
 ) -> Result<(), ConfigurationError> {
     let alias = normalize_alias(alias);
+    register_normalized_alias(aliases, alias, id, conflict)
+}
+
+fn register_normalized_alias(
+    aliases: &mut BTreeMap<String, String>,
+    alias: String,
+    id: &str,
+    conflict: impl FnOnce(String, String, String) -> ConfigurationError,
+) -> Result<(), ConfigurationError> {
     if alias.is_empty() {
         return Err(ConfigurationError::InvalidRegistryId(alias));
     }
@@ -651,6 +748,17 @@ impl Default for RegistrationPolicy {
 }
 
 impl RegistrationPolicy {
+    pub fn archive() -> Self {
+        Self {
+            schema_version: String::from(bibmgr_model::SCHEMA_VERSION),
+            validation_profile: ProfileId::new("archive"),
+            minimum_severity: None,
+            blocking_rules: RuleSelector::default(),
+            allow_unresolved_semantics: true,
+            apply_safe_fixes: false,
+        }
+    }
+
     pub fn laboratory() -> Self {
         Self {
             schema_version: String::from(bibmgr_model::SCHEMA_VERSION),
@@ -664,6 +772,7 @@ impl RegistrationPolicy {
 
     pub fn for_profile(profile: &ProfileId) -> Result<Self, ConfigurationError> {
         match profile.as_str() {
+            "archive" => Ok(Self::archive()),
             "default" | "modern" | "acl" | "classical-bst" => Ok(Self {
                 validation_profile: profile.clone(),
                 ..Self::default()
@@ -1074,6 +1183,25 @@ impl<'a> Engine<'a> {
                     }),
                 );
             }
+            if let Some((range, edits)) = self.value_line_break_issue(field) {
+                self.emit(
+                    RULE_VALUE_LINE_BREAKS,
+                    format!(
+                        "field `{}` contains line breaks in its value",
+                        field.name.text
+                    ),
+                    range,
+                    vec![],
+                    vec![String::from(
+                        "stored field values use a single space at line boundaries",
+                    )],
+                    Some(FixDraft {
+                        title: format!("Normalize line breaks in `{}`", field.name.text),
+                        applicability: FixApplicability::Safe,
+                        edits,
+                    }),
+                );
+            }
         }
 
         for range in inline_percent_comment_ranges(self.syntax, entry) {
@@ -1326,11 +1454,20 @@ impl<'a> Engine<'a> {
 
     #[allow(clippy::too_many_lines)]
     fn validate_laboratory(&mut self, entry: &EntryNode) {
-        if Regex::new(&self.policy.citation_key_pattern)
+        if let Some(pattern) = Regex::new(&self.policy.citation_key_pattern)
             .ok()
-            .is_some_and(|regex| !regex.is_match(&entry.citation_key.text))
+            .filter(|pattern| !pattern.is_match(&entry.citation_key.text))
         {
             let replacement = normalize_citation_key(&entry.citation_key.text);
+            let fix = (replacement != entry.citation_key.text && pattern.is_match(&replacement))
+                .then_some(FixDraft {
+                    title: format!("Change citation key to `{replacement}`"),
+                    applicability: FixApplicability::RequiresConfirmation,
+                    edits: vec![TextEdit {
+                        range: entry.citation_key.range,
+                        replacement,
+                    }],
+                });
             self.emit(
                 RULE_CITATION_KEY,
                 format!(
@@ -1342,14 +1479,7 @@ impl<'a> Engine<'a> {
                 vec![String::from(
                     "changing a citation key may require updating citing documents",
                 )],
-                (!replacement.is_empty()).then_some(FixDraft {
-                    title: format!("Change citation key to `{replacement}`"),
-                    applicability: FixApplicability::RequiresConfirmation,
-                    edits: vec![TextEdit {
-                        range: entry.citation_key.range,
-                        replacement,
-                    }],
-                }),
+                fix,
             );
         }
 
@@ -1399,25 +1529,16 @@ impl<'a> Engine<'a> {
         let url_fields: Vec<_> = entry.fields_named("url").collect();
         if !url_fields.is_empty() && self.policy.url_policy != UrlPolicy::Allow {
             for field in url_fields {
-                let applicability = if self.policy.url_policy == UrlPolicy::Forbid {
-                    FixApplicability::Unsafe
-                } else {
-                    FixApplicability::RequiresConfirmation
-                };
                 self.emit(
                     RULE_URL_POLICY,
-                    String::from("URL retention conflicts with the configured profile"),
+                    String::from(
+                        "the selected profile omits URLs during export; \
+                         preserve the source field",
+                    ),
                     field.name.range,
                     vec![],
                     vec![],
-                    Some(FixDraft {
-                        title: String::from("Remove URL field"),
-                        applicability,
-                        edits: vec![TextEdit {
-                            range: field.range,
-                            replacement: String::new(),
-                        }],
-                    }),
+                    None,
                 );
             }
         }
@@ -1725,6 +1846,28 @@ impl<'a> Engine<'a> {
         ))
     }
 
+    fn value_line_break_issue(&self, field: &FieldNode) -> Option<(TextRange, Vec<TextEdit>)> {
+        let mut edits = Vec::new();
+        for atom in &field.value.atoms {
+            if !matches!(
+                atom.kind,
+                ValueAtomKind::Braced { .. } | ValueAtomKind::Quoted { .. }
+            ) {
+                continue;
+            }
+            let value = self.syntax.slice(atom.content_range)?;
+            if let Some(replacement) = normalize_value_line_breaks(value) {
+                edits.push(TextEdit {
+                    range: atom.content_range,
+                    replacement,
+                });
+            }
+        }
+        let first = edits.first()?;
+        let last = edits.last()?;
+        Some((TextRange::new(first.range.start, last.range.end), edits))
+    }
+
     fn emit_conflicting_values(&mut self, label: &str, values: &BTreeMap<String, TextRange>) {
         if values.len() <= 1 {
             return;
@@ -1842,6 +1985,35 @@ fn plain_value<'a>(syntax: &'a SyntaxDocument, field: &FieldNode) -> Option<(&'a
 
 fn is_simple_horizontal_gap(value: &str) -> bool {
     value.bytes().all(|byte| matches!(byte, b' ' | b'\t'))
+}
+
+fn normalize_value_line_breaks(value: &str) -> Option<String> {
+    if !value.contains('\r') && !value.contains('\n') {
+        return None;
+    }
+
+    let mut output = String::with_capacity(value.len());
+    let mut after_line_break = false;
+    for character in value.chars() {
+        if matches!(character, '\r' | '\n') {
+            after_line_break = true;
+            while output.ends_with(' ') || output.ends_with('\t') {
+                output.pop();
+            }
+            continue;
+        }
+        if after_line_break {
+            if matches!(character, ' ' | '\t') {
+                continue;
+            }
+            if !output.is_empty() {
+                output.push(' ');
+            }
+            after_line_break = false;
+        }
+        output.push(character);
+    }
+    Some(output)
 }
 
 fn inline_percent_comment_ranges(syntax: &SyntaxDocument, entry: &EntryNode) -> Vec<TextRange> {
@@ -3501,7 +3673,10 @@ fn default_rule_setting(code: &str) -> RuleSetting {
         | RULE_INLINE_PERCENT_COMMENT
         | RULE_UNESCAPED_TEX_SPECIAL => Severity::Warning,
         RULE_FIELD_CASE | RULE_TRAILING_COMMA => Severity::Hint,
-        RULE_FIELD_ORDER | RULE_VALUE_DELIMITER | RULE_EQUALS_WHITESPACE => Severity::Information,
+        RULE_FIELD_ORDER
+        | RULE_VALUE_DELIMITER
+        | RULE_EQUALS_WHITESPACE
+        | RULE_VALUE_LINE_BREAKS => Severity::Information,
         RULE_REQUIRED_DATA | RULE_IDENTIFIER_CONFLICT => Severity::Error,
         _ if is_parser_rule(code) => Severity::Error,
         _ => Severity::Warning,
@@ -3556,6 +3731,7 @@ mod tests {
     #[test]
     fn bundled_policy_files_are_accepted() {
         for source in [
+            include_str!("../../../config/policies/archive.toml"),
             include_str!("../../../config/policies/modern.toml"),
             include_str!("../../../config/policies/laboratory.toml"),
             include_str!("../../../config/policies/acl.toml"),
@@ -3568,6 +3744,7 @@ mod tests {
     #[test]
     fn convenience_profiles_match_the_embedded_policy_files() {
         for (profile, convenience) in [
+            ("archive", ValidationPolicy::archive()),
             ("modern", ValidationPolicy::modern()),
             ("laboratory", ValidationPolicy::laboratory()),
             ("acl", ValidationPolicy::acl()),
@@ -3860,6 +4037,55 @@ exclude = []
             .diagnostics
             .iter()
             .any(|diagnostic| diagnostic.code.as_str() == RULE_EQUALS_WHITESPACE));
+    }
+
+    #[test]
+    fn value_line_break_fix_preserves_bibtex_grouping_and_is_idempotent() {
+        let source = concat!(
+            "@misc{k,\n",
+            "  title = {{D}iffu{S}eq-v2},\n",
+            "  note = {first line  \r\n",
+            "      second line\n",
+            "      third line},\n",
+            "}\n",
+        );
+        let policy = ValidationPolicy::default();
+        let first = run(source, &policy);
+        let diagnostic = first
+            .diagnostics
+            .iter()
+            .find(|diagnostic| diagnostic.code.as_str() == RULE_VALUE_LINE_BREAKS)
+            .unwrap();
+        assert_eq!(diagnostic.severity, Severity::Information);
+        assert!(!diagnostic.blocking);
+
+        let fix = first
+            .fixes
+            .iter()
+            .find(|fix| diagnostic.fixes.contains(&fix.id))
+            .unwrap();
+        assert_eq!(fix.applicability, FixApplicability::Safe);
+        let plan = plan_fixes(
+            &SourceRevision::of(source),
+            &first.fixes,
+            &FixSelection::Ids(vec![fix.id.clone()]),
+        )
+        .unwrap();
+        let applied = apply_fix_plan(source, &plan).unwrap();
+        assert!(applied.source.contains("title = {{D}iffu{S}eq-v2}"));
+        assert!(applied
+            .source
+            .contains("note = {first line second line third line}"));
+
+        let second = run(&applied.source, &policy);
+        assert!(!second
+            .diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.code.as_str() == RULE_VALUE_LINE_BREAKS));
+        assert!(!second
+            .fixes
+            .iter()
+            .any(|fix| fix.id.as_str().starts_with(RULE_VALUE_LINE_BREAKS)));
     }
 
     #[test]
@@ -5244,7 +5470,7 @@ exclude = []
     }
 
     #[test]
-    fn citation_key_fix_is_accepted_by_every_builtin_profile() {
+    fn citation_key_fix_is_accepted_by_every_style_profile() {
         let source = "@misc{Bad_Key:2024, title={T},}\n";
         let laboratory = ValidationPolicy::builtin("laboratory").unwrap();
         let result = run(source, &laboratory);
@@ -5302,6 +5528,40 @@ exclude = []
     }
 
     #[test]
+    fn archive_citation_key_fixes_are_only_offered_when_the_result_is_valid() {
+        let policy = ValidationPolicy::archive();
+
+        for citation_key in ["asada-2026any", "asada2026any", "asada-2026"] {
+            let source = format!("@misc{{{citation_key}, title={{T}},}}\n");
+            let result = run(&source, &policy);
+            let diagnostic = result
+                .diagnostics
+                .iter()
+                .find(|diagnostic| diagnostic.code.as_str() == RULE_CITATION_KEY)
+                .unwrap();
+            assert!(diagnostic.blocking);
+            assert!(
+                diagnostic.fixes.is_empty(),
+                "`{citation_key}` received an invalid automatic fix"
+            );
+        }
+
+        let source = "@misc{Asada-2026-Principled, title={T},}\n";
+        let result = run(source, &policy);
+        let diagnostic = result
+            .diagnostics
+            .iter()
+            .find(|diagnostic| diagnostic.code.as_str() == RULE_CITATION_KEY)
+            .unwrap();
+        let fix = result
+            .fixes
+            .iter()
+            .find(|fix| diagnostic.fixes.contains(&fix.id))
+            .unwrap();
+        assert_eq!(fix.edits[0].replacement, "asada-2026-principled");
+    }
+
+    #[test]
     fn laboratory_style_diagnostics_do_not_block_registration() {
         let source = "@article{smith2024, YEAR={2024}, journal=\"J\", author={Doe, Jane}, title={T}, url={https://example.test}}\n";
         let syntax = parse(source, ParseOptions::tolerant());
@@ -5332,7 +5592,6 @@ exclude = []
             RULE_TRAILING_COMMA,
             RULE_VALUE_DELIMITER,
             RULE_EQUALS_WHITESPACE,
-            RULE_URL_POLICY,
         ] {
             let diagnostic = result
                 .diagnostics
@@ -5340,6 +5599,32 @@ exclude = []
                 .find(|diagnostic| diagnostic.code.as_str() == code)
                 .unwrap_or_else(|| panic!("missing expected style diagnostic {code}"));
             assert!(!diagnostic.blocking, "{code} should not block registration");
+        }
+        assert!(!result
+            .diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.code.as_str() == RULE_URL_POLICY));
+    }
+
+    #[test]
+    fn url_projection_guidance_never_offers_a_deletion_fix() {
+        let source = "@misc{key, title = {T}, url = {https://example.test},}\n";
+
+        for url_policy in [UrlPolicy::Discourage, UrlPolicy::Forbid] {
+            let mut policy = ValidationPolicy::modern();
+            policy.url_policy = url_policy;
+            let result = run(source, &policy);
+            let diagnostic = result
+                .diagnostics
+                .iter()
+                .find(|diagnostic| diagnostic.code.as_str() == RULE_URL_POLICY)
+                .expect("missing URL projection guidance");
+
+            assert!(diagnostic.fixes.is_empty());
+            assert!(result
+                .fixes
+                .iter()
+                .all(|fix| fix.title != "Remove URL field"));
         }
     }
 
@@ -5414,7 +5699,7 @@ exclude = []
     }
 
     #[test]
-    fn laboratory_rejects_a_malformed_url_but_not_url_retention() {
+    fn laboratory_rejects_a_malformed_url_without_retention_guidance() {
         let source = "@article{smith2024, title = {T}, author = {Doe, Jane}, journal = {J}, year = {2024}, url = {not a URL},}\n";
         let syntax = parse(source, ParseOptions::tolerant());
         let semantics = analyze(&syntax);
@@ -5433,13 +5718,10 @@ exclude = []
             .expect("malformed URL diagnostic");
         assert_eq!(malformed.severity, Severity::Error);
         assert!(malformed.blocking);
-        let retention = result
+        assert!(!result
             .diagnostics
             .iter()
-            .find(|diagnostic| diagnostic.code.as_str() == RULE_URL_POLICY)
-            .expect("URL retention guidance");
-        assert_eq!(retention.severity, Severity::Information);
-        assert!(!retention.blocking);
+            .any(|diagnostic| diagnostic.code.as_str() == RULE_URL_POLICY));
     }
 
     #[test]
@@ -5542,6 +5824,29 @@ exclude = []
         assert_eq!(
             venues.resolve("Proceedings of ACL").unwrap().id,
             "acl-annual-meeting"
+        );
+        assert_eq!(
+            venues
+                .resolve("Findings of the Association for Computational Linguistics: EMNLP 2023")
+                .unwrap()
+                .id,
+            "findings-emnlp"
+        );
+        assert_eq!(
+            venues
+                .resolve(
+                    "Proceedings of the 61st Annual Meeting of the Association for Computational Linguistics (Volume 1: Long Papers)"
+                )
+                .unwrap()
+                .id,
+            "acl-annual-meeting"
+        );
+        assert_eq!(
+            venues
+                .resolve("Advances in Neural Information Processing Systems 2025")
+                .unwrap()
+                .id,
+            "neurips"
         );
 
         let repositories = RepositoryRegistry::from_toml(include_str!(

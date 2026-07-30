@@ -53,32 +53,101 @@ class NativeEngine:
                 ) from error
         return self._native_module
 
-    def analyze(self, source: str, profile: str, mode: str) -> dict[str, Any]:
-        return self._call("analyze", source, profile=profile, mode=mode)
+    def analyze(
+        self,
+        source: str,
+        profile: str,
+        mode: str,
+        *,
+        venue_registry: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        kwargs: dict[str, Any] = {"profile": profile, "mode": mode}
+        if venue_registry is not None:
+            kwargs["venue_registry_json"] = _optional_json(venue_registry)
+        return self._call("analyze", source, **kwargs)
 
     def apply_fixes(
-        self, source: str, source_revision: str, fix_ids: list[str], profile: str
+        self,
+        source: str,
+        source_revision: str,
+        fix_ids: list[str],
+        profile: str,
+        *,
+        venue_registry: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
-        return self._call(
-            "apply_fixes",
-            source,
-            fix_ids=fix_ids,
-            profile=profile,
-            source_revision=source_revision,
-        )
+        kwargs: dict[str, Any] = {
+            "fix_ids": fix_ids,
+            "profile": profile,
+            "source_revision": source_revision,
+        }
+        if venue_registry is not None:
+            kwargs["venue_registry_json"] = _optional_json(venue_registry)
+        return self._call("apply_fixes", source, **kwargs)
 
     def validate_for_registration(
-        self, source: str, policy: str
+        self,
+        source: str,
+        policy: str,
+        *,
+        venue_registry: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
-        return self._call(
-            "validate_for_registration", source, policy=policy
-        )
+        kwargs: dict[str, Any] = {"policy": policy}
+        if venue_registry is not None:
+            kwargs["venue_registry_json"] = _optional_json(venue_registry)
+        return self._call("validate_for_registration", source, **kwargs)
+
+    def canonicalize_for_storage(
+        self,
+        source: str,
+        policy: str,
+        *,
+        venue_registry: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        kwargs: dict[str, Any] = {"policy": policy}
+        if venue_registry is not None:
+            kwargs["venue_registry_json"] = _optional_json(venue_registry)
+        return self._call("canonicalize_for_storage", source, **kwargs)
 
     def export_profiles(self) -> dict[str, Any]:
         return self._call("export_profiles")
 
-    def export_source(self, source: str, profile: str) -> dict[str, Any]:
-        return self._call("export_source", source, profile=profile)
+    def export_source(
+        self,
+        source: str,
+        profile: str,
+        *,
+        venue_name_style: str = "full",
+        profile_data: dict[str, Any] | None = None,
+        venue_registry: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        kwargs: dict[str, Any] = {
+            "profile": profile,
+            "venue_name_style": venue_name_style,
+        }
+        if profile_data is not None:
+            kwargs["profile_json"] = _optional_json(profile_data)
+        if venue_registry is not None:
+            kwargs["venue_registry_json"] = _optional_json(venue_registry)
+        return self._call("export_source", source, **kwargs)
+
+    def builtin_configuration(self) -> dict[str, Any]:
+        return self._call("builtin_configuration")
+
+    def validate_export_profile(
+        self, profile_data: dict[str, Any]
+    ) -> dict[str, Any]:
+        return self._call(
+            "validate_export_profile",
+            json.dumps(profile_data, separators=(",", ":")),
+        )
+
+    def validate_venue_registry(
+        self, venue_registry: dict[str, Any]
+    ) -> dict[str, Any]:
+        return self._call(
+            "validate_venue_registry",
+            json.dumps(venue_registry, separators=(",", ":")),
+        )
 
     def _call(self, function_name: str, *args: Any, **kwargs: Any) -> dict[str, Any]:
         try:
@@ -100,6 +169,12 @@ class NativeEngine:
                 500,
             )
         return dto
+
+
+def _optional_json(value: dict[str, Any] | None) -> str | None:
+    if value is None:
+        return None
+    return json.dumps(value, separators=(",", ":"))
 
 
 def _to_jsonable(value: Any, *, decode_transport_json: bool = False) -> Any:

@@ -1,20 +1,33 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
+import {
+  computed,
+  onBeforeUnmount,
+  onMounted,
+  ref,
+  useId,
+  watch,
+} from "vue";
 import { exportBibtex, listBibtexExportProfiles } from "../api/bibtex";
 import type {
   BibtexExportProfile,
   BibtexExportResult,
+  VenueNameStyle,
 } from "../types/bibtex";
 import BibtexCodeBlock from "./BibtexCodeBlock.vue";
 
 const props = defineProps<{
   source: string;
   citationKey?: string;
+  excludedProfiles?: string[];
 }>();
 
 const profiles = ref<BibtexExportProfile[]>([]);
 const selectedProfile = ref("laboratory");
-const result = ref<BibtexExportResult | null>(null);
+const venueNameStyle = ref<VenueNameStyle>("full");
+const profileSelectId = useId();
+const profileDescriptionId = useId();
+const venueNameGroupId = useId();
+const generatedResult = ref<BibtexExportResult | null>(null);
 const isLoadingProfiles = ref(false);
 const isExporting = ref(false);
 const profilesError = ref<string | null>(null);
@@ -27,6 +40,9 @@ let profilesGeneration = 0;
 let exportGeneration = 0;
 let copyResetTimer: ReturnType<typeof setTimeout> | undefined;
 
+const result = computed<BibtexExportResult | null>(
+  () => generatedResult.value,
+);
 const selectedProfileDetails = computed(() =>
   profiles.value.find((profile) => profile.id === selectedProfile.value),
 );
@@ -68,8 +84,11 @@ async function loadProfiles() {
     const response = await listBibtexExportProfiles({ signal: controller.signal });
     if (generation !== profilesGeneration) return;
 
+    const excludedProfiles = new Set(props.excludedProfiles ?? []);
     const availableProfiles = response.profiles.filter(
-      (profile) => profile.id.trim().length > 0,
+      (profile) =>
+        profile.id.trim().length > 0 &&
+        !excludedProfiles.has(profile.id),
     );
     if (availableProfiles.length === 0) {
       throw new Error("No BibTeX output profiles are available.");
@@ -81,7 +100,7 @@ async function loadProfiles() {
   } catch (error) {
     if (generation !== profilesGeneration || isAbortError(error)) return;
     profiles.value = [];
-    result.value = null;
+    generatedResult.value = null;
     profilesError.value = errorMessage(
       error,
       "Could not load BibTeX output profiles.",
@@ -107,39 +126,52 @@ function onProfileChange() {
   void generatePreview();
 }
 
+function onVenueNameStyleChange() {
+  resetCopyState();
+  void generatePreview();
+}
+
 async function generatePreview() {
   const source = props.source;
   const profile = selectedProfile.value;
+  const selectedVenueNameStyle = venueNameStyle.value;
   if (!source.trim() || !profiles.value.some((item) => item.id === profile)) {
     exportController?.abort();
     exportGeneration += 1;
-    result.value = null;
+    generatedResult.value = null;
     exportError.value = null;
     isExporting.value = false;
     return;
   }
 
   exportController?.abort();
-  const controller = new AbortController();
   const generation = ++exportGeneration;
+  generatedResult.value = null;
+  exportError.value = null;
+  isExporting.value = false;
+
+  const controller = new AbortController();
   exportController = controller;
   isExporting.value = true;
-  exportError.value = null;
-  result.value = null;
 
   try {
     const exported = await exportBibtex(
-      { source, profile },
+      {
+        source,
+        profile,
+        venue_name_style: selectedVenueNameStyle,
+      },
       { signal: controller.signal },
     );
     if (
       generation !== exportGeneration ||
       props.source !== source ||
-      selectedProfile.value !== profile
+      selectedProfile.value !== profile ||
+      venueNameStyle.value !== selectedVenueNameStyle
     ) {
       return;
     }
-    result.value = exported;
+    generatedResult.value = exported;
   } catch (error) {
     if (generation !== exportGeneration || isAbortError(error)) return;
     exportError.value = errorMessage(
@@ -181,8 +213,7 @@ async function writeToClipboard(text: string) {
   const textArea = document.createElement("textarea");
   textArea.value = text;
   textArea.setAttribute("readonly", "");
-  textArea.style.position = "fixed";
-  textArea.style.inset = "0 auto auto -9999px";
+  textArea.className = "clipboard-fallback";
   document.body.append(textArea);
   textArea.select();
   try {
@@ -238,7 +269,7 @@ function errorMessage(error: unknown, fallback: string) {
 <template>
   <div class="bibtex-export">
     <div class="section-header bibtex-export__header">
-      <p>Generate a separate BibTeX representation for the selected output profile.</p>
+      <p>Generate a BibTeX representation for the selected output profile.</p>
       <div class="bibtex-export__actions">
         <button
           type="button"
@@ -257,18 +288,18 @@ function errorMessage(error: unknown, fallback: string) {
         >
           <span v-if="copyState === 'copied'">Copied</span>
           <span v-else-if="copyState === 'error'">Copy failed</span>
-          <span v-else>Copy export</span>
+          <span v-else>Copy BibTeX</span>
         </button>
       </div>
     </div>
 
     <div class="bibtex-export__profile">
-      <label for="bibtex-export-profile">Output profile</label>
+      <label :for="profileSelectId">Output profile</label>
       <select
-        id="bibtex-export-profile"
+        :id="profileSelectId"
         v-model="selectedProfile"
         :disabled="isLoadingProfiles || profiles.length === 0"
-        :aria-describedby="selectedProfileDetails ? 'bibtex-export-description' : undefined"
+        :aria-describedby="selectedProfileDetails ? profileDescriptionId : undefined"
         @change="onProfileChange"
       >
         <option v-for="profile in profiles" :key="profile.id" :value="profile.id">
@@ -277,9 +308,36 @@ function errorMessage(error: unknown, fallback: string) {
       </select>
     </div>
 
+    <fieldset
+      class="bibtex-export__venue-style"
+      :aria-labelledby="venueNameGroupId"
+    >
+      <legend :id="venueNameGroupId">Venue name</legend>
+      <div class="segmented-control">
+        <label>
+          <input
+            v-model="venueNameStyle"
+            type="radio"
+            value="full"
+            @change="onVenueNameStyleChange"
+          />
+          <span>Full</span>
+        </label>
+        <label>
+          <input
+            v-model="venueNameStyle"
+            type="radio"
+            value="abbreviated"
+            @change="onVenueNameStyleChange"
+          />
+          <span>Abbreviated</span>
+        </label>
+      </div>
+    </fieldset>
+
     <p
       v-if="selectedProfileDetails"
-      id="bibtex-export-description"
+      :id="profileDescriptionId"
       class="bibtex-export__description"
     >
       {{ selectedProfileDetails.description }}
@@ -288,12 +346,9 @@ function errorMessage(error: unknown, fallback: string) {
     <div
       class="bibtex-export__preview"
       :aria-busy="isLoadingProfiles || isExporting"
-      aria-label="Optimized BibTeX preview"
+      aria-label="BibTeX preview"
     >
-      <p v-if="isLoadingProfiles" class="bibtex-export__status" role="status">
-        Loading output profiles…
-      </p>
-      <div v-else-if="profilesError" class="bibtex-export__error" role="alert">
+      <div v-if="profilesError && !result" class="bibtex-export__error" role="alert">
         <p>{{ profilesError }}</p>
         <button type="button" class="button-secondary" @click="loadProfiles">
           Retry
@@ -315,19 +370,26 @@ function errorMessage(error: unknown, fallback: string) {
           aria-label="Export warnings"
         >
           <li v-for="warning in result.warnings" :key="`${warning.record_index}-${warning.message}`">
-            Entry {{ warning.record_index + 1 }}: {{ warning.message }}
+            {{
+              result.record_count > 1
+                ? `Entry ${warning.record_index + 1}: ${warning.message}`
+                : warning.message
+            }}
           </li>
         </ul>
         <BibtexCodeBlock
           :source="result.source"
-          accessible-label="Optimized BibTeX source"
+          accessible-label="BibTeX source"
           test-id="bibtex-export-preview"
         />
       </template>
+      <p v-else-if="isLoadingProfiles" class="bibtex-export__status" role="status">
+        Loading output profiles…
+      </p>
     </div>
 
     <p class="sr-only" aria-live="polite">
-      {{ copyState === "copied" ? "Exported BibTeX copied to clipboard." : copyState === "error" ? "Exported BibTeX could not be copied." : "" }}
+      {{ copyState === "copied" ? "BibTeX copied to clipboard." : copyState === "error" ? "BibTeX could not be copied." : "" }}
     </p>
   </div>
 </template>

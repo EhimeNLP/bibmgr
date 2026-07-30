@@ -39,11 +39,16 @@ pub enum PreprintRepresentation {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "kebab-case")]
-pub enum VenueStyle {
-    Full,
-    Short,
+pub enum VenueNameStyle {
     #[default]
-    AsRecorded,
+    Full,
+    Abbreviated,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(default, deny_unknown_fields)]
+pub struct ExportOptions {
+    pub venue_name_style: VenueNameStyle,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
@@ -112,7 +117,6 @@ pub struct ExportProfile {
     /// readiness validation.
     pub validation_profile: ProfileId,
     pub preprint_representation: PreprintRepresentation,
-    pub venue_style: VenueStyle,
     pub month_format: MonthFormat,
     /// Target entry types understood by the bibliography style. An empty list
     /// keeps the general semantic-to-BibTeX mapping; a populated list also
@@ -120,6 +124,9 @@ pub struct ExportProfile {
     pub supported_entry_types: Vec<String>,
     pub field_order: Vec<String>,
     pub field_case: ExportFieldCase,
+    /// Fields whose complete values receive one additional brace group so
+    /// BibTeX styles cannot change the case of ungrouped characters.
+    pub case_protected_fields: Vec<String>,
     pub value_delimiter: ValueDelimiter,
     pub line_ending: LineEnding,
     pub indent: String,
@@ -152,11 +159,11 @@ impl ExportProfile {
             description: String::from("General-purpose modern BibTeX output."),
             validation_profile: ProfileId::new("modern"),
             preprint_representation: PreprintRepresentation::MiscEprint,
-            venue_style: VenueStyle::AsRecorded,
             month_format: MonthFormat::Numeric,
             supported_entry_types: Vec::new(),
             field_order: default_field_order(),
             field_case: ExportFieldCase::Canonical,
+            case_protected_fields: Vec::new(),
             value_delimiter: ValueDelimiter::Braces,
             line_ending: LineEnding::Lf,
             indent: String::from("  "),
@@ -335,6 +342,7 @@ impl ExportProfile {
             }
         }
         validate_field_set("supported_entry_types", &self.supported_entry_types)?;
+        validate_field_set("case_protected_fields", &self.case_protected_fields)?;
         validate_field_set("excluded_fields", &self.excluded_fields)?;
         if let Some(allowed_fields) = &self.field_selection.allowed_fields {
             validate_field_set("field_selection.allowed_fields", allowed_fields)?;
@@ -393,6 +401,7 @@ pub struct ExportResult {
     pub schema_version: String,
     pub source: String,
     pub profile: ProfileId,
+    pub venue_name_style: VenueNameStyle,
     pub record_count: usize,
     pub warnings: Vec<ExportWarning>,
 }
@@ -440,6 +449,19 @@ pub fn export(
     bibliography: &Bibliography,
     profile: &ExportProfile,
 ) -> Result<ExportResult, ExportError> {
+    export_with_options(bibliography, profile, &ExportOptions::default())
+}
+
+/// Export a semantic bibliography with request-specific presentation options.
+///
+/// Output profiles own target compatibility and field formatting. Venue name
+/// presentation is deliberately request-scoped so every profile exposes the
+/// same full/abbreviated choice without multiplying profile definitions.
+pub fn export_with_options(
+    bibliography: &Bibliography,
+    profile: &ExportProfile,
+    options: &ExportOptions,
+) -> Result<ExportResult, ExportError> {
     profile.validate()?;
     let mut source = String::new();
     let mut warnings = Vec::new();
@@ -447,13 +469,14 @@ pub fn export(
         if record_index != 0 {
             source.push_str(profile.line_ending.as_str());
         }
-        let rendered = export_record(record, record_index, profile, &mut warnings)?;
+        let rendered = export_record(record, record_index, profile, *options, &mut warnings)?;
         source.push_str(&rendered);
     }
     Ok(ExportResult {
         schema_version: String::from(bibmgr_model::SCHEMA_VERSION),
         source,
         profile: profile.profile.clone(),
+        venue_name_style: options.venue_name_style,
         record_count: bibliography.records.len(),
         warnings,
     })
@@ -464,6 +487,7 @@ fn export_record(
     record: &BibliographicRecord,
     record_index: usize,
     profile: &ExportProfile,
+    options: ExportOptions,
     warnings: &mut Vec<ExportWarning>,
 ) -> Result<String, ExportError> {
     let citation_key = record.citation_key.value.to_string();
@@ -567,10 +591,21 @@ fn export_record(
         .as_ref()
         .filter(|_| record.work_type.value != WorkType::Preprint)
     {
-        let venue_value = match profile.venue_style {
-            VenueStyle::Full => venue.value.full_name.as_ref().unwrap_or(&venue.value.raw),
-            VenueStyle::Short => venue.value.short_name.as_ref().unwrap_or(&venue.value.raw),
-            VenueStyle::AsRecorded => &venue.value.raw,
+        let venue_value = match options.venue_name_style {
+            VenueNameStyle::Full => venue.value.full_name.as_ref().unwrap_or(&venue.value.raw),
+            VenueNameStyle::Abbreviated => {
+                if let Some(short_name) = &venue.value.short_name {
+                    short_name
+                } else {
+                    warnings.push(ExportWarning {
+                        record_index,
+                        message: String::from(
+                            "No abbreviated venue name is registered; the full name was exported.",
+                        ),
+                    });
+                    venue.value.full_name.as_ref().unwrap_or(&venue.value.raw)
+                }
+            }
         };
         let field = match record.work_type.value {
             WorkType::JournalArticle => "journal",
@@ -642,7 +677,7 @@ fn export_record(
         {
             field.value.clone()
         } else {
-            format_field_value(&field.name, &field.value, profile.value_delimiter)
+            format_profile_field_value(&field.name, &field.value, profile)
         };
         output.push_str(&profile.indent);
         output.push_str(&name);
@@ -1100,16 +1135,72 @@ fn format_person(person: &Person) -> String {
     }
 }
 
+#[cfg(test)]
 fn format_field_value(field_name: &str, value: &str, delimiter: ValueDelimiter) -> String {
+    format_field_value_with_case_protection(field_name, value, delimiter, false)
+}
+
+fn format_profile_field_value(field_name: &str, value: &str, profile: &ExportProfile) -> String {
+    let case_protected = profile
+        .case_protected_fields
+        .iter()
+        .any(|candidate| candidate.eq_ignore_ascii_case(field_name));
+    format_field_value_with_case_protection(
+        field_name,
+        value,
+        profile.value_delimiter,
+        case_protected,
+    )
+}
+
+fn format_field_value_with_case_protection(
+    field_name: &str,
+    value: &str,
+    delimiter: ValueDelimiter,
+    case_protected: bool,
+) -> String {
     let escaped = if is_raw_identifier_field(field_name) {
         escape_bibtex_with_options(value, delimiter, false)
     } else {
         escape_bibtex(value, delimiter)
     };
+    let protected = if case_protected && !is_complete_brace_group(&escaped) {
+        format!("{{{escaped}}}")
+    } else {
+        escaped
+    };
     match delimiter {
-        ValueDelimiter::Braces => format!("{{{escaped}}}"),
-        ValueDelimiter::Quotes => format!("\"{escaped}\""),
+        ValueDelimiter::Braces => format!("{{{protected}}}"),
+        ValueDelimiter::Quotes => format!("\"{protected}\""),
     }
+}
+
+fn is_complete_brace_group(value: &str) -> bool {
+    let bytes = value.as_bytes();
+    if bytes.first() != Some(&b'{') {
+        return false;
+    }
+    let (escaped, _) = tex_escape_positions(bytes);
+    let mut depth = 0_usize;
+    for (index, byte) in bytes.iter().copied().enumerate() {
+        if escaped[index] {
+            continue;
+        }
+        match byte {
+            b'{' => depth += 1,
+            b'}' => {
+                let Some(next_depth) = depth.checked_sub(1) else {
+                    return false;
+                };
+                depth = next_depth;
+                if depth == 0 {
+                    return index + 1 == bytes.len();
+                }
+            }
+            _ => {}
+        }
+    }
+    false
 }
 
 fn bibtex_month_macro(month: u8) -> &'static str {
@@ -2284,6 +2375,33 @@ mod tests {
     const RICH_SOURCE: &str = include_str!("../tests/fixtures/profile-rich-input.bib");
 
     #[test]
+    fn abbreviated_venue_names_fall_back_to_full_with_a_warning() {
+        let mut bibliography = bibliography(
+            "@article{k, title={T}, author={Doe, Jane}, journal={Recorded Journal}, year={2026},}\n",
+        );
+        let venue = bibliography.records[0].venue.as_mut().unwrap();
+        venue.value.full_name = Some(String::from("Canonical Journal Name"));
+        venue.value.short_name = None;
+
+        let exported = export_with_options(
+            &bibliography,
+            &ExportProfile::modern(),
+            &ExportOptions {
+                venue_name_style: VenueNameStyle::Abbreviated,
+            },
+        )
+        .unwrap();
+
+        assert!(exported
+            .source
+            .contains("journal = {Canonical Journal Name}"));
+        assert_eq!(exported.warnings.len(), 1);
+        assert!(exported.warnings[0]
+            .message
+            .contains("No abbreviated venue name"));
+    }
+
+    #[test]
     #[allow(clippy::match_same_arms)]
     fn builtin_profiles_match_complete_goldens() {
         let bibliography = bibliography(RICH_SOURCE);
@@ -2354,6 +2472,64 @@ mod tests {
             let first = export(&records, &profile).unwrap().source;
             let second = export(&bibliography(&first), &profile).unwrap().source;
             assert_eq!(second, first, "profile `{}`", profile.profile);
+        }
+    }
+
+    #[test]
+    fn every_builtin_profile_case_protects_complete_titles_without_brace_growth() {
+        let records = bibliography(
+            "@article{k, author={Doe, Jane}, title={An LLM Study}, journal={Journal}, year={2026},}\n",
+        );
+
+        let already_protected = bibliography(
+            "@article{k, author={Doe, Jane}, title={{NASA Study}}, journal={Journal}, year={2026},}\n",
+        );
+        let partially_protected = bibliography(
+            "@article{k, author={Doe, Jane}, title={{D}iffu{S}eq-v2}, journal={Journal}, year={2026},}\n",
+        );
+
+        for profile in ExportProfile::builtins().unwrap() {
+            let plain_output = export(&records, &profile).unwrap().source;
+            assert!(
+                plain_output.contains("title = {{An LLM Study}}"),
+                "profile `{}` did not protect the complete title:\n{plain_output}",
+                profile.profile
+            );
+            assert_eq!(
+                export(&bibliography(&plain_output), &profile)
+                    .unwrap()
+                    .source,
+                plain_output,
+                "profile `{}` grew or removed title protection on re-export",
+                profile.profile
+            );
+
+            let protected_output = export(&already_protected, &profile).unwrap().source;
+            assert!(
+                protected_output.contains("title = {{NASA Study}}"),
+                "profile `{}` changed an already protected title:\n{protected_output}",
+                profile.profile
+            );
+            assert!(
+                !protected_output.contains("title = {{{NASA Study}}}"),
+                "profile `{}` added a redundant protection group:\n{protected_output}",
+                profile.profile
+            );
+
+            let partial_output = export(&partially_protected, &profile).unwrap().source;
+            assert!(
+                partial_output.contains("title = {{{D}iffu{S}eq-v2}}"),
+                "profile `{}` did not protect the complete partially protected title:\n{partial_output}",
+                profile.profile
+            );
+            assert_eq!(
+                export(&bibliography(&partial_output), &profile)
+                    .unwrap()
+                    .source,
+                partial_output,
+                "profile `{}` changed partial title protection on re-export",
+                profile.profile
+            );
         }
     }
 
@@ -2539,7 +2715,7 @@ mod tests {
         allowlist.field_selection.allowed_fields =
             Some(["TITLE", "custom"].into_iter().map(str::to_owned).collect());
         let selected = export(&bibliography, &allowlist).unwrap().source;
-        assert!(selected.contains("title = {Parsing \\& Generation}"));
+        assert!(selected.contains("title = {{Parsing \\& Generation}}"));
         assert!(selected.contains("custom = {Modern only}"));
         for excluded in [
             "author =",
@@ -2612,6 +2788,16 @@ mod tests {
         assert!(matches!(
             case_duplicate.validate(),
             Err(ExportError::InvalidProfile(ref message)) if message.contains("duplicate field")
+        ));
+
+        let mut protected_duplicate = ExportProfile::modern();
+        protected_duplicate.case_protected_fields =
+            vec![String::from("title"), String::from("TITLE")];
+        assert!(matches!(
+            protected_duplicate.validate(),
+            Err(ExportError::InvalidProfile(ref message))
+                if message.contains("case_protected_fields")
+                    && message.contains("duplicate field")
         ));
 
         let mut conflict = ExportProfile::modern();
@@ -2716,7 +2902,7 @@ validation_profile = "modern"
             .source;
         assert!(eprint.starts_with("@misc{vaswani2017,"));
         assert!(eprint.contains("eprint = {1706.03762}"));
-        assert!(eprint.contains("archiveprefix = {arXiv}"));
+        assert!(eprint.contains("archivePrefix = {arXiv}"));
 
         let howpublished = export(&bibliography, &ExportProfile::classical_bst())
             .unwrap()
@@ -3147,7 +3333,7 @@ validation_profile = "modern"
         let profile = ExportProfile::modern();
 
         let first = export(&records, &profile).unwrap().source;
-        assert!(first.contains(r"title = {Energy $E=mc^2$ with \(x_1\), 50\% complete}"));
+        assert!(first.contains(r"title = {{Energy $E=mc^2$ with \(x_1\), 50\% complete}}"));
         let second = export(&bibliography(&first), &profile).unwrap().source;
         assert_eq!(second, first);
     }
@@ -3166,7 +3352,7 @@ validation_profile = "modern"
 
         let first = export(&records, &profile).unwrap().source;
         assert!(first.contains(
-            r"title = {Outside 50\% \& C\_1 \# \$5 \url{https://example.test/{part_1}/a%20_b?x=1&cost=$5#frag_1} after 60\% \textbf{Bold 70\% \& C\_2 \# \$6}}"
+            r"title = {{Outside 50\% \& C\_1 \# \$5 \url{https://example.test/{part_1}/a%20_b?x=1&cost=$5#frag_1} after 60\% \textbf{Bold 70\% \& C\_2 \# \$6}}}"
         ), "{first}");
         assert!(first.contains(
             r"note = {Note 20\% \nolinkurl{https://example.test/b%20_c?x=2&cost=$6#frag_2} \verb|100% & C_3 # $7| \verb*+90% & C_4 # $8+ \Verb!80% & C_5 # $9!}"
@@ -3200,7 +3386,7 @@ validation_profile = "modern"
 
         let first = export(&records, &profile).unwrap().source;
         assert!(first.contains(
-            r#"title = "Say \"outside\" 50\% \url{https://example.test/a%20_b?label=\"inside\"&cost=$5#frag_1} \verb|\"literal\" 20% & C_1 # $5| after 30\%""#
+            r#"title = "{Say \"outside\" 50\% \url{https://example.test/a%20_b?label=\"inside\"&cost=$5#frag_1} \verb|\"literal\" 20% & C_1 # $5| after 30\%}""#
         ), "{first}");
 
         let second = export(&bibliography(&first), &profile).unwrap().source;
@@ -3282,7 +3468,7 @@ validation_profile = "modern"
             .unwrap();
 
         let output = export(&records, &ExportProfile::modern()).unwrap().source;
-        assert!(output.contains("title = {50\\% ready \\& C\\_1 \\# \\$5}"));
+        assert!(output.contains("title = {{50\\% ready \\& C\\_1 \\# \\$5}}"));
         assert!(output.contains(&format!("doi = {{{DOI}}}")));
         assert!(output.contains(&format!("url = {{{URL}}}")));
         assert!(output.contains(&format!("file = {{{FILE}}}")));
@@ -3456,7 +3642,7 @@ validation_profile = "modern"
     }
 
     #[test]
-    fn export_profiles_drop_fields_forbidden_by_the_target_format() {
+    fn export_profiles_project_fields_for_the_target_format() {
         let bibliography = bibliography(
             "@misc{k, title={T}, abstract={Private}, file={local.pdf}, url={https://example.test},}\n",
         );
@@ -3466,7 +3652,7 @@ validation_profile = "modern"
             .source;
         assert!(!laboratory.contains("abstract ="));
         assert!(!laboratory.contains("file ="));
-        assert!(!laboratory.contains("url ="));
+        assert!(laboratory.contains("url = {https://example.test/}"));
 
         let classical = export(&bibliography, &ExportProfile::classical_bst())
             .unwrap()

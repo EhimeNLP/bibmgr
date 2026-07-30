@@ -17,7 +17,7 @@ Analysis always treats the input as a complete BibTeX document, including when i
 - deterministic diagnostics;
 - fix descriptions and revision-bound text edits.
 
-During semantic analysis, aliases in the embedded venue and repository registries are resolved to canonical venue metadata or repository prefixes. The source spelling and provenance remain available, while export profiles can choose canonical venue names or repository prefixes.
+During semantic analysis, aliases in the embedded venue and repository registries are resolved to canonical venue metadata or repository prefixes. The source spelling and provenance remain available. Export callers choose full or abbreviated venue names independently from the output profile.
 
 Use strict parsing for registration, CI, and export readiness. Use tolerant parsing for an editor buffer that may be temporarily incomplete.
 
@@ -55,16 +55,25 @@ if !decision.accepted {
 }
 ```
 
-Registration eligibility is a policy result, not `severity == Error`. Consumers must use the returned `accepted`/`blocking` decision and preserve diagnostics. Hosts that load policies and registries externally can call `validate_for_registration_with_options`; the supplied validation profile must match `RegistrationPolicy.validation_profile`. The core validates both configurations and forces strict parsing before deciding.
+Registration eligibility is a policy result, not `severity == Error`. Consumers must use the returned `accepted`/`blocking` decision and preserve diagnostics. Database ingest uses `RegistrationPolicy::archive()`, which forces strict parsing but leaves profile conventions, profile-required metadata, and unresolved semantics non-blocking. Hosts that load policies and registries externally can call `validate_for_registration_with_options`; the supplied validation profile must match `RegistrationPolicy.validation_profile`. The core validates both configurations and forces strict parsing before deciding.
 
 ## Export
 
 ```rust
 let catalog = bibmgr_core::export_profiles()?;
 let output = bibmgr_core::export_source(source, &profile)?;
+
+let abbreviated = bibmgr_core::export_source_with_options(
+    source,
+    &profile,
+    &ExportSourceOptions {
+        venue_name_style: VenueNameStyle::Abbreviated,
+        ..ExportSourceOptions::default()
+    },
+)?;
 ```
 
-`export_profiles` returns the canonical built-in targets and their display metadata in stable order; compatibility aliases are intentionally omitted. Export analyzes the source and serializes the semantic bibliography. Blocking syntax, unresolved values, ambiguous macro expansions, or conflicting semantic state produces a typed export error. The exporter first generates semantic candidate fields, then applies the profile's case-insensitive allowlist and denylist to all structured and extra fields, normalizes names, orders the survivors, and serializes them. The generated document is then re-analyzed under `ExportProfile.validation_profile`, so representation changes cannot silently violate target-profile requirements. Export output is deterministic and does not mutate the input or citation identity.
+`export_profiles` returns the canonical built-in targets and their display metadata in stable order; compatibility aliases are intentionally omitted. Export analyzes the source and serializes the semantic bibliography. Blocking syntax, unresolved values, ambiguous macro expansions, or conflicting semantic state produces a typed export error. The exporter first generates semantic candidate fields, then applies the profile's case-insensitive allowlist and denylist to all structured and extra fields, normalizes names, applies configured whole-value case-protection groups, orders the survivors, and serializes them. `ExportSourceOptions.venue_name_style` applies full or abbreviated naming to conference, journal, and other venue-derived fields and defaults to full. The laboratory profile case-protects the complete `title` value so traditional BST case conversion cannot rewrite its characters. The generated document is then re-analyzed under `ExportProfile.validation_profile`, so representation changes cannot silently violate target-profile requirements. Export output is deterministic and does not mutate the input or citation identity.
 
 ## Editing session
 

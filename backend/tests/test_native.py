@@ -114,3 +114,30 @@ def test_native_exception_is_mapped_without_document_rule_logic() -> None:
 
     assert captured.value.code == "edit_conflict"
     assert captured.value.status_code == 409
+
+
+def test_storage_canonicalization_calls_the_native_boundary() -> None:
+    calls: list[tuple[str, str]] = []
+
+    def canonicalize_for_storage(source: str, *, policy: str) -> object:
+        calls.append((source, policy))
+        return SimpleNamespace(
+            to_dict=lambda: {
+                "schema_version": "1",
+                "accepted": True,
+                "source": source,
+            }
+        )
+
+    engine = NativeEngine(
+        SimpleNamespace(
+            canonicalize_for_storage=canonicalize_for_storage
+        )
+    )
+
+    assert engine.canonicalize_for_storage("input", "laboratory") == {
+        "schema_version": "1",
+        "accepted": True,
+        "source": "input",
+    }
+    assert calls == [("input", "laboratory")]

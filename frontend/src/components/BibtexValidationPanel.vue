@@ -17,7 +17,7 @@ const props = withDefaults(
   }>(),
   {
     disabled: false,
-    profile: "laboratory",
+    profile: "archive",
     debounceMs: 350,
     realtime: true,
   },

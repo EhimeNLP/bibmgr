@@ -1,0 +1,31 @@
+services:
+  backend:
+    environment:
+      BIBMGR_COOKIE_PATH: "/"
+
+  web:
+    build:
+      args:
+        BIBMGR_BASE_PATH: "/"
+    command:
+      [
+        "caddy",
+        "run",
+        "--config",
+        "/etc/caddy/bibmgr/direct.Caddyfile",
+        "--adapter",
+        "caddyfile",
+      ]
+    environment:
+      BIBMGR_SITE_ADDRESS: ${BIBMGR_SITE_ADDRESS}
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    volumes:
+      - caddy-data:/data
+      - caddy-config:/config
+
+volumes:
+  caddy-data:
+  caddy-config:

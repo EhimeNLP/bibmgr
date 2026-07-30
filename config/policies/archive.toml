@@ -1,0 +1,16 @@
+schema_version = "1"
+profile = "archive"
+field_case = "preserve"
+field_order = []
+citation_key_pattern = '^[a-z][a-z0-9]*(?:-[a-z0-9]+)*-[0-9]{4}-[a-z0-9]+(?:-[a-z0-9]+)*$'
+forbidden_fields = []
+url_policy = "allow"
+arxiv_representation = "any"
+prefer_braces = true
+
+[required_fields]
+
+[rules."LAB-KEY-002"]
+enabled = true
+severity = "warning"
+blocking = true
