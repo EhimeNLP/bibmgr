@@ -1266,15 +1266,15 @@ kind = "conference"
     }
 
     #[test]
-    fn archive_registration_requires_lowercase_hyphenated_citation_keys() {
+    fn archive_registration_requires_author_year_and_suffix_citation_keys() {
         let policy = RegistrationPolicy::archive();
         let validation_policy = ValidationPolicy::archive();
         assert_eq!(
             validation_policy.citation_key_pattern,
-            r"^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$"
+            r"^[a-z][a-z0-9]*(?:-[a-z0-9]+)*-[0-9]{4}-[a-z0-9]+(?:-[a-z0-9]+)*$"
         );
 
-        for citation_key in ["gong-2023-diffuseq", "smith2-2024-a"] {
+        for citation_key in ["asada-2026-principled", "gong-etal-2023-diffuseq-v2"] {
             let source = format!("@misc{{{citation_key}, title={{T}},}}\n");
             let result = validate_for_registration(&source, &policy);
             assert!(
@@ -1285,6 +1285,9 @@ kind = "conference"
         }
 
         for citation_key in [
+            "asada-2026any",
+            "asada2026any",
+            "asada-2026",
             "Gong-2023-diffuseq",
             "gong_2023_diffuseq",
             "2023-gong-diffuseq",

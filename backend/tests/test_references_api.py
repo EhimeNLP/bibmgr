@@ -990,7 +990,7 @@ def test_real_native_registration_enforces_policy_and_maps_to_storage() -> None:
     )
     login_test_client(client, mailer)
     source = (
-        "@article{yamada2024, author = {山田, 太郎}, "
+        "@article{yamada-2024-native, author = {山田, 太郎}, "
         "title = {日本語解析}, journal = {TACL}, year = {2024}, "
         "doi = {10.1000/native-example},}\n"
     )
@@ -1011,9 +1011,9 @@ def test_real_native_registration_enforces_policy_and_maps_to_storage() -> None:
         "/references",
         json={
             "bibtex": (
-                "@article{Yamada_2024, author = {山田, 太郎}, "
+                "@article{asada-2026any, author = {浅田, 太郎}, "
                 "title = {不正な引用キー}, journal = {TACL}, "
-                "year = {2024},}\n"
+                "year = {2026},}\n"
             ),
             "source": "manual",
         },

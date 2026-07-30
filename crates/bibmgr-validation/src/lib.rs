@@ -168,7 +168,8 @@ impl ValidationPolicy {
             policy.profile = ProfileId::new("archive");
             policy.field_case = FieldCase::Preserve;
             policy.field_order.clear();
-            policy.citation_key_pattern = String::from(r"^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$");
+            policy.citation_key_pattern =
+                String::from(r"^[a-z][a-z0-9]*(?:-[a-z0-9]+)*-[0-9]{4}-[a-z0-9]+(?:-[a-z0-9]+)*$");
             policy.required_fields.clear();
             policy.rules.insert(
                 RuleCode::new(RULE_CITATION_KEY),
@@ -1453,11 +1454,20 @@ impl<'a> Engine<'a> {
 
     #[allow(clippy::too_many_lines)]
     fn validate_laboratory(&mut self, entry: &EntryNode) {
-        if Regex::new(&self.policy.citation_key_pattern)
+        if let Some(pattern) = Regex::new(&self.policy.citation_key_pattern)
             .ok()
-            .is_some_and(|regex| !regex.is_match(&entry.citation_key.text))
+            .filter(|pattern| !pattern.is_match(&entry.citation_key.text))
         {
             let replacement = normalize_citation_key(&entry.citation_key.text);
+            let fix = (replacement != entry.citation_key.text && pattern.is_match(&replacement))
+                .then_some(FixDraft {
+                    title: format!("Change citation key to `{replacement}`"),
+                    applicability: FixApplicability::RequiresConfirmation,
+                    edits: vec![TextEdit {
+                        range: entry.citation_key.range,
+                        replacement,
+                    }],
+                });
             self.emit(
                 RULE_CITATION_KEY,
                 format!(
@@ -1469,14 +1479,7 @@ impl<'a> Engine<'a> {
                 vec![String::from(
                     "changing a citation key may require updating citing documents",
                 )],
-                (!replacement.is_empty()).then_some(FixDraft {
-                    title: format!("Change citation key to `{replacement}`"),
-                    applicability: FixApplicability::RequiresConfirmation,
-                    edits: vec![TextEdit {
-                        range: entry.citation_key.range,
-                        replacement,
-                    }],
-                }),
+                fix,
             );
         }
 
@@ -5467,7 +5470,7 @@ exclude = []
     }
 
     #[test]
-    fn citation_key_fix_is_accepted_by_every_builtin_profile() {
+    fn citation_key_fix_is_accepted_by_every_style_profile() {
         let source = "@misc{Bad_Key:2024, title={T},}\n";
         let laboratory = ValidationPolicy::builtin("laboratory").unwrap();
         let result = run(source, &laboratory);
@@ -5485,14 +5488,7 @@ exclude = []
 
         assert_eq!(replacement, "bad-key-2024");
         assert_ne!(replacement, "Bad_Key:2024");
-        for profile in [
-            "archive",
-            "default",
-            "modern",
-            "laboratory",
-            "acl",
-            "classical-bst",
-        ] {
+        for profile in ["default", "modern", "laboratory", "acl", "classical-bst"] {
             let policy = ValidationPolicy::builtin(profile).unwrap();
             assert!(Regex::new(&policy.citation_key_pattern)
                 .unwrap()
@@ -5522,20 +5518,47 @@ exclude = []
         ] {
             let normalized = normalize_citation_key(source);
             assert_eq!(normalized, expected);
-            for profile in [
-                "archive",
-                "default",
-                "modern",
-                "laboratory",
-                "acl",
-                "classical-bst",
-            ] {
+            for profile in ["default", "modern", "laboratory", "acl", "classical-bst"] {
                 let policy = ValidationPolicy::builtin(profile).unwrap();
                 assert!(Regex::new(&policy.citation_key_pattern)
                     .unwrap()
                     .is_match(&normalized));
             }
         }
+    }
+
+    #[test]
+    fn archive_citation_key_fixes_are_only_offered_when_the_result_is_valid() {
+        let policy = ValidationPolicy::archive();
+
+        for citation_key in ["asada-2026any", "asada2026any", "asada-2026"] {
+            let source = format!("@misc{{{citation_key}, title={{T}},}}\n");
+            let result = run(&source, &policy);
+            let diagnostic = result
+                .diagnostics
+                .iter()
+                .find(|diagnostic| diagnostic.code.as_str() == RULE_CITATION_KEY)
+                .unwrap();
+            assert!(diagnostic.blocking);
+            assert!(
+                diagnostic.fixes.is_empty(),
+                "`{citation_key}` received an invalid automatic fix"
+            );
+        }
+
+        let source = "@misc{Asada-2026-Principled, title={T},}\n";
+        let result = run(source, &policy);
+        let diagnostic = result
+            .diagnostics
+            .iter()
+            .find(|diagnostic| diagnostic.code.as_str() == RULE_CITATION_KEY)
+            .unwrap();
+        let fix = result
+            .fixes
+            .iter()
+            .find(|fix| diagnostic.fixes.contains(&fix.id))
+            .unwrap();
+        assert_eq!(fix.edits[0].replacement, "asada-2026-principled");
     }
 
     #[test]
