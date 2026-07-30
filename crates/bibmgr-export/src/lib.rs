@@ -1472,13 +1472,7 @@ fn collect_tex_context_ranges(
     let mut cursor = 0;
 
     while cursor < bytes.len() {
-        if optional_frames
-            .last()
-            .is_some_and(|frame| frame.close == cursor)
-        {
-            let frame = optional_frames
-                .pop()
-                .expect("the matching optional frame was just observed");
+        if let Some(frame) = optional_frames.pop_if(|frame| frame.close == cursor) {
             state = frame.saved_state;
             cursor += 1;
             if let Some(trailing) = frame.trailing {
