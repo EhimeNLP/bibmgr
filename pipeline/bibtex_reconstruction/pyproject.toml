@@ -11,7 +11,6 @@ requires-python = ">=3.12"
 dependencies = [
     "bibmgr-native",
     "bibtexparser>=2.0.0b9",
-    "google-genai>=1.75.0",
     "lxml>=6.1.0",
     "pydantic>=2.13.2",
     "pydantic-settings>=2.14.0",
@@ -21,6 +20,15 @@ dependencies = [
 
 [project.scripts]
 bibtex-reconstruction = "bibtex_reconstruction.cli:main"
+bibtex-vllm-check = "bibtex_reconstruction.vllm_health:main"
+
+[project.optional-dependencies]
+local-vllm = [
+    "vllm==0.24.0; sys_platform == 'linux' and platform_machine == 'x86_64'",
+]
+remote-llm = [
+    "google-genai>=1.75.0",
+]
 
 [dependency-groups]
 dev = [
