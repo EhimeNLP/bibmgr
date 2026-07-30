@@ -1,5 +1,7 @@
 # ![BibMgR Logo](docs/assets/bibmgr-logo.png)
 
+**BibMgR** is a BibTeX reference manager for collecting, validating, editing, and exporting bibliography data. It provides a shared authenticated web library with revision history and a CLI built on the same source-preserving Rust core.
+
 ## Prerequisites
 
 Developing, testing, or building this repository from source requires the following tools:
@@ -35,13 +37,25 @@ uv run poe --help
 
 ## CLI installation (optional)
 
-To use BibTeX validation from the command line on Linux or macOS, install the latest prebuilt CLI:
+To use BibTeX validation from the command line, install the CLI directly from GitHub without cloning the repository:
+
+```bash
+cargo install --git https://github.com/EhimeNLP/bibmgr.git --locked bibmgr-cli
+bibmgr --version
+```
+
+Add `--force` to replace an existing Cargo installation:
+
+```bash
+cargo install --git https://github.com/EhimeNLP/bibmgr.git --locked --force bibmgr-cli
+```
+
+Alternatively, Linux and macOS users can install a prebuilt binary without requiring Rust:
 
 ```bash
 curl --proto '=https' --tlsv1.2 -LsSf \
   https://github.com/EhimeNLP/bibmgr/releases/latest/download/bibmgr-installer.sh |
   sh
-bibmgr --version
 ```
 
 The installer verifies the release archive with SHA-256 and writes the `bibmgr` executable to `~/.local/bin` by default. If that directory is not already on `PATH`, add it in your shell configuration:
@@ -60,13 +74,7 @@ curl --proto '=https' --tlsv1.2 -LsSf \
 
 Run the installer again to update an existing installation. Windows x86_64 users can download `bibmgr-x86_64-pc-windows-msvc.zip` from the [latest release](https://github.com/EhimeNLP/bibmgr/releases/latest), extract `bibmgr.exe`, and place it on `PATH`.
 
-To build and install the CLI from GitHub instead, use Cargo:
-
-```bash
-cargo install --git https://github.com/EhimeNLP/bibmgr.git --locked bibmgr-cli
-```
-
-Add `--force` to replace an existing Cargo installation. If you clone the repository for development or inspection, you can install from the local path:
+If you clone the repository for development or inspection, you can install from the local path:
 
 ```bash
 git clone https://github.com/EhimeNLP/bibmgr.git
