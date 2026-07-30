@@ -162,9 +162,7 @@ LLMは復元経路ではないため，`llm` pathはありません．LLMの結�
 
 ```text
 bibtex_reconstruction/
-├── setup-vllm.sh
-├── serve-vllm.sh
-├── check-vllm.sh
+├── job.qwen3-32b-awq.sh
 ├── src/bibtex_reconstruction/
 │   ├── application/
 │   ├── clients/
@@ -186,9 +184,7 @@ bibtex_reconstruction/
 - `validation/`：Pythonで構文規則を再実装せず，Rustの登録判定を呼び出します．
 - `config.py`：環境変数を含むruntime設定を集約します．
 - `matching.py`：外部metadataとLocal DB候補の類似度計算を提供します．
-- `setup-vllm.sh`：Ubuntu＋NVIDIA環境でpipelineの`.venv`へvLLM依存関係を追加します．
-- `serve-vllm.sh`：4 GPU向けのlocal vLLM serverを起動します．
-- `check-vllm.sh`：実際の推論とJSON Schema出力を確認します．
+- `job.qwen3-32b-awq.sh`：hestia上で環境同期，server起動，structured inference確認，key生成，server終了まで実行する唯一のshell scriptです．
 
 ## Setup
 
@@ -202,24 +198,23 @@ cp pipeline/bibtex_reconstruction/.env.sample \
 
 ### Local vLLM
 
-推奨実行環境はUbuntu 22.04，RTX A6000 48 GB × 4です．既定modelにはApache 2.0の`Qwen/Qwen3.5-35B-A3B`を使用します．checkpointは約72 GBで4 GPUへ分散でき，一tokenあたりのactive parameterが約3BのMoE modelです．
+推奨実行環境はhestiaのRTX PRO 6000 Blackwell 96 GB × 1です．既定modelには`Qwen/Qwen3-32B-AWQ`を使用します．citation key用conceptの順位付けは最大32 referencesを一requestへまとめ，vLLMのstructured outputで候補indexだけを生成します．
 
-現在のvLLM wheelはCUDA 12.8系を使用するため，NVIDIA driverはR580 LTS以降を推奨します．driver 530ではCUDA 12系のminor-version compatibilityが働く場合がありますが，PTX JIT等の機能制限があり，R530自体も現行のproduction branchではないため，setup scriptは既定で停止します．driver更新後に次を実行します．
-
-```bash
-pipeline/bibtex_reconstruction/setup-vllm.sh
-pipeline/bibtex_reconstruction/serve-vllm.sh
-```
-
-serverは`127.0.0.1:8001`だけで待ち受け，既定でtensor parallel size `4`，BF16，context length `16384`，GPU memory utilization `0.90`を使用します．別terminalから，単なるport確認ではなく，実際のstructured inferenceを検証します．
+Linux x86_64では`vllm==0.24.0+cu129`，`torch==2.11.0+cu129`とそのCUDA runtimeを`uv.lock`へ固定しています．CUDA runtimeはwheelから導入するため，ホスト側のCUDA Toolkitや`nvcc`には依存しません．NVIDIA driverは別途必要で，hestiaの`575.57.08`はCUDA 12.9 Update 1に対応します．通常の環境同期だけでvLLMも導入されます．
 
 ```bash
-pipeline/bibtex_reconstruction/check-vllm.sh
+uv sync --project pipeline/bibtex_reconstruction --frozen
 ```
 
-`setup-vllm.sh`は既存の`pipeline/bibtex_reconstruction/.venv`へ`local-vllm` extraを同期します．別の仮想環境は作りません．vLLMはLinux x86_64限定のoptional dependencyなので，通常のCIや`uv sync`では巨大なGPU依存関係を導入しません．`vLLM health check passed`が表示されてから初期化CLIを実行してください．Unslothは現時点では使用しません．domain fine-tuningや独自quantizationを行う段階で導入を再検討します．
+vLLMはLinux x86_64の通常依存であり，`--extra`や事前のpip installは不要です．jobが`127.0.0.1:8001`でserverを起動し，tensor parallel size `1`，BF16，context length `8192`，最大sequence数`8`，GPU memory utilization `0.85`を設定します．単なるport確認ではなく，JSON Schemaを使った実推論が成功した場合だけ復元処理へ進みます．
 
-`run.sh`は処理開始前に同じhealth checkを実行し，vLLMを利用できなければ停止します．これにより，気付かないままkey conceptがルール順へ劣化することを防ぎます．vLLMなしの決定的処理だけを意図的に確認する場合に限り，`BIBTEX_RECONSTRUCTION_SKIP_VLLM_CHECK=true`を指定できます．その場合もLocal DB，DOI，公式Cite，外部API，Rust検証，ルールベースkey生成は動作しますが，未解決referenceにはLLM reviewが付きません．
+hestiaではrepository rootから次のjobを投入すると，`uv sync --frozen`，vLLM起動，structured inference確認，BibTeX復元，citation key生成を順番に実行します．
+
+```bash
+sbatch pipeline/bibtex_reconstruction/job.qwen3-32b-awq.sh
+```
+
+job終了時は成功・失敗・signal受信のいずれでもvLLM processを停止します．
 
 主な環境変数は次のとおりです．
 
@@ -248,10 +243,10 @@ Crossref，CiNii，Semantic Scholarの任意設定は`.env.sample`を参照し�
 
 ## Run
 
-入力を`pipeline/bibtex_reconstruction/data/input.json`へ配置し，repository内のどのdirectoryからでも次を実行できます．
+入力を`pipeline/bibtex_reconstruction/data/input.json`へ配置し，repository rootからjobを投入します．
 
 ```bash
-pipeline/bibtex_reconstruction/run.sh
+sbatch pipeline/bibtex_reconstruction/job.qwen3-32b-awq.sh
 ```
 
 出力先は次のとおりです．`data/`はGitの追跡対象外です．
@@ -266,7 +261,7 @@ pipeline/bibtex_reconstruction/data/logs/latest.log
 追加引数はCLIへ渡されます．
 
 ```bash
-pipeline/bibtex_reconstruction/run.sh \
+sbatch pipeline/bibtex_reconstruction/job.qwen3-32b-awq.sh \
   --threads 2 \
   --api-threads 3 \
   --fail-on-review
@@ -283,7 +278,6 @@ CLIを直接起動する場合は次のとおりです．
 
 ```bash
 uv run --project pipeline/bibtex_reconstruction \
-  --extra local-vllm \
   --frozen \
   bibtex-reconstruction \
   pipeline/bibtex_reconstruction/data/input.json \
