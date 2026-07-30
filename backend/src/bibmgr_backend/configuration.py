@@ -3,11 +3,13 @@
 from __future__ import annotations
 
 from copy import deepcopy
+from hashlib import sha256
 from typing import Any, Protocol
 import re
 import uuid
 
 from sqlalchemy import Select, func, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from .db_models import (
@@ -21,6 +23,15 @@ from .library import LibraryError
 EXPORT_PROFILE = "export_profile"
 VENUE = "venue"
 _CONFIGURATION_KEY = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
+_CONFIGURATION_WRITE_LOCK_KEY = int.from_bytes(
+    sha256(b"bibmgr\0application-configuration-writes").digest()[:8],
+    byteorder="big",
+    signed=True,
+)
+_CONFIGURATION_CONFLICT_CONSTRAINTS = {
+    "application_configuration_pkey",
+    "uq_application_configuration_audit_revision",
+}
 
 
 def _locked_configuration_statement(
@@ -34,6 +45,35 @@ def _locked_configuration_statement(
         )
         .with_for_update(of=ApplicationConfigurationRecord)
     )
+
+
+def _lock_configuration_writes(session: Session) -> None:
+    """Serialize the low-frequency writes that share configuration state."""
+    if session.get_bind().dialect.name != "postgresql":
+        return
+    session.scalar(
+        select(
+            func.pg_advisory_xact_lock(_CONFIGURATION_WRITE_LOCK_KEY)
+        )
+    )
+
+
+def _is_configuration_write_conflict(error: IntegrityError) -> bool:
+    diagnostic = getattr(error.orig, "diag", None)
+    constraint_name = getattr(diagnostic, "constraint_name", None)
+    if constraint_name in _CONFIGURATION_CONFLICT_CONSTRAINTS:
+        return True
+
+    message = str(error.orig).casefold()
+    return (
+        "unique constraint failed: application_configuration.kind, "
+        "application_configuration.key"
+    ) in message or (
+        "unique constraint failed: "
+        "application_configuration_audit_events.kind, "
+        "application_configuration_audit_events.key, "
+        "application_configuration_audit_events.revision"
+    ) in message
 
 
 class ConfigurationEngine(Protocol):
@@ -248,6 +288,7 @@ class ApplicationConfiguration:
             profile_id=profile_id,
             profile_data=profile_data,
         )
+        _lock_configuration_writes(session)
         record = self._save(
             session,
             kind=EXPORT_PROFILE,
@@ -299,6 +340,7 @@ class ApplicationConfiguration:
             raise InvalidConfigurationError(
                 "The venue id must match the URL venue ID."
             )
+        _lock_configuration_writes(session)
         effective = self.venue_registry(session)
         venues = effective["venues"]
         replaced = False
@@ -350,6 +392,7 @@ class ApplicationConfiguration:
         expected_revision: int,
         actor_user_id: uuid.UUID,
     ) -> dict[str, Any]:
+        _lock_configuration_writes(session)
         return self._delete(
             session,
             kind=EXPORT_PROFILE,
@@ -366,6 +409,7 @@ class ApplicationConfiguration:
         expected_revision: int,
         actor_user_id: uuid.UUID,
     ) -> dict[str, Any]:
+        _lock_configuration_writes(session)
         return self._delete(
             session,
             kind=VENUE,
@@ -444,7 +488,7 @@ class ApplicationConfiguration:
                 occurred_at=timestamp,
             )
         )
-        session.flush()
+        self._flush_or_stale(session)
         return record
 
     def _delete(
@@ -488,12 +532,24 @@ class ApplicationConfiguration:
             )
         )
         session.delete(record)
-        session.flush()
+        self._flush_or_stale(session)
         return {
             "key": key,
             "revision": revision,
             "reset": built_in_data is not None,
         }
+
+    @staticmethod
+    def _flush_or_stale(session: Session) -> None:
+        try:
+            session.flush()
+        except IntegrityError as error:
+            if not _is_configuration_write_conflict(error):
+                raise
+            raise StaleConfigurationError(
+                "The setting changed while it was being saved. "
+                "Reload it and try again."
+            ) from error
 
     def _builtins(self) -> dict[str, Any]:
         result = self.engine.builtin_configuration()

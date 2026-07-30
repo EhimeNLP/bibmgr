@@ -6,12 +6,14 @@ import uuid
 import pytest
 from sqlalchemy import create_engine, select
 from sqlalchemy.dialects import postgresql
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from bibmgr_backend.configuration import (
     EXPORT_PROFILE,
     VENUE,
     ApplicationConfiguration,
+    _is_configuration_write_conflict,
     _locked_configuration_statement,
 )
 from bibmgr_backend.db_models import (
@@ -85,6 +87,40 @@ def test_configuration_lock_targets_only_the_override_record() -> None:
 
     assert "LEFT OUTER JOIN users" in sql
     assert sql.endswith("FOR UPDATE OF application_configuration")
+
+
+@pytest.mark.parametrize(
+    "constraint_name",
+    [
+        "application_configuration_pkey",
+        "uq_application_configuration_audit_revision",
+    ],
+)
+def test_configuration_constraint_conflicts_are_recognized(
+    constraint_name: str,
+) -> None:
+    class Diagnostic:
+        pass
+
+    class DatabaseError:
+        diag = Diagnostic()
+
+    DatabaseError.diag.constraint_name = constraint_name
+    error = IntegrityError("INSERT", {}, DatabaseError())
+
+    assert _is_configuration_write_conflict(error)
+
+
+def test_unrelated_integrity_error_is_not_a_configuration_conflict() -> None:
+    class Diagnostic:
+        constraint_name = "fk_application_configuration_user"
+
+    class DatabaseError:
+        diag = Diagnostic()
+
+    error = IntegrityError("INSERT", {}, DatabaseError())
+
+    assert not _is_configuration_write_conflict(error)
 
 
 @pytest.mark.parametrize(
