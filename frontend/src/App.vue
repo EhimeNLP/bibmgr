@@ -264,7 +264,7 @@ async function changePage(direction: -1 | 1) {
           <h1 class="brand-wordmark" aria-label="BibMgR">
             <span class="brand-wordmark__glyph" aria-hidden="true"></span>
           </h1>
-          <p>Laboratory Bibliography Manager</p>
+          <p>BibTeX Reference Manager</p>
         </div>
         <ThemeSwitcher />
         <SettingsPanel
@@ -291,7 +291,7 @@ async function changePage(direction: -1 | 1) {
           <AppIcon name="clock" />
         </div>
         <h2>Checking your session…</h2>
-        <p>BibMgR will open after your laboratory account is verified.</p>
+        <p>BibMgR will open after your account is verified.</p>
       </section>
 
       <section
@@ -305,7 +305,7 @@ async function changePage(direction: -1 | 1) {
         <h2 id="access-heading">Log in to access BibMgR</h2>
         <p>
           Reference search, BibTeX tools, exports, and library changes require
-          a laboratory account.
+          an account.
         </p>
         <button type="button" class="button-primary" @click="requestLogin">
           Log in to continue

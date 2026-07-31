@@ -7,17 +7,21 @@
 - `compose.production.direct.yaml` publishes ports 80 and 443 and lets Caddy obtain and renew certificates for `BIBMGR_SITE_ADDRESS`.
 - `compose.production.proxy.yaml` publishes one HTTP origin port for an external TLS-terminating reverse proxy. `BIBMGR_BASE_PATH` scopes the frontend, API, and authentication cookie to the externally assigned path.
 
-Copy `.env.production.example` to `.env.production` and set the values for the selected mode and SMTP relay. In proxy mode, bind the origin to the specific private interface instead of every interface. Create `deploy/secrets/database_password`, `deploy/secrets/database_url`, `deploy/secrets/auth_secret`, and `deploy/secrets/smtp_password` as described in `deploy/secrets/README.md`. The database URL must use the Compose hostname `postgres`, and an external-domain user must be listed by complete address in `BIBMGR_AUTH_ALLOWED_EMAILS`.
+Copy `.env.production.example` to `.env.production` and set the values for the selected mode, allowed email domain, and SMTP service. In proxy mode, bind the origin to loopback when the proxy runs on the same host, or to the specific private interface reachable by a remote proxy. Create `deploy/secrets/database_password`, `deploy/secrets/database_url`, `deploy/secrets/auth_secret`, and `deploy/secrets/smtp_password` as described in `deploy/secrets/README.md`. The database URL must use the Compose hostname `postgres`, and an external-domain user must be listed by complete address in `BIBMGR_AUTH_ALLOWED_EMAILS`.
 
 ```bash
 cp .env.production.example .env.production
 mkdir -p -m 700 deploy/secrets
 openssl rand -hex 32 > deploy/secrets/database_password
 openssl rand -hex 32 > deploy/secrets/auth_secret
-chmod 600 deploy/secrets/database_password deploy/secrets/auth_secret
+touch deploy/secrets/smtp_password
+chmod 600 \
+  deploy/secrets/database_password \
+  deploy/secrets/auth_secret \
+  deploy/secrets/smtp_password
 ```
 
-Write a matching URL to `deploy/secrets/database_url` and create the SMTP password file. Validate and start one mode with its dedicated Poe tasks:
+Write a matching URL to `deploy/secrets/database_url`. Put the SMTP account password in `deploy/secrets/smtp_password`, or leave the file empty only when using an unauthenticated private relay with `BIBMGR_SMTP_SECURITY=plain`. Validate and start one mode with its dedicated Poe tasks:
 
 ```bash
 # Public Caddy with automatic HTTPS
@@ -38,17 +42,17 @@ docker compose --env-file .env.production \
   -f "compose.production.${BIBMGR_DEPLOYMENT_MODE}.yaml" ps
 ```
 
-Changing `BIBMGR_BASE_PATH` requires rebuilding the web image because the path is embedded into the frontend assets. The external proxy must preserve that prefix when forwarding requests. The backend refuses production startup without an authentication secret and an explicit SMTP host. The production cookie is Secure and HttpOnly, so login must be tested through the public HTTPS URL rather than the internal HTTP origin.
+Changing `BIBMGR_BASE_PATH` requires rebuilding the web image because the path is embedded into the frontend assets. The external proxy must preserve that prefix when forwarding requests. The backend refuses production startup without an authentication secret, allowed email domain, sender address, SMTP host, and SMTP security mode. The production cookie is Secure and HttpOnly, so login must be tested through the public HTTPS URL rather than the internal HTTP origin.
 
-For the laboratory `dyquem` deployment, use:
+For example, a reverse proxy on the same host can forward a public subpath to a loopback-only origin:
 
 ```dotenv
 BIBMGR_BASE_PATH=/bibmgr
-BIBMGR_WEB_BIND_ADDRESS=192.168.1.229
-BIBMGR_WEB_PORT=8503
+BIBMGR_WEB_BIND_ADDRESS=127.0.0.1
+BIBMGR_WEB_PORT=8080
 ```
 
-The expected public URL is `https://aiweb.cs.ehime-u.ac.jp/bibmgr/`, and the external proxy forwards that path to `http://192.168.1.229:8503/bibmgr/`. An Apache `Require ip` rule limits network access independently of BibMgR's application login requirement; retain or remove that rule according to the intended audience.
+With a public URL such as `https://bibmgr.example.com/bibmgr/`, the proxy forwards that path to `http://127.0.0.1:8080/bibmgr/`. When the proxy runs on another host, replace the loopback address with a private interface and restrict that origin port to the proxy host at the network boundary.
 
 ## Health, logs, and metrics
 
@@ -79,17 +83,17 @@ docker compose --env-file .env.production \
   -f compose.production.yaml \
   -f "compose.production.${BIBMGR_DEPLOYMENT_MODE}.yaml" \
   run --rm --no-deps \
-  backend bibmgr-admin disable member@ai.cs.ehime-u.ac.jp
+  backend bibmgr-admin disable member@example.com
 docker compose --env-file .env.production \
   -f compose.production.yaml \
   -f "compose.production.${BIBMGR_DEPLOYMENT_MODE}.yaml" \
   run --rm --no-deps \
-  backend bibmgr-admin enable member@ai.cs.ehime-u.ac.jp
+  backend bibmgr-admin enable member@example.com
 docker compose --env-file .env.production \
   -f compose.production.yaml \
   -f "compose.production.${BIBMGR_DEPLOYMENT_MODE}.yaml" \
   run --rm --no-deps \
-  backend bibmgr-admin revoke-sessions member@ai.cs.ehime-u.ac.jp
+  backend bibmgr-admin revoke-sessions member@example.com
 ```
 
 Run `bibmgr-admin cleanup-auth --dry-run` to inspect retention, then run it without `--dry-run` to remove challenges expired for over one day and expired/revoked sessions retained for over thirty days. The supplied `bibmgr-auth-cleanup.timer` schedules this daily.
@@ -106,7 +110,7 @@ docker compose --env-file .env.production \
   backend bibmgr-ops backup --output-dir /var/lib/bibmgr/backups
 ```
 
-Copy a dump to encrypted off-host storage. Container-local or single-host copies do not protect against host loss. The supplied `bibmgr-backup.timer` runs daily at approximately 03:15, but the operator must also configure off-host transfer and retention appropriate to laboratory policy.
+Copy a dump to encrypted off-host storage. Container-local or single-host copies do not protect against host loss. The supplied `bibmgr-backup.timer` runs daily at approximately 03:15, but the operator must also configure off-host transfer and retention appropriate to local policy.
 
 Inspect the named volume or copy a selected dump out with a temporary container:
 

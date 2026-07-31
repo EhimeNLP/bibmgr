@@ -12,7 +12,7 @@ test("authenticated access, CRUD, restore, and accessibility", async ({
   request,
 }) => {
   const runId = Date.now().toString(36);
-  const email = `e2e-${runId}@ai.cs.ehime-u.ac.jp`;
+  const email = `e2e-${runId}@example.test`;
   const referenceTitle = `End-to-End Reference ${runId}`;
   const editedReferenceTitle = `Edited ${referenceTitle}`;
 
@@ -28,7 +28,7 @@ test("authenticated access, CRUD, restore, and accessibility", async ({
   await page
     .getByRole("button", { name: "Log in", exact: true })
     .click();
-  await page.getByLabel("Laboratory email").fill(email);
+  await page.getByLabel("Email address").fill(email);
   const requestedAt = Date.now();
   await page.getByRole("button", { name: "Send login code" }).click();
   const code = await latestMailpitCode(request, email, requestedAt);

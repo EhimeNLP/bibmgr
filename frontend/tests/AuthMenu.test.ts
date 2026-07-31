@@ -22,7 +22,7 @@ const authenticated: AuthenticationSession = {
   authenticated: true,
   user: {
     id: "7ca9f85d-b16f-470b-a6a8-ab6d8582eb36",
-    email: "member@ai.cs.ehime-u.ac.jp",
+    email: "member@example.test",
   },
   csrfToken: "csrf-token",
 };
@@ -47,7 +47,7 @@ describe("AuthMenu", () => {
     });
 
     await wrapper.get("button.auth-button").trigger("click");
-    await wrapper.get("#login-email").setValue("member@ai.cs.ehime-u.ac.jp");
+    await wrapper.get("#login-email").setValue("member@example.test");
     await wrapper.get("form.auth-form").trigger("submit");
     await flushPromises();
     await wrapper.get("#login-code").setValue("12345678");
@@ -55,10 +55,10 @@ describe("AuthMenu", () => {
     await flushPromises();
 
     expect(authApi.startEmailLogin).toHaveBeenCalledWith(
-      "member@ai.cs.ehime-u.ac.jp",
+      "member@example.test",
     );
     expect(authApi.verifyEmailLogin).toHaveBeenCalledWith(
-      "member@ai.cs.ehime-u.ac.jp",
+      "member@example.test",
       "12345678",
     );
     expect(wrapper.emitted("sessionChanged")).toEqual([[authenticated]]);

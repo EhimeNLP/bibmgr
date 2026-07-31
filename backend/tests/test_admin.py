@@ -24,7 +24,7 @@ def test_disable_revokes_sessions_and_cleanup_honors_retention() -> None:
 
     with sessions.begin() as session:
         user = UserRecord(
-            email="member@ai.cs.ehime-u.ac.jp",
+            email="member@example.test",
             first_verified_at=now,
             last_login_at=now,
             created_at=now,
@@ -53,7 +53,7 @@ def test_disable_revokes_sessions_and_cleanup_honors_retention() -> None:
     with sessions.begin() as session:
         disabled = set_user_status(
             session,
-            email="member@ai.cs.ehime-u.ac.jp",
+            email="member@example.test",
             status="disabled",
             now=now,
         )
@@ -62,7 +62,7 @@ def test_disable_revokes_sessions_and_cleanup_honors_retention() -> None:
     with sessions.begin() as session:
         assert revoke_user_sessions(
             session,
-            email="member@ai.cs.ehime-u.ac.jp",
+            email="member@example.test",
             now=now,
         ) == 0
         assert cleanup_auth_records(session, now=now) == (1, 1)

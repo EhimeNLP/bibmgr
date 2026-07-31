@@ -31,7 +31,7 @@ const history = {
       action: "delete" as const,
       actor: {
         id: "7ca9f85d-b16f-470b-a6a8-ab6d8582eb36",
-        email: "member@ai.cs.ehime-u.ac.jp",
+        email: "member@example.test",
       },
       occurredAt: "2026-07-27T12:00:00Z",
       title: "Deleted paper",
@@ -42,7 +42,7 @@ const history = {
       action: "create" as const,
       actor: {
         id: "7ca9f85d-b16f-470b-a6a8-ab6d8582eb36",
-        email: "member@ai.cs.ehime-u.ac.jp",
+        email: "member@example.test",
       },
       occurredAt: "2026-07-27T10:00:00Z",
       title: "Original paper",
@@ -194,19 +194,19 @@ describe("HistoryPanel", () => {
           title: "Selected revision",
           actor: {
             ...history.revisions[0]!.actor,
-            email: "selected@ai.cs.ehime-u.ac.jp",
+            email: "selected@example.test",
           },
         },
       ],
     });
     await flushPromises();
-    expect(wrapper.text()).toContain("selected@ai.cs.ehime-u.ac.jp");
+    expect(wrapper.text()).toContain("selected@example.test");
 
     firstResponse.resolve(history);
     await flushPromises();
 
-    expect(wrapper.text()).toContain("selected@ai.cs.ehime-u.ac.jp");
-    expect(wrapper.text()).not.toContain("member@ai.cs.ehime-u.ac.jp");
+    expect(wrapper.text()).toContain("selected@example.test");
+    expect(wrapper.text()).not.toContain("member@example.test");
     wrapper.unmount();
   });
 });

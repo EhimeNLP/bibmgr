@@ -139,7 +139,7 @@ def test_postgresql_migrations_indexes_and_append_only_history(
                 "INSERT INTO users (id, email, status) "
                 "VALUES (:id, :email, 'active')"
             ),
-            {"id": user_id, "email": "postgres-test@ai.cs.ehime-u.ac.jp"},
+            {"id": user_id, "email": "postgres-test@example.test"},
         )
         for reference_id, key, source in (
             (first_reference_id, "first", "file"),
@@ -257,7 +257,7 @@ def test_login_request_reservations_are_serialized(
         code_generator=lambda: "12345678",
         secure_cookie=False,
     )
-    email = "concurrent@ai.cs.ehime-u.ac.jp"
+    email = "concurrent@example.test"
     request_ip = "192.0.2.10"
     second_started = Event()
 
@@ -327,7 +327,7 @@ def test_initial_configuration_writes_are_serialized(
             ),
             {
                 "id": actor_id,
-                "email": "configuration-write@ai.cs.ehime-u.ac.jp",
+                "email": "configuration-write@example.test",
             },
         )
 
@@ -420,7 +420,7 @@ def test_venue_registry_validation_is_serialized_across_venue_rows(
             ),
             {
                 "id": actor_id,
-                "email": "venue-registry@ai.cs.ehime-u.ac.jp",
+                "email": "venue-registry@example.test",
             },
         )
 

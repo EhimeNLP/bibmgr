@@ -1,4 +1,4 @@
-"""Administrative CLI for laboratory accounts and authentication retention."""
+"""Administrative CLI for accounts and authentication retention."""
 
 from __future__ import annotations
 

@@ -101,7 +101,7 @@ The service also exposes:
 
 ## Email authentication
 
-`POST /auth/email/start` sends an eight-digit, single-use code to an address whose domain exactly matches `BIBMGR_AUTH_EMAIL_DOMAIN`, which defaults to `ai.cs.ehime-u.ac.jp`. Exact complete addresses outside that domain can be added with `BIBMGR_AUTH_ALLOWED_EMAILS`; domain entries and wildcard patterns are not supported. `POST /auth/email/verify` creates the user on first verification and issues an opaque seven-day database session. `GET /auth/session` restores browser state and `POST /auth/logout` revokes the session.
+`POST /auth/email/start` sends an eight-digit, single-use code to an address whose domain exactly matches `BIBMGR_AUTH_EMAIL_DOMAIN`. Production requires this domain explicitly; local development defaults to `example.test`. Exact complete addresses outside the configured domain can be added with `BIBMGR_AUTH_ALLOWED_EMAILS`; domain entries and wildcard patterns are not supported. `POST /auth/email/verify` creates the user on first verification and issues an opaque seven-day database session. `GET /auth/session` restores browser state and `POST /auth/logout` revokes the session.
 
 Development SMTP defaults to Mailpit at `127.0.0.1:1025`; its inbox is exposed at `http://127.0.0.1:8025/`. Production requires `BIBMGR_ENV=production`, `BIBMGR_AUTH_SECRET`, HTTPS, secure cookies, and the SMTP settings documented in [`docs/authentication.md`](../docs/authentication.md).
 

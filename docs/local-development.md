@@ -82,11 +82,11 @@ After startup, use the following URLs:
 - Backend readiness: `http://127.0.0.1:8000/readyz`
 - Mailpit inbox: `http://127.0.0.1:8025/`
 
-For the first login, enter a development address on the permitted domain, such as `dev@ai.cs.ehime-u.ac.jp`. The address does not need to exist because Mailpit captures the message locally instead of delivering it externally. Find the eight-digit code in the Mailpit inbox and enter it; the account is created when the address is verified for the first time. After login, use the add button to register BibTeX.
+For the first login, enter a development address on the permitted domain, such as `dev@example.test`. The address does not need to exist because Mailpit captures the message locally instead of delivering it externally. Find the eight-digit code in the Mailpit inbox and enter it; the account is created when the address is verified for the first time. After login, use the add button to register BibTeX.
 
 Using the application requires login. Read-only operations, including search, reference details, BibTeX analysis, fix calculation, and export, also require a valid session. Registering, editing, deleting, and restoring references additionally use the CSRF token managed by the frontend.
 
-To test a development address outside the laboratory domain, list the complete address explicitly. The following setting permits only `visitor@example.org`, not other addresses on the same domain:
+To test a development address outside the configured login domain, list the complete address explicitly. The following setting permits only `visitor@example.org`, not other addresses on the same domain:
 
 ```bash
 export BIBMGR_AUTH_ALLOWED_EMAILS="visitor@example.org"
@@ -120,11 +120,13 @@ Instead of installing PostgreSQL and Mailpit locally, you can configure an exist
 
 ```bash
 export BIBMGR_DATABASE_URL="postgresql+psycopg://user:password@db.example/bibmgr"
-export BIBMGR_SMTP_HOST="smtp.example"
+export BIBMGR_AUTH_EMAIL_DOMAIN="example.com"
+export BIBMGR_EMAIL_FROM="bibmgr@example.com"
+export BIBMGR_SMTP_HOST="smtp.example.com"
 export BIBMGR_SMTP_PORT="587"
+export BIBMGR_SMTP_SECURITY="starttls"
 export BIBMGR_SMTP_USERNAME="smtp-user"
 export BIBMGR_SMTP_PASSWORD="smtp-password"
-export BIBMGR_SMTP_STARTTLS="true"
 
 uv run poe db-migrate
 uv run poe dev

@@ -210,7 +210,7 @@ def client_and_engine(
         )
     )
     if authenticated:
-        email = "transport@ai.cs.ehime-u.ac.jp"
+        email = "transport@example.test"
         assert client.post(
             "/auth/email/start", json={"email": email}
         ).status_code == 202
@@ -428,7 +428,7 @@ def test_application_configuration_is_editable_with_revision_checks() -> None:
     assert saved.status_code == 200
     assert saved.json()["setting"]["revision"] == 1
     assert saved.json()["setting"]["updated_by"]["email"] == (
-        "transport@ai.cs.ehime-u.ac.jp"
+        "transport@example.test"
     )
 
     unchanged_override = client.put(
@@ -557,7 +557,7 @@ def test_application_configuration_is_editable_with_revision_checks() -> None:
     assert deleted_event["before_data"]["profile"] == "custom-profile"
     assert deleted_event["after_data"] is None
     assert deleted_event["actor"]["email"] == (
-        "transport@ai.cs.ehime-u.ac.jp"
+        "transport@example.test"
     )
 
     venue_history = client.get(

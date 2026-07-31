@@ -229,11 +229,11 @@ defineExpose({ openLogin });
         >
           <header class="auth-sheet__header">
             <div>
-              <p class="auth-eyebrow">Laboratory account</p>
+              <p class="auth-eyebrow">Email authentication</p>
               <h2 id="auth-heading">Log in to BibMgR</h2>
               <p>
-                A laboratory account is required to access the reference
-                library and BibTeX tools.
+                An account is required to access the reference library and
+                BibTeX tools.
               </p>
             </div>
             <button
@@ -252,10 +252,10 @@ defineExpose({ openLogin });
             @submit.prevent="requestCode"
           >
             <label class="field-label" for="login-email">
-              Laboratory email
+              Email address
               <span>
-                Use your @ai.cs.ehime-u.ac.jp address or an individually
-                approved address.
+                Use an address in this deployment's configured domain or an
+                individually approved address.
               </span>
             </label>
             <input
@@ -265,7 +265,7 @@ defineExpose({ openLogin });
               type="email"
               inputmode="email"
               autocomplete="email"
-              placeholder="name@ai.cs.ehime-u.ac.jp"
+              placeholder="name@example.com"
               required
             />
             <p v-if="errorMessage" class="registration-error" role="alert">
@@ -349,7 +349,7 @@ defineExpose({ openLogin });
         >
           <header class="auth-sheet__header">
             <div>
-              <p class="auth-eyebrow">Laboratory account</p>
+              <p class="auth-eyebrow">Account</p>
               <h2 id="sign-out-heading">Sign out?</h2>
               <p id="sign-out-description">
                 You will need a new email login code before accessing BibMgR

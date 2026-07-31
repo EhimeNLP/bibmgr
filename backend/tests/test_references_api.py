@@ -264,7 +264,7 @@ def build_authentication(mailer: CapturingMailer) -> AuthenticationManager:
 def login_test_client(
     client: TestClient,
     mailer: CapturingMailer,
-    email: str = "researcher@ai.cs.ehime-u.ac.jp",
+    email: str = "researcher@example.test",
 ) -> None:
     started = client.post("/auth/email/start", json={"email": email})
     assert started.status_code == 202
