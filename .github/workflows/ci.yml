@@ -103,7 +103,8 @@ jobs:
       - name: Validate direct-HTTPS Caddy configuration
         run: >-
           docker run --rm
-          -e BIBMGR_SITE_ADDRESS=bibmgr.example.edu
+          -e BIBMGR_SITE_ADDRESS=bibmgr.example.com
+          -e BIBMGR_MAX_REQUEST_BODY_BYTES=1048576
           -v "$PWD/deploy/caddy:/etc/caddy/bibmgr:ro"
           caddy:2.10-alpine
           caddy validate
@@ -113,11 +114,63 @@ jobs:
         run: >-
           docker run --rm
           -e BIBMGR_BASE_PATH=/bibmgr
+          -e BIBMGR_MAX_REQUEST_BODY_BYTES=1048576
+          -e BIBMGR_TRUSTED_PROXY_CIDRS=192.0.2.10/32
           -v "$PWD/deploy/caddy:/etc/caddy/bibmgr:ro"
           caddy:2.10-alpine
           caddy validate
           --config /etc/caddy/bibmgr/proxy.Caddyfile
           --adapter caddyfile
+      - name: Exercise external-proxy security boundaries
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 scripts/caddy_test_backend.py --port 8000 &
+          sink_pid=$!
+          cleanup() {
+            docker rm --force bibmgr-caddy-security-check >/dev/null 2>&1 || true
+            kill "$sink_pid" >/dev/null 2>&1 || true
+          }
+          trap cleanup EXIT
+          docker run --rm --detach \
+            --name bibmgr-caddy-security-check \
+            --add-host backend:host-gateway \
+            --publish 127.0.0.1:18080:80 \
+            -e BIBMGR_BASE_PATH=/bibmgr \
+            -e BIBMGR_MAX_REQUEST_BODY_BYTES=1024 \
+            -e BIBMGR_TRUSTED_PROXY_CIDRS=192.0.2.10/32 \
+            -v "$PWD/deploy/caddy:/etc/caddy/bibmgr:ro" \
+            caddy:2.10-alpine \
+            caddy run \
+            --config /etc/caddy/bibmgr/proxy.Caddyfile \
+            --adapter caddyfile
+          for _attempt in {1..20}; do
+            if curl --silent --fail \
+              http://127.0.0.1:18080/bibmgr >/dev/null; then
+              break
+            fi
+            sleep 0.1
+          done
+          test "$(curl --silent --output /dev/null --write-out '%{http_code}' \
+            http://127.0.0.1:18080/bibmgr/api/metrics)" = "404"
+          test "$(curl --silent --output /dev/null --write-out '%{http_code}' \
+            http://127.0.0.1:18080/bibmgr/api/metrics/)" = "404"
+          test "$(head -c 1024 /dev/zero | curl --silent \
+            --output /dev/null --write-out '%{http_code}' \
+            --request POST --data-binary @- \
+            http://127.0.0.1:18080/bibmgr/api/auth/email/start)" = "204"
+          head -c 1025 /dev/zero | curl --silent \
+            --dump-header /tmp/bibmgr-caddy-headers \
+            --output /dev/null \
+            --request POST --data-binary @- \
+            http://127.0.0.1:18080/bibmgr/api/auth/email/start
+          grep --quiet "HTTP/1.1 413" /tmp/bibmgr-caddy-headers
+          grep --ignore-case --quiet \
+            "^Content-Security-Policy:" /tmp/bibmgr-caddy-headers
+          if grep --ignore-case --quiet "^Server:" \
+            /tmp/bibmgr-caddy-headers; then
+            exit 1
+          fi
 
   python-parity:
     name: Python ${{ matrix.python-version }} binding and backend parity

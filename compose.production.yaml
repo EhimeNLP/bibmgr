@@ -1,9 +1,24 @@
 name: bibmgr-production
 
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: ${BIBMGR_LOG_MAX_SIZE:-10m}
+    max-file: ${BIBMGR_LOG_MAX_FILES:-5}
+
 services:
   postgres:
     image: postgres:18-alpine
     restart: unless-stopped
+    mem_limit: ${BIBMGR_POSTGRES_MEMORY_LIMIT:-2g}
+    cpus: ${BIBMGR_POSTGRES_CPU_LIMIT:-2.0}
+    pids_limit: ${BIBMGR_POSTGRES_PIDS_LIMIT:-256}
+    stop_grace_period: 30s
+    logging: *default-logging
+    ulimits:
+      nofile:
+        soft: 4096
+        hard: 8192
     environment:
       POSTGRES_DB: bibmgr
       POSTGRES_USER: bibmgr
@@ -24,6 +39,10 @@ services:
       dockerfile: Dockerfile
     image: bibmgr-backend:${BIBMGR_IMAGE_TAG:-local}
     command: ["bibmgr-db", "upgrade"]
+    mem_limit: ${BIBMGR_MIGRATE_MEMORY_LIMIT:-1g}
+    cpus: ${BIBMGR_MIGRATE_CPU_LIMIT:-2.0}
+    pids_limit: ${BIBMGR_MIGRATE_PIDS_LIMIT:-256}
+    logging: *default-logging
     environment:
       BIBMGR_DATABASE_URL_FILE: /run/secrets/database_url
     secrets:
@@ -39,6 +58,15 @@ services:
       dockerfile: Dockerfile
     image: bibmgr-backend:${BIBMGR_IMAGE_TAG:-local}
     restart: unless-stopped
+    mem_limit: ${BIBMGR_BACKEND_MEMORY_LIMIT:-1g}
+    cpus: ${BIBMGR_BACKEND_CPU_LIMIT:-2.0}
+    pids_limit: ${BIBMGR_BACKEND_PIDS_LIMIT:-256}
+    stop_grace_period: 30s
+    logging: *default-logging
+    ulimits:
+      nofile:
+        soft: 4096
+        hard: 8192
     environment:
       BIBMGR_ENV: production
       BIBMGR_DATABASE_URL_FILE: /run/secrets/database_url
@@ -53,6 +81,25 @@ services:
       BIBMGR_SMTP_USERNAME: ${BIBMGR_SMTP_USERNAME:-}
       BIBMGR_SMTP_PASSWORD_FILE: /run/secrets/smtp_password
       BIBMGR_SMTP_CA_FILE: ${BIBMGR_SMTP_CA_FILE:-}
+      BIBMGR_MAX_REQUEST_BODY_BYTES: ${BIBMGR_MAX_REQUEST_BODY_BYTES:-1048576}
+      BIBMGR_RATE_LIMIT_GLOBAL_PER_MINUTE: ${BIBMGR_RATE_LIMIT_GLOBAL_PER_MINUTE:-600}
+      BIBMGR_RATE_LIMIT_GLOBAL_BURST: ${BIBMGR_RATE_LIMIT_GLOBAL_BURST:-120}
+      BIBMGR_RATE_LIMIT_AUTH_START_PER_MINUTE: ${BIBMGR_RATE_LIMIT_AUTH_START_PER_MINUTE:-10}
+      BIBMGR_RATE_LIMIT_AUTH_START_BURST: ${BIBMGR_RATE_LIMIT_AUTH_START_BURST:-20}
+      BIBMGR_RATE_LIMIT_AUTH_VERIFY_PER_MINUTE: ${BIBMGR_RATE_LIMIT_AUTH_VERIFY_PER_MINUTE:-30}
+      BIBMGR_RATE_LIMIT_AUTH_VERIFY_BURST: ${BIBMGR_RATE_LIMIT_AUTH_VERIFY_BURST:-30}
+      BIBMGR_RATE_LIMIT_AUTH_SESSION_PER_MINUTE: ${BIBMGR_RATE_LIMIT_AUTH_SESSION_PER_MINUTE:-180}
+      BIBMGR_RATE_LIMIT_AUTH_SESSION_BURST: ${BIBMGR_RATE_LIMIT_AUTH_SESSION_BURST:-60}
+      BIBMGR_RATE_LIMIT_AUTHENTICATED_PER_MINUTE: ${BIBMGR_RATE_LIMIT_AUTHENTICATED_PER_MINUTE:-600}
+      BIBMGR_RATE_LIMIT_AUTHENTICATED_BURST: ${BIBMGR_RATE_LIMIT_AUTHENTICATED_BURST:-120}
+      BIBMGR_RATE_LIMIT_AUTHENTICATED_WRITE_PER_MINUTE: ${BIBMGR_RATE_LIMIT_AUTHENTICATED_WRITE_PER_MINUTE:-120}
+      BIBMGR_RATE_LIMIT_AUTHENTICATED_WRITE_BURST: ${BIBMGR_RATE_LIMIT_AUTHENTICATED_WRITE_BURST:-30}
+      BIBMGR_RATE_LIMIT_MAX_KEYS: ${BIBMGR_RATE_LIMIT_MAX_KEYS:-10000}
+      UVICORN_LIMIT_CONCURRENCY: ${BIBMGR_UVICORN_LIMIT_CONCURRENCY:-64}
+      UVICORN_BACKLOG: ${BIBMGR_UVICORN_BACKLOG:-128}
+      UVICORN_FORWARDED_ALLOW_IPS: "*"
+      UVICORN_TIMEOUT_KEEP_ALIVE: ${BIBMGR_UVICORN_TIMEOUT_KEEP_ALIVE:-5}
+      UVICORN_TIMEOUT_GRACEFUL_SHUTDOWN: ${BIBMGR_UVICORN_TIMEOUT_GRACEFUL_SHUTDOWN:-30}
     secrets:
       - database_url
       - auth_secret
@@ -80,6 +127,13 @@ services:
       dockerfile: frontend/Dockerfile
     image: bibmgr-web:${BIBMGR_IMAGE_TAG:-local}
     restart: unless-stopped
+    mem_limit: ${BIBMGR_WEB_MEMORY_LIMIT:-256m}
+    cpus: ${BIBMGR_WEB_CPU_LIMIT:-1.0}
+    pids_limit: ${BIBMGR_WEB_PIDS_LIMIT:-128}
+    stop_grace_period: 15s
+    logging: *default-logging
+    environment:
+      BIBMGR_MAX_REQUEST_BODY_BYTES: ${BIBMGR_MAX_REQUEST_BODY_BYTES:-1048576}
     depends_on:
       backend:
         condition: service_healthy

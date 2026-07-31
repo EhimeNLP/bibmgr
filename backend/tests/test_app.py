@@ -8,6 +8,7 @@ from sqlalchemy.pool import StaticPool
 from bibmgr_backend.app import create_app
 from bibmgr_backend.auth import AuthenticationManager
 from bibmgr_backend.db_models import Base
+from bibmgr_backend.models import MAX_BIBTEX_SOURCE_CHARACTERS
 from bibmgr_backend.native import NativeCallError
 
 
@@ -590,6 +591,19 @@ def test_unknown_request_fields_are_rejected() -> None:
     assert engine.calls == []
 
 
+def test_bibtex_source_character_limit_is_enforced_before_native_work() -> None:
+    client, engine = client_and_engine()
+
+    response = client.post(
+        "/bibtex/analyze",
+        json={"source": "x" * (MAX_BIBTEX_SOURCE_CHARACTERS + 1)},
+    )
+
+    assert response.status_code == 422
+    assert response.json()["error"]["code"] == "invalid_request"
+    assert engine.calls == []
+
+
 def test_openapi_advertises_versioned_request_validation_errors() -> None:
     schema = create_app(RecordingEngine()).openapi()
 
@@ -660,6 +674,7 @@ def test_request_ids_and_metrics_use_normalized_routes() -> None:
     response = client.get("/healthz", headers={"X-Request-ID": "test-request-1"})
 
     assert response.status_code == 200
+    assert response.headers["Cache-Control"] == "no-store"
     assert response.headers["X-Request-ID"] == "test-request-1"
     metrics = client.get("/metrics").text
     assert (
@@ -669,6 +684,22 @@ def test_request_ids_and_metrics_use_normalized_routes() -> None:
     assert (
         'bibmgr_http_request_duration_seconds_count'
         '{method="GET",route="/healthz"} 1'
+        in metrics
+    )
+
+
+def test_metrics_bound_unrecognized_http_method_cardinality() -> None:
+    client, _engine = client_and_engine()
+
+    assert client.request("CUSTOM-ONE", "/missing").status_code == 404
+    assert client.request("CUSTOM-TWO", "/missing").status_code == 404
+
+    metrics = client.get("/metrics").text
+    assert 'method="CUSTOM-ONE"' not in metrics
+    assert 'method="CUSTOM-TWO"' not in metrics
+    assert (
+        'bibmgr_http_requests_total'
+        '{method="OTHER",route="unmatched",status="404"} 2'
         in metrics
     )
 

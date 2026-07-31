@@ -27,6 +27,7 @@ from bibmgr_backend.db_models import (
     UserRecord,
     UserSessionRecord,
 )
+from bibmgr_backend.security import RateLimitPolicy, RequestProtection
 
 
 class UnusedEngine:
@@ -145,6 +146,7 @@ def build_client(
     allowed_emails: set[str] | None = None,
     cookie_path: str = "/",
     mailer: CapturingMailer | None = None,
+    request_protection: RequestProtection | None = None,
 ) -> tuple[
     TestClient,
     CapturingMailer,
@@ -177,6 +179,7 @@ def build_client(
             UnusedEngine(),
             session_factory=sessions,
             authentication=authentication,
+            request_protection=request_protection,
         )
     )
     return client, selected_mailer, clock, sessions
@@ -242,6 +245,78 @@ def test_email_login_creates_session_and_logout_revokes_it() -> None:
         assert stored_session is not None
         assert stored_session.token_digest != "opaque-test-session-token"
         assert stored_session.revoked_at is not None
+
+
+def test_authenticated_requests_are_rate_limited_per_user() -> None:
+    protection = RequestProtection(
+        global_policy=RateLimitPolicy(
+            "global", requests_per_minute=10_000, burst=100
+        ),
+        authenticated_policy=RateLimitPolicy(
+            "authenticated", requests_per_minute=1, burst=1
+        ),
+    )
+    client, mailer, _clock, _sessions = build_client(
+        request_protection=protection
+    )
+    email = "member@example.test"
+    assert client.post(
+        "/auth/email/start", json={"email": email}
+    ).status_code == 202
+    assert client.post(
+        "/auth/email/verify",
+        json={"email": email, "code": mailer.messages[0][1]},
+    ).status_code == 200
+
+    assert client.get("/bibtex/export/profiles").status_code == 200
+    limited = client.get("/bibtex/export/profiles")
+
+    assert limited.status_code == 429
+    assert limited.headers["retry-after"] == "60"
+    assert limited.json()["error"]["code"] == "rate_limited"
+
+
+def test_authenticated_writes_have_a_separate_rate_limit() -> None:
+    protection = RequestProtection(
+        global_policy=RateLimitPolicy(
+            "global", requests_per_minute=10_000, burst=100
+        ),
+        authenticated_policy=RateLimitPolicy(
+            "authenticated", requests_per_minute=10_000, burst=100
+        ),
+        authenticated_write_policy=RateLimitPolicy(
+            "write", requests_per_minute=1, burst=1
+        ),
+    )
+    client, mailer, _clock, _sessions = build_client(
+        request_protection=protection
+    )
+    email = "member@example.test"
+    assert client.post(
+        "/auth/email/start", json={"email": email}
+    ).status_code == 202
+    login = client.post(
+        "/auth/email/verify",
+        json={"email": email, "code": mailer.messages[0][1]},
+    )
+    assert login.status_code == 200
+    csrf_token = login.json()["csrfToken"]
+
+    headers = {
+        "X-CSRF-Token": csrf_token,
+        "If-Match": f"sha256:{'0' * 64}",
+    }
+    missing_reference = (
+        "/references/00000000-0000-0000-0000-000000000001"
+    )
+    assert client.delete(
+        missing_reference,
+        headers=headers,
+    ).status_code == 404
+
+    limited = client.delete(missing_reference, headers=headers)
+    assert limited.status_code == 429
+    assert limited.json()["error"]["code"] == "rate_limited"
 
 
 def test_session_cookie_can_be_scoped_to_a_proxy_subpath() -> None:

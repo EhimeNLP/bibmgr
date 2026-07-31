@@ -4,7 +4,7 @@
 
 BibMgR requires an authenticated session for reference search, reference detail, history, BibTeX analysis, fix calculation, registration validation, export, and every library mutation. Read-only and computational requests require the HttpOnly session cookie but not a CSRF token. State-changing requests additionally require the session-bound `X-CSRF-Token`.
 
-The email-login start and verification endpoints and `GET /auth/session` remain available before login. Liveness, readiness, and metrics endpoints remain unauthenticated for infrastructure monitoring and do not expose bibliography records.
+The email-login start and verification endpoints and `GET /auth/session` remain available before login. Liveness and readiness remain unauthenticated for infrastructure monitoring and do not expose bibliography records. Metrics remain unauthenticated on the private backend network but are not routed through the public web service.
 
 ## Passwordless email login
 
@@ -16,7 +16,7 @@ The same email-code flow handles account creation and later login:
 4. `POST /auth/email/verify` accepts the code once within ten minutes and creates the user on first verification.
 5. The backend creates a random opaque session, stores only its SHA-256 digest, and sets the raw value in an HttpOnly browser cookie.
 
-Each code permits at most five failed verification attempts. Requests have a per-address cooldown and an hourly per-IP limit. PostgreSQL transaction-scoped advisory locks serialize reservation of the address and IP request slots, and the challenge is committed before SMTP delivery begins. A newer code invalidates older unused codes. If SMTP delivery fails, the reserved challenge is marked consumed while its request continues to count toward the cooldown and hourly limit.
+Each code permits at most five failed verification attempts. Login starts have a per-address cooldown and an hourly per-IP database limit. Bounded request-level token buckets also cover ineligible login starts, verification attempts, session checks, all backend traffic by client IP, and protected traffic by user. PostgreSQL transaction-scoped advisory locks serialize reservation of the address and IP request slots, and the challenge is committed before SMTP delivery begins. A newer code invalidates older unused codes. If SMTP delivery fails, the reserved challenge is marked consumed while its request continues to count toward the cooldown and hourly limit. The generic limits and tuning variables are documented in the [production operations guide](operations.md#abuse-and-resource-protection).
 
 ## Browser session and CSRF
 
