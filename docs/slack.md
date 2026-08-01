@@ -1,6 +1,6 @@
 # Slack app
 
-The BibMgR Slack app receives one syntactically valid BibTeX entry in a code block, asks the submitting user to choose an export profile, applies every safe fix (including lint fixes), and replies in the original thread with the exported entry. Validation findings that cannot be fixed do not block deterministic export; they are reported with the result. Syntax errors, ambiguous values, and conflicting values are not guessed.
+The BibMgR Slack app receives one syntactically valid BibTeX entry in a code block, asks the submitting user to choose an export profile, applies every safe fix (including lint fixes), and returns the exported entry. In channels it receives app mentions and replies in the original thread. In a direct message it does not require a mention and replies in the direct conversation. Validation findings that cannot be fixed do not block deterministic export; they are reported with the result. Syntax errors, ambiguous values, and conflicting values are not guessed.
 
 The app uses Slack Socket Mode and does not expose an HTTP endpoint. It stores each pending profile-selection request in process memory for ten minutes by default. Restarting the container expires pending selections.
 
@@ -14,6 +14,8 @@ The app uses Slack Socket Mode and does not expose an HTTP endpoint. It stores e
 6. Invite `@BibMgR` to every channel where it should respond.
 
 No app ID, bot ID, team ID, signing secret, request URL, or public port is required at startup. The app obtains its identity with Slack's `auth.test` method.
+
+If the app was installed from an older manifest without direct-message support, update its App Manifest and reinstall it to the workspace. Reinstallation grants the newly required `im:history` bot scope. The app subscribes only to direct messages and app mentions; it does not read ordinary channel messages.
 
 The regular YAML App Manifest does not include app icon data, and the Socket Mode runtime tokens cannot update app configuration. Icon selection therefore remains a deployment-time setting in Slack rather than a bot startup setting.
 
@@ -54,7 +56,7 @@ Supported startup settings are:
 
 Do not commit tokens to the repository or include them in the image.
 
-## Use the app
+## Use the app in a channel
 
 Mention the app with exactly one code block. No code-block language is required.
 
@@ -68,6 +70,20 @@ Mention the app with exactly one code block. No code-block language is required.
 ````
 
 Only the submitting user can use the profile selector. The final BibTeX is sent as a preformatted rich-text block so its content is not interpreted as Slack markup.
+
+## Use the app in a direct message
+
+Open the app's **Messages** tab and send exactly one code block. A mention is not required.
+
+````text
+```
+@misc{example,
+  title = {An Example},
+}
+```
+````
+
+Messages posted by bots and message subtypes such as edits are ignored. Direct-message responses remain in the main conversation unless the submission itself is already in a thread.
 
 ## Slack-only export profiles
 

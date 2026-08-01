@@ -5,10 +5,14 @@ _metadata:
 # app, upload slack/assets/icon.png or a custom compatible image.
 display_information:
   name: BibMgR
-  description: Validate, fix, and export one BibTeX entry from a Slack mention.
-  background_color: "#315C4C"
+  description: Validate, fix, and export one BibTeX entry from a Slack message.
+  background_color: "#FFFFFF"
 
 features:
+  app_home:
+    home_tab_enabled: false
+    messages_tab_enabled: true
+    messages_tab_read_only_enabled: false
   bot_user:
     display_name: BibMgR
     always_online: false
@@ -18,11 +22,13 @@ oauth_config:
     bot:
       - app_mentions:read
       - chat:write
+      - im:history
 
 settings:
   event_subscriptions:
     bot_events:
       - app_mention
+      - message.im
   interactivity:
     is_enabled: true
   org_deploy_enabled: false

@@ -13,7 +13,7 @@ from typing import Callable
 class PendingExport:
     user_id: str
     channel_id: str
-    thread_ts: str
+    thread_ts: str | None
     source: str
     expires_at: float
 
@@ -41,7 +41,7 @@ class PendingStore:
             return True
 
     def create(
-        self, *, user_id: str, channel_id: str, thread_ts: str, source: str
+        self, *, user_id: str, channel_id: str, thread_ts: str | None, source: str
     ) -> str:
         now = self._clock()
         request_id = secrets.token_urlsafe(16)

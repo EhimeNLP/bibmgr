@@ -122,7 +122,7 @@ bibmgr inspect references.bib --ast
 
 ## Slack app
 
-The Slack app accepts a BibTeX entry in an app mention, asks the user to choose an export profile, applies safe fixes, and returns the formatted entry with any remaining warnings. It runs in Socket Mode and is deployed separately from the web application.
+The Slack app accepts a BibTeX entry in a channel mention or direct message, asks the user to choose an export profile, applies safe fixes, and returns the formatted entry with any remaining warnings. It runs in Socket Mode and is deployed separately from the web application.
 
 Create the Slack app from the bundled manifest, then start the interactive Docker task:
 

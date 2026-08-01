@@ -112,6 +112,18 @@ def mention_payload() -> tuple[dict[str, Any], dict[str, Any]]:
     return event, {"event_id": "Ev1", "team_id": "T1"}
 
 
+def direct_message_payload() -> tuple[dict[str, Any], dict[str, Any]]:
+    event = {
+        "channel": "D1",
+        "channel_type": "im",
+        "user": "U1",
+        "ts": "2.0",
+        "event_ts": "2.0",
+        "text": "```\n@misc{k, title={T},}\n```",
+    }
+    return event, {"event_id": "Ev2", "team_id": "T1"}
+
+
 def test_handlers_expose_arguments_for_bolt_injection() -> None:
     service = bot(Engine())
 
@@ -124,6 +136,12 @@ def test_handlers_expose_arguments_for_bolt_injection() -> None:
     assert get_arg_names_of_callable(service.handle_profile_selection) == [
         "self",
         "ack",
+        "body",
+        "client",
+    ]
+    assert get_arg_names_of_callable(service.handle_direct_message) == [
+        "self",
+        "event",
         "body",
         "client",
     ]
@@ -158,6 +176,94 @@ def test_mention_then_selection_exports_in_the_original_thread() -> None:
     assert engine.workflow_calls[0][1]["profile"] == "modern"
     assert client.messages[-1]["thread_ts"] == "1.0"
     assert client.messages[-1]["blocks"][1]["type"] == "rich_text"
+
+
+def test_direct_message_then_selection_exports_without_a_thread() -> None:
+    engine = Engine()
+    service = bot(engine)
+    client = Client()
+    event, body = direct_message_payload()
+
+    service.handle_direct_message(event=event, body=body, client=client)
+
+    selection = client.messages[0]
+    assert "thread_ts" not in selection
+    block_id = selection["blocks"][0]["block_id"]
+    service.handle_profile_selection(
+        ack=lambda: None,
+        body={
+            "user": {"id": "U1"},
+            "channel": {"id": "D1"},
+            "actions": [
+                {
+                    "block_id": block_id,
+                    "selected_option": {"value": "modern"},
+                }
+            ],
+        },
+        client=client,
+    )
+
+    assert engine.workflow_calls[0][1]["profile"] == "modern"
+    assert "thread_ts" not in client.messages[-1]
+    assert client.messages[-1]["blocks"][1]["type"] == "rich_text"
+
+
+def test_direct_message_ignores_non_user_message_events() -> None:
+    ignored_events = (
+        {"bot_id": "B1"},
+        {"subtype": "message_changed"},
+        {"channel_type": "channel"},
+        {"user": ""},
+    )
+
+    for index, overrides in enumerate(ignored_events):
+        service = bot(Engine())
+        client = Client()
+        event, body = direct_message_payload()
+        event.update(overrides)
+        body["event_id"] = f"ignored-{index}"
+
+        service.handle_direct_message(event=event, body=body, client=client)
+
+        assert client.messages == []
+
+
+def test_direct_message_usage_does_not_request_a_mention() -> None:
+    service = bot(Engine())
+    client = Client()
+    event, body = direct_message_payload()
+    event["text"] = "not a code block"
+
+    service.handle_direct_message(event=event, body=body, client=client)
+
+    assert client.messages[0]["text"].startswith("Send exactly one BibTeX entry")
+    assert "thread_ts" not in client.messages[0]
+
+
+def test_expired_direct_message_selection_uses_a_regular_reply() -> None:
+    service = bot(Engine())
+    client = Client()
+
+    service.handle_profile_selection(
+        ack=lambda: None,
+        body={
+            "user": {"id": "U1"},
+            "container": {"channel_id": "D1"},
+            "actions": [
+                {
+                    "block_id": "bibmgr_profile:expired",
+                    "selected_option": {"value": "modern"},
+                }
+            ],
+        },
+        client=client,
+    )
+
+    assert client.ephemeral == []
+    assert client.messages[0]["channel"] == "D1"
+    assert client.messages[0]["text"].startswith("This export request has expired")
+    assert "thread_ts" not in client.messages[0]
 
 
 def test_japanese_mode_does_not_expose_english_core_diagnostic_text() -> None:

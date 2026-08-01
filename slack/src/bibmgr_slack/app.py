@@ -37,6 +37,7 @@ class BibmgrSlackBot:
 
     def register(self, app: App) -> None:
         app.event("app_mention")(self.handle_mention)
+        app.event("message")(self.handle_direct_message)
         app.action(ACTION_ID)(self.handle_profile_selection)
 
     def handle_mention(
@@ -46,6 +47,46 @@ class BibmgrSlackBot:
         client: Any,
         **_: Any,
     ) -> None:
+        self._handle_submission(
+            event=event,
+            body=body,
+            client=client,
+            thread_ts=str(event.get("thread_ts") or event["ts"]),
+            usage_key="usage_mention",
+        )
+
+    def handle_direct_message(
+        self,
+        event: dict[str, Any],
+        body: dict[str, Any],
+        client: Any,
+        **_: Any,
+    ) -> None:
+        if (
+            event.get("channel_type") != "im"
+            or event.get("subtype") is not None
+            or event.get("bot_id") is not None
+            or not event.get("user")
+        ):
+            return
+        thread_ts = event.get("thread_ts")
+        self._handle_submission(
+            event=event,
+            body=body,
+            client=client,
+            thread_ts=str(thread_ts) if thread_ts else None,
+            usage_key="usage_direct",
+        )
+
+    def _handle_submission(
+        self,
+        *,
+        event: dict[str, Any],
+        body: dict[str, Any],
+        client: Any,
+        thread_ts: str | None,
+        usage_key: str,
+    ) -> None:
         event_id = str(
             body.get("event_id")
             or f"{body.get('team_id', '')}:{event.get('event_ts', event.get('ts', ''))}"
@@ -53,12 +94,16 @@ class BibmgrSlackBot:
         if not self.pending.mark_event(event_id):
             return
         channel_id = str(event["channel"])
-        thread_ts = str(event.get("thread_ts") or event["ts"])
         user_id = str(event["user"])
         try:
             source = extract_bibtex(str(event.get("text", "")))
         except InputError:
-            self._post_plain(client, channel_id, thread_ts, self.translator.text("usage"))
+            self._post_plain(
+                client,
+                channel_id,
+                thread_ts,
+                self.translator.text(usage_key),
+            )
             return
         source_bytes = len(source.encode("utf-8"))
         if source_bytes > self.settings.max_input_bytes:
@@ -119,15 +164,17 @@ class BibmgrSlackBot:
             thread_ts=thread_ts,
             source=source,
         )
-        client.chat_postMessage(
-            channel=channel_id,
-            thread_ts=thread_ts,
-            text=self.translator.text("choose_profile"),
-            blocks=[self._profile_selection_block(request_id)],
-            mrkdwn=False,
-            unfurl_links=False,
-            unfurl_media=False,
-        )
+        message: dict[str, Any] = {
+            "channel": channel_id,
+            "text": self.translator.text("choose_profile"),
+            "blocks": [self._profile_selection_block(request_id)],
+            "mrkdwn": False,
+            "unfurl_links": False,
+            "unfurl_media": False,
+        }
+        if thread_ts is not None:
+            message["thread_ts"] = thread_ts
+        client.chat_postMessage(**message)
 
     def handle_profile_selection(
         self,
@@ -182,15 +229,17 @@ class BibmgrSlackBot:
             )
             return
 
-        client.chat_postMessage(
-            channel=pending.channel_id,
-            thread_ts=pending.thread_ts,
-            text=self.translator.text("exported", profile=profile.id),
-            blocks=self._result_blocks(result, profile.id),
-            mrkdwn=False,
-            unfurl_links=False,
-            unfurl_media=False,
-        )
+        message: dict[str, Any] = {
+            "channel": pending.channel_id,
+            "text": self.translator.text("exported", profile=profile.id),
+            "blocks": self._result_blocks(result, profile.id),
+            "mrkdwn": False,
+            "unfurl_links": False,
+            "unfurl_media": False,
+        }
+        if pending.thread_ts is not None:
+            message["thread_ts"] = pending.thread_ts
+        client.chat_postMessage(**message)
 
     def _profile_selection_block(self, request_id: str) -> dict[str, Any]:
         return {
@@ -279,15 +328,19 @@ class BibmgrSlackBot:
         return "\n".join(lines)
 
     @staticmethod
-    def _post_plain(client: Any, channel: str, thread_ts: str, text: str) -> None:
-        client.chat_postMessage(
-            channel=channel,
-            thread_ts=thread_ts,
-            text=text,
-            mrkdwn=False,
-            unfurl_links=False,
-            unfurl_media=False,
-        )
+    def _post_plain(
+        client: Any, channel: str, thread_ts: str | None, text: str
+    ) -> None:
+        message: dict[str, Any] = {
+            "channel": channel,
+            "text": text,
+            "mrkdwn": False,
+            "unfurl_links": False,
+            "unfurl_media": False,
+        }
+        if thread_ts is not None:
+            message["thread_ts"] = thread_ts
+        client.chat_postMessage(**message)
 
     @staticmethod
     def _post_ephemeral(
@@ -298,7 +351,9 @@ class BibmgrSlackBot:
             or body.get("container", {}).get("channel_id")
             or ""
         )
-        if channel_id:
+        if channel_id.startswith("D"):
+            BibmgrSlackBot._post_plain(client, channel_id, None, text)
+        elif channel_id:
             client.chat_postEphemeral(
                 channel=channel_id,
                 user=user_id,
