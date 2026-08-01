@@ -124,7 +124,7 @@ bibmgr inspect references.bib --ast
 
 The Slack app accepts a BibTeX entry in a channel mention or direct message, asks the user to choose an export profile, applies safe fixes, and returns the formatted entry with any remaining warnings. It runs in Socket Mode and is deployed separately from the web application.
 
-Create the Slack app from the bundled manifest, then start the interactive Docker task:
+Create the Slack app from the bundled manifest, then use the interactive Docker task for local operation:
 
 ```bash
 uv run poe slack
@@ -134,6 +134,13 @@ Bot messages default to English. Select Japanese at startup with:
 
 ```bash
 BIBMGR_SLACK_LANGUAGE=ja uv run poe slack
+```
+
+For an unattended production deployment, build the image separately and start it with both Slack tokens supplied by the deployment environment:
+
+```bash
+uv run poe slack-build
+uv run poe slack-up
 ```
 
 See [`docs/slack.md`](docs/slack.md) for the Slack website setup, token options, usage, and deployment-only profiles.

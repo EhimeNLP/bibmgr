@@ -19,9 +19,9 @@ If the app was installed from an older manifest without direct-message support, 
 
 The regular YAML App Manifest does not include app icon data, and the Socket Mode runtime tokens cannot update app configuration. Icon selection therefore remains a deployment-time setting in Slack rather than a bot startup setting.
 
-## Start with interactive token entry
+## Start locally with interactive token entry
 
-The Docker-based Poe task builds the native extension and Slack app, starts a TTY container, and prompts for both tokens without echoing them:
+The local Docker-based Poe task builds the native extension and Slack app, starts a temporary TTY container, and prompts for both tokens without echoing them:
 
 ```bash
 uv run poe slack
@@ -33,15 +33,39 @@ English is the default user-facing language. To use Japanese, set the language f
 BIBMGR_SLACK_LANGUAGE=ja uv run poe slack
 ```
 
-## Start from environment variables
+This task is intended for local operation and troubleshooting, not unattended deployment.
 
-For unattended startup, provide both tokens as environment variables. Missing credentials are only prompted for when stdin is a TTY; a non-interactive container fails closed with a configuration error.
+## Start in production
+
+For unattended deployment, build the image as a separate release step:
 
 ```bash
-SLACK_APP_TOKEN=xapp-... \
-SLACK_BOT_TOKEN=xoxb-... \
-BIBMGR_SLACK_LANGUAGE=en \
-uv run poe slack
+uv run poe slack-build
+```
+
+Provide `SLACK_APP_TOKEN` and `SLACK_BOT_TOKEN` through the deployment environment or its secret manager, then start the existing image:
+
+```bash
+uv run poe slack-up
+```
+
+The production task does not allocate a TTY, does not rebuild the image, and starts the container in the background with `restart: unless-stopped`. Both tokens are required before Docker creates the container; missing credentials cause configuration to fail instead of opening a prompt.
+
+Follow its logs or stop the deployment with:
+
+```bash
+uv run poe slack-logs
+uv run poe slack-down
+```
+
+Do not place tokens directly in a committed Compose file or image. Inject them from the host environment or a production secret-management system.
+
+## Environment settings
+
+Both local and production startup accept settings from environment variables. Local startup prompts for missing credentials only when stdin is a TTY; production startup always requires both credentials in the environment.
+
+```bash
+BIBMGR_SLACK_LANGUAGE=en uv run poe slack
 ```
 
 Supported startup settings are:

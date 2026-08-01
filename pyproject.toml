@@ -63,8 +63,24 @@ help = "Run the backend without reload for production-style operation."
 cmd = "uvicorn bibmgr_backend.app:app --host ${HOST:-0.0.0.0} --port ${PORT:-8000}"
 
 [tool.poe.tasks.slack]
-help = "Build and run the Socket Mode Slack app in an interactive Docker container."
+help = "Build and run the Socket Mode Slack app interactively for local use."
 cmd = "docker compose -f compose.slack.yaml run --rm --build slack-bot"
+
+[tool.poe.tasks.slack-build]
+help = "Build the Slack app image for deployment."
+cmd = "docker compose -f compose.slack.yaml build slack-bot"
+
+[tool.poe.tasks.slack-up]
+help = "Start the Slack app for production without a TTY or image rebuild."
+cmd = "docker compose -f compose.slack.yaml -f compose.slack.production.yaml up --detach --wait --no-build slack-bot"
+
+[tool.poe.tasks.slack-logs]
+help = "Follow logs from the production Slack app container."
+cmd = "docker compose -f compose.slack.yaml logs --follow slack-bot"
+
+[tool.poe.tasks.slack-down]
+help = "Stop and remove the production Slack app container."
+cmd = "docker compose -f compose.slack.yaml down"
 
 [tool.poe.tasks.db-up]
 help = "Start the local PostgreSQL development database."
