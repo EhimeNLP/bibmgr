@@ -1,0 +1,29 @@
+_metadata:
+  major_version: 1
+
+display_information:
+  name: BibMgR
+  description: Validate, fix, and export one BibTeX entry from a Slack mention.
+  background_color: "#315C4C"
+
+features:
+  bot_user:
+    display_name: BibMgR
+    always_online: false
+
+oauth_config:
+  scopes:
+    bot:
+      - app_mentions:read
+      - chat:write
+
+settings:
+  event_subscriptions:
+    bot_events:
+      - app_mention
+  interactivity:
+    is_enabled: true
+  org_deploy_enabled: false
+  socket_mode_enabled: true
+  token_rotation_enabled: false
+  is_hosted: false

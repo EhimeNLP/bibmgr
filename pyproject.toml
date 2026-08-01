@@ -12,6 +12,7 @@ dependencies = [
 dev = [
   "bibmgr-backend[test]",
   "bibmgr-native",
+  "bibmgr-slack[test]",
   "maturin>=1.9,<2",
 ]
 
@@ -21,6 +22,7 @@ package = false
 [tool.uv.sources]
 bibmgr-backend = { path = "backend", editable = true }
 bibmgr-native = { path = "crates/bibmgr-python", editable = true }
+bibmgr-slack = { path = "slack", editable = true }
 
 [tool.poe]
 executor = "simple"
@@ -59,6 +61,10 @@ cwd = "frontend"
 [tool.poe.tasks.start-backend]
 help = "Run the backend without reload for production-style operation."
 cmd = "uvicorn bibmgr_backend.app:app --host ${HOST:-0.0.0.0} --port ${PORT:-8000}"
+
+[tool.poe.tasks.slack]
+help = "Build and run the Socket Mode Slack app in an interactive Docker container."
+cmd = "docker compose -f compose.slack.yaml run --rm --build slack-bot"
 
 [tool.poe.tasks.db-up]
 help = "Start the local PostgreSQL development database."
@@ -126,6 +132,7 @@ sequence = [
   "setup-native",
   "test-rust",
   "_test-backend",
+  "_test-slack",
   "test-frontend",
   "_build-cli-debug",
   "_test-parity",
@@ -143,6 +150,10 @@ sequence = ["setup-native", "_test-backend"]
 help = "Run the frontend tests once."
 cmd = "npm test"
 cwd = "frontend"
+
+[tool.poe.tasks.test-slack]
+help = "Build the native extension and run the Slack app tests."
+sequence = ["setup-native", "_test-slack"]
 
 [tool.poe.tasks.test-parity]
 help = "Build the native extension and CLI, then check CLI/Python/backend parity."
@@ -215,6 +226,9 @@ cmd = "uvicorn bibmgr_backend.app:app --reload --host ${HOST:-127.0.0.1} --port 
 
 [tool.poe.tasks._test-backend]
 cmd = "pytest backend/tests"
+
+[tool.poe.tasks._test-slack]
+cmd = "pytest slack/tests"
 
 [tool.poe.tasks._build-cli-debug]
 cmd = "cargo build -p bibmgr-cli"
