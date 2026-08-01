@@ -4,6 +4,8 @@ import logging
 from pathlib import Path
 from typing import Any
 
+from slack_bolt.util.utils import get_arg_names_of_callable
+
 from bibmgr_slack.app import BibmgrSlackBot
 from bibmgr_slack.config import Settings
 from bibmgr_slack.i18n import Translator
@@ -108,6 +110,23 @@ def mention_payload() -> tuple[dict[str, Any], dict[str, Any]]:
         "text": "<@UBOT> ```\n@misc{k, title={T},}\n```",
     }
     return event, {"event_id": "Ev1", "team_id": "T1"}
+
+
+def test_handlers_expose_arguments_for_bolt_injection() -> None:
+    service = bot(Engine())
+
+    assert get_arg_names_of_callable(service.handle_mention) == [
+        "self",
+        "event",
+        "body",
+        "client",
+    ]
+    assert get_arg_names_of_callable(service.handle_profile_selection) == [
+        "self",
+        "ack",
+        "body",
+        "client",
+    ]
 
 
 def test_mention_then_selection_exports_in_the_original_thread() -> None:

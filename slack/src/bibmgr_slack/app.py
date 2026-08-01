@@ -41,7 +41,6 @@ class BibmgrSlackBot:
 
     def handle_mention(
         self,
-        *,
         event: dict[str, Any],
         body: dict[str, Any],
         client: Any,
@@ -132,7 +131,6 @@ class BibmgrSlackBot:
 
     def handle_profile_selection(
         self,
-        *,
         ack: Any,
         body: dict[str, Any],
         client: Any,
