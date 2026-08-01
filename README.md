@@ -1,6 +1,6 @@
 <p style="text-align: center"><img src="docs/assets/bibmgr-logo.svg" alt="BibMgR Logo" width=100%></p>
 
-**BibMgR** is a BibTeX reference manager for collecting, validating, editing, and exporting bibliography data. It provides a shared authenticated web library with revision history and a CLI built on the same source-preserving Rust core.
+**BibMgR** is a BibTeX reference manager for collecting, validating, editing, and exporting bibliography data. It provides a shared authenticated web library with revision history, a CLI, and a Socket Mode Slack app built on the same source-preserving Rust core.
 
 ## Prerequisites
 
@@ -120,6 +120,24 @@ bibmgr export references.bib --profile classical-bst --format json
 bibmgr inspect references.bib --ast
 ```
 
+## Slack app
+
+The Slack app accepts a BibTeX entry in an app mention, asks the user to choose an export profile, applies safe fixes, and returns the formatted entry with any remaining warnings. It runs in Socket Mode and is deployed separately from the web application.
+
+Create the Slack app from the bundled manifest, then start the interactive Docker task:
+
+```bash
+uv run poe slack
+```
+
+Bot messages default to English. Select Japanese at startup with:
+
+```bash
+BIBMGR_SLACK_LANGUAGE=ja uv run poe slack
+```
+
+See [`docs/slack.md`](docs/slack.md) for the Slack website setup, token options, usage, and deployment-only profiles.
+
 ## Development
 
 The reference library API uses PostgreSQL 18. Mailpit provides the development inbox for email authentication. If Docker is available, start both services and apply the database migrations:
@@ -151,12 +169,6 @@ Start the backend and frontend development servers together:
 
 ```bash
 uv run poe dev
-```
-
-To run the Socket Mode Slack app in Docker, create the app from the bundled manifest and start the interactive task. See [`docs/slack.md`](docs/slack.md) for the Slack website setup, token options, Japanese messages, and deployment-only profiles.
-
-```bash
-uv run poe slack
 ```
 
 - Frontend: `http://127.0.0.1:5173/`
