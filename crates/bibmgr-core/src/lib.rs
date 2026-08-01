@@ -13,7 +13,7 @@ pub use bibmgr_model::{
 };
 pub use bibmgr_model::{ProfileId, Severity};
 pub use bibmgr_semantics::Bibliography;
-pub use bibmgr_syntax::{ParseMode, ParseOptions, SyntaxSummary};
+pub use bibmgr_syntax::{ParseMode, ParseOptions, ParseStatus, SyntaxSummary};
 pub use bibmgr_validation::{
     RegistrationPolicy, RepositoryRegistry, ValidationPolicy, VenueEntity, VenueRegistry,
 };
@@ -564,6 +564,117 @@ pub struct ExportSourceOptions {
     /// `None` selects the embedded registry; `Some` pins this export to a
     /// caller-supplied immutable registry snapshot.
     pub venue_registry: Option<VenueRegistry>,
+}
+
+/// Result of the safe-fixing, advisory export workflow used by interactive
+/// adapters. Unlike [`export_source_with_options`], validation diagnostics do
+/// not reject an otherwise deterministic export.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct ExportWorkflowResult {
+    pub schema_version: String,
+    pub source: String,
+    pub profile: ProfileId,
+    pub venue_name_style: VenueNameStyle,
+    pub record_count: usize,
+    pub warnings: Vec<bibmgr_export::ExportWarning>,
+    pub input_applied_fix_ids: Vec<FixId>,
+    pub output_applied_fix_ids: Vec<FixId>,
+    pub input_diagnostics: Vec<Diagnostic>,
+    pub output_diagnostics: Vec<Diagnostic>,
+}
+
+/// Failures that still stop advisory export because no deterministic output
+/// can be produced safely.
+#[derive(Debug, thiserror::Error)]
+pub enum ExportWorkflowError {
+    #[error("input is not syntactically valid: {codes:?}")]
+    InvalidInputSyntax { codes: Vec<RuleCode> },
+    #[error("generated output is not syntactically valid: {codes:?}")]
+    InvalidGeneratedSyntax { codes: Vec<RuleCode> },
+    #[error(transparent)]
+    Fixes(#[from] ApplySafeFixesError),
+    #[error(transparent)]
+    Export(#[from] ExportError),
+}
+
+/// Strictly parse the input, apply every safe fix for the target validation
+/// profile, export even when non-syntactic diagnostics remain blocking, then
+/// safe-fix and revalidate the generated representation.
+///
+/// Confirmation-required and unsafe fixes are never applied. Ambiguous,
+/// conflicting, or otherwise non-exportable semantics remain typed errors in
+/// the exporter and are not guessed by this workflow.
+pub fn export_source_workflow(
+    source: &str,
+    profile: &ExportProfile,
+    export_options: &ExportSourceOptions,
+) -> Result<ExportWorkflowResult, ExportWorkflowError> {
+    let validation_policy =
+        ValidationPolicy::for_profile(&profile.validation_profile).map_err(|error| {
+            ExportError::InvalidProfile(format!(
+                "target validation profile `{}` is unavailable: {error}",
+                profile.validation_profile
+            ))
+        })?;
+    let analysis_options = AnalysisOptions {
+        parse_mode: ParseMode::Strict,
+        validation_policy,
+        venue_registry: export_options.venue_registry.clone(),
+        ..AnalysisOptions::default()
+    };
+
+    let initial = analyze(source, &analysis_options);
+    if initial.syntax.status != ParseStatus::Ok {
+        return Err(ExportWorkflowError::InvalidInputSyntax {
+            codes: syntax_error_codes(&initial),
+        });
+    }
+
+    let input_fixed = apply_safe_fixes(source, &analysis_options)?;
+    if input_fixed.analysis.syntax.status != ParseStatus::Ok {
+        return Err(ExportWorkflowError::InvalidInputSyntax {
+            codes: syntax_error_codes(&input_fixed.analysis),
+        });
+    }
+
+    let exported = bibmgr_export::export_with_options(
+        &input_fixed.analysis.bibliography,
+        profile,
+        &ExportOptions {
+            venue_name_style: export_options.venue_name_style,
+        },
+    )?;
+    let output_fixed = apply_safe_fixes(&exported.source, &analysis_options)?;
+    if output_fixed.analysis.syntax.status != ParseStatus::Ok {
+        return Err(ExportWorkflowError::InvalidGeneratedSyntax {
+            codes: syntax_error_codes(&output_fixed.analysis),
+        });
+    }
+
+    Ok(ExportWorkflowResult {
+        schema_version: SCHEMA_VERSION.to_owned(),
+        source: output_fixed.source,
+        profile: exported.profile,
+        venue_name_style: exported.venue_name_style,
+        record_count: exported.record_count,
+        warnings: exported.warnings,
+        input_applied_fix_ids: input_fixed.applied_fix_ids,
+        output_applied_fix_ids: output_fixed.applied_fix_ids,
+        input_diagnostics: input_fixed.analysis.diagnostics,
+        output_diagnostics: output_fixed.analysis.diagnostics,
+    })
+}
+
+fn syntax_error_codes(analysis: &AnalysisResult) -> Vec<RuleCode> {
+    let mut codes = analysis
+        .diagnostics
+        .iter()
+        .filter(|diagnostic| diagnostic.severity == Severity::Error)
+        .map(|diagnostic| diagnostic.code.clone())
+        .collect::<Vec<_>>();
+    codes.sort();
+    codes.dedup();
+    codes
 }
 
 /// Analyze strictly and serialize with a profile plus request-scoped options.
@@ -1195,6 +1306,45 @@ kind = "conference"
             export_source(preprint, &custom),
             Err(ExportError::InvalidProfile(message))
                 if message.contains("missing-policy")
+        ));
+    }
+
+    #[test]
+    fn advisory_export_applies_safe_fixes_and_reports_remaining_diagnostics() {
+        let source = "@article{k,\n  TITLE={T},\n  journal={J},\n  year={2024}\n}\n";
+        assert!(matches!(
+            export_source(source, &ExportProfile::laboratory()),
+            Err(ExportError::BlockingDiagnostics(_))
+        ));
+
+        let result = export_source_workflow(
+            source,
+            &ExportProfile::laboratory(),
+            &ExportSourceOptions::default(),
+        )
+        .unwrap();
+
+        assert!(!result.input_applied_fix_ids.is_empty());
+        assert!(result.source.contains("title ="));
+        assert!(result
+            .input_diagnostics
+            .iter()
+            .chain(&result.output_diagnostics)
+            .any(|diagnostic| diagnostic.code.as_str() == "LAB-ENTRY-003"));
+    }
+
+    #[test]
+    fn advisory_export_rejects_invalid_bibtex_syntax_before_fixing() {
+        let source = "@misc{hoge\n  title={T},\n}\n";
+
+        assert!(matches!(
+            export_source_workflow(
+                source,
+                &ExportProfile::modern(),
+                &ExportSourceOptions::default(),
+            ),
+            Err(ExportWorkflowError::InvalidInputSyntax { ref codes })
+                if codes.iter().any(|code| code.as_str() == "BIB-SYNTAX-103")
         ));
     }
 

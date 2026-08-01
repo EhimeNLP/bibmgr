@@ -58,6 +58,16 @@ for profile in catalog.profiles:
     print(profile["id"], profile["display_name"])
 ```
 
+Interactive adapters that deliberately continue past target-policy diagnostics can use `export_source_workflow()`. It first requires syntactically valid BibTeX, applies every safe fix for the export profile's validation policy to a fixed point, exports without treating remaining validation diagnostics as a gate, safe-fixes the generated output, and returns both input and output diagnostics. Confirmation-required and unsafe fixes are never applied. The CLI and web backend continue to use the strict `export_source()` contract.
+
+```python
+report = bibmgr_native.export_source_workflow(source, profile="laboratory")
+print(report.source)
+print(report.input_applied_fix_ids)
+for diagnostic in report.input_diagnostics + report.output_diagnostics:
+    print(diagnostic.code, diagnostic.message)
+```
+
 Use `decision.accepted`; do not infer registration from diagnostic severity in Python. The default `archive` policy rejects structural parse failures but accepts profile differences, incomplete metadata, and unresolved semantic values without rewriting `source`. `canonicalize_for_storage` remains an explicit opt-in CST normalization utility; database persistence does not call it. Export returns newly generated target BibTeX and never edits `source`. Venue naming accepts `full` or `abbreviated` and defaults to `full` independently of the profile. `export_profiles()` returns canonical built-in profile metadata in stable display order, so applications do not hardcode the selectable targets or their descriptions. Host applications may pass validated `profile_json` and `venue_registry_json` snapshots; the bundled web backend uses these parameters for database-backed configuration overrides.
 
 ## Sessions
