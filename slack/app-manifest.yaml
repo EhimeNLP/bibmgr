@@ -6,7 +6,7 @@ _metadata:
 display_information:
   name: BibMgR
   description: Validate, fix, and export one BibTeX entry from a Slack message.
-  background_color: "#FFFFFF"
+  background_color: "#1682F2"
 
 features:
   app_home:

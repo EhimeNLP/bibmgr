@@ -15,7 +15,7 @@ The app uses Slack Socket Mode and does not expose an HTTP endpoint. It stores e
 
 No app ID, bot ID, team ID, signing secret, request URL, or public port is required at startup. The app obtains its identity with Slack's `auth.test` method.
 
-If the app was installed from an older manifest without direct-message support, update its App Manifest and reinstall it to the workspace. Reinstallation grants the newly required `im:history` bot scope. The app subscribes only to direct messages and app mentions; it does not read ordinary channel messages.
+If the app was installed from an older manifest without direct-message support, reinstallation alone does not import changes from the repository. Open **App Manifest** in the Slack app settings, replace its contents with the current [`slack/app-manifest.yaml`](../slack/app-manifest.yaml), and save the changes. Then open **App Home** and verify that the Messages tab is enabled and users are allowed to send messages. Finally, reinstall the app to the workspace to grant the newly required `im:history` bot scope. The app subscribes only to direct messages and app mentions; it does not read ordinary channel messages.
 
 The regular YAML App Manifest does not include app icon data, and the Socket Mode runtime tokens cannot update app configuration. Icon selection therefore remains a deployment-time setting in Slack rather than a bot startup setting.
 
