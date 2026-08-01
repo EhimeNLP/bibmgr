@@ -1,6 +1,8 @@
 _metadata:
   major_version: 1
 
+# Slack's regular YAML manifest cannot embed an icon asset. After creating the
+# app, upload slack/assets/icon.png or a custom compatible image.
 display_information:
   name: BibMgR
   description: Validate, fix, and export one BibTeX entry from a Slack mention.

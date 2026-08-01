@@ -8,11 +8,14 @@ The app uses Slack Socket Mode and does not expose an HTTP endpoint. It stores e
 
 1. Open [Slack API: Your Apps](https://api.slack.com/apps), select **Create New App**, and choose **From an app manifest**.
 2. Select the workspace and paste [`slack/app-manifest.yaml`](../slack/app-manifest.yaml).
-3. Create the app, open **OAuth & Permissions**, and select **Install to Workspace**. Copy the **Bot User OAuth Token** beginning with `xoxb-`.
-4. Open **Basic Information**, select **Generate Token and Scopes** under **App-Level Tokens**, add the `connections:write` scope, and copy the token beginning with `xapp-`.
-5. Invite `@BibMgR` to every channel where it should respond.
+3. Create the app, open **Basic Information**, and upload [`slack/assets/icon.png`](../slack/assets/icon.png) as the app icon. This 512×512 PNG is generated from [`frontend/public/favicon.svg`](../frontend/public/favicon.svg). To customize the icon, upload a different square PNG, JPEG, or GIF between 512×512 and 2000×2000 pixels instead.
+4. Open **OAuth & Permissions**, and select **Install to Workspace**. Copy the **Bot User OAuth Token** beginning with `xoxb-`.
+5. Open **Basic Information**, select **Generate Token and Scopes** under **App-Level Tokens**, add the `connections:write` scope, and copy the token beginning with `xapp-`.
+6. Invite `@BibMgR` to every channel where it should respond.
 
 No app ID, bot ID, team ID, signing secret, request URL, or public port is required at startup. The app obtains its identity with Slack's `auth.test` method.
+
+The regular YAML App Manifest does not include app icon data, and the Socket Mode runtime tokens cannot update app configuration. Icon selection therefore remains a deployment-time setting in Slack rather than a bot startup setting.
 
 ## Start with interactive token entry
 
