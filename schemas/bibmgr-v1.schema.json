@@ -8,6 +8,7 @@
     { "$ref": "#/$defs/ApplyFixResult" },
     { "$ref": "#/$defs/RegistrationValidation" },
     { "$ref": "#/$defs/ExportResult" },
+    { "$ref": "#/$defs/ExportWorkflowResult" },
     { "$ref": "#/$defs/ExportProfileCatalog" },
     { "$ref": "#/$defs/AnalysisDelta" },
     { "$ref": "#/$defs/CstInspection" },
@@ -315,7 +316,7 @@
       },
       "additionalProperties": true
     },
-    "ExportResult": {
+    "ExportResultBase": {
       "type": "object",
       "required": [
         "schema_version",
@@ -345,6 +346,53 @@
         }
       },
       "additionalProperties": true
+    },
+    "ExportResult": {
+      "allOf": [
+        { "$ref": "#/$defs/ExportResultBase" },
+        {
+          "not": {
+            "anyOf": [
+              { "required": ["input_applied_fix_ids"] },
+              { "required": ["output_applied_fix_ids"] },
+              { "required": ["input_diagnostics"] },
+              { "required": ["output_diagnostics"] }
+            ]
+          }
+        }
+      ]
+    },
+    "ExportWorkflowResult": {
+      "allOf": [
+        { "$ref": "#/$defs/ExportResultBase" },
+        {
+          "type": "object",
+          "required": [
+            "input_applied_fix_ids",
+            "output_applied_fix_ids",
+            "input_diagnostics",
+            "output_diagnostics"
+          ],
+          "properties": {
+            "input_applied_fix_ids": {
+              "type": "array",
+              "items": { "$ref": "#/$defs/OpaqueId" }
+            },
+            "output_applied_fix_ids": {
+              "type": "array",
+              "items": { "$ref": "#/$defs/OpaqueId" }
+            },
+            "input_diagnostics": {
+              "type": "array",
+              "items": { "$ref": "#/$defs/Diagnostic" }
+            },
+            "output_diagnostics": {
+              "type": "array",
+              "items": { "$ref": "#/$defs/Diagnostic" }
+            }
+          }
+        }
+      ]
     },
     "ExportProfileId": {
       "type": "string",

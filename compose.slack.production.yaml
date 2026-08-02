@@ -1,0 +1,8 @@
+services:
+  slack-bot:
+    stdin_open: false
+    tty: false
+    restart: unless-stopped
+    environment:
+      SLACK_APP_TOKEN: ${SLACK_APP_TOKEN:?SLACK_APP_TOKEN is required for production startup}
+      SLACK_BOT_TOKEN: ${SLACK_BOT_TOKEN:?SLACK_BOT_TOKEN is required for production startup}

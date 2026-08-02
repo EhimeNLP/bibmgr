@@ -1,0 +1,16 @@
+name: bibmgr-slack
+
+services:
+  slack-bot:
+    build:
+      context: .
+      dockerfile: slack/Dockerfile
+    image: bibmgr-slack:${BIBMGR_IMAGE_TAG:-local}
+    stdin_open: true
+    tty: true
+    environment:
+      SLACK_APP_TOKEN: ${SLACK_APP_TOKEN:-}
+      SLACK_BOT_TOKEN: ${SLACK_BOT_TOKEN:-}
+      BIBMGR_SLACK_LANGUAGE: ${BIBMGR_SLACK_LANGUAGE:-en}
+      BIBMGR_SLACK_REQUEST_TTL_SECONDS: ${BIBMGR_SLACK_REQUEST_TTL_SECONDS:-600}
+      BIBMGR_SLACK_MAX_INPUT_BYTES: ${BIBMGR_SLACK_MAX_INPUT_BYTES:-12000}

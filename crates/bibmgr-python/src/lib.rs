@@ -46,6 +46,7 @@ json_dto!(PyAnalysisResult, "AnalysisResult");
 json_dto!(PyApplyFixResult, "ApplyFixResult");
 json_dto!(PyRegistrationValidation, "RegistrationValidation");
 json_dto!(PyExportResult, "ExportResult");
+json_dto!(PyExportWorkflowResult, "ExportWorkflowResult");
 json_dto!(PyExportProfileCatalog, "ExportProfileCatalog");
 json_dto!(PyAnalysisDelta, "AnalysisDelta");
 
@@ -469,6 +470,75 @@ impl PyExportResult {
 }
 
 #[pymethods]
+impl PyExportWorkflowResult {
+    #[getter]
+    fn schema_version(&self) -> String {
+        string_at(&self.value, &["schema_version"])
+    }
+
+    #[getter]
+    fn source(&self) -> String {
+        string_at(&self.value, &["source"])
+    }
+
+    #[getter]
+    fn profile(&self) -> String {
+        string_at(&self.value, &["profile"])
+    }
+
+    #[getter]
+    fn venue_name_style(&self) -> String {
+        string_at(&self.value, &["venue_name_style"])
+    }
+
+    #[getter]
+    fn record_count(&self) -> usize {
+        get_at(&self.value, &["record_count"])
+            .and_then(Value::as_u64)
+            .and_then(|count| usize::try_from(count).ok())
+            .unwrap_or_default()
+    }
+
+    #[getter]
+    fn warnings(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
+        value_to_dict(
+            py,
+            get_at(&self.value, &["warnings"]).unwrap_or(&Value::Null),
+        )
+    }
+
+    #[getter]
+    fn input_applied_fix_ids(&self) -> Vec<String> {
+        strings_at(&self.value, &["input_applied_fix_ids"])
+    }
+
+    #[getter]
+    fn output_applied_fix_ids(&self) -> Vec<String> {
+        strings_at(&self.value, &["output_applied_fix_ids"])
+    }
+
+    #[getter]
+    fn input_diagnostics(&self) -> Vec<PyDiagnostic> {
+        array_at(&self.value, &["input_diagnostics"])
+            .into_iter()
+            .map(|value| PyDiagnostic { value })
+            .collect()
+    }
+
+    #[getter]
+    fn output_diagnostics(&self) -> Vec<PyDiagnostic> {
+        array_at(&self.value, &["output_diagnostics"])
+            .into_iter()
+            .map(|value| PyDiagnostic { value })
+            .collect()
+    }
+
+    fn to_dict(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
+        value_to_dict(py, &self.value)
+    }
+}
+
+#[pymethods]
 impl PyExportProfileCatalog {
     #[getter]
     fn schema_version(&self) -> String {
@@ -719,6 +789,33 @@ fn export_source(
     )
 }
 
+#[pyfunction(signature = (source, profile="laboratory", *, venue_name_style="full", profile_json=None, venue_registry_json=None))]
+fn export_source_workflow(
+    py: Python<'_>,
+    source: String,
+    profile: &str,
+    venue_name_style: &str,
+    profile_json: Option<&str>,
+    venue_registry_json: Option<&str>,
+) -> PyResult<PyExportWorkflowResult> {
+    let profile = export_profile(profile, profile_json)?;
+    let venue_name_style = parse_venue_name_style(venue_name_style)?;
+    let venue_registry = venue_registry_from_json(venue_registry_json)?;
+    let result = py
+        .detach(move || {
+            bibmgr_core::export_source_workflow(
+                &source,
+                &profile,
+                &ExportSourceOptions {
+                    venue_name_style,
+                    venue_registry,
+                },
+            )
+        })
+        .map_err(|error| ExportError::new_err(error.to_string()))?;
+    PyExportWorkflowResult::from_serializable(&result)
+}
+
 #[pyfunction]
 fn export_profiles(py: Python<'_>) -> PyResult<PyExportProfileCatalog> {
     let result = py
@@ -904,6 +1001,7 @@ fn bibmgr_native(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_class::<PyApplyFixResult>()?;
     module.add_class::<PyRegistrationValidation>()?;
     module.add_class::<PyExportResult>()?;
+    module.add_class::<PyExportWorkflowResult>()?;
     module.add_class::<PyExportProfileCatalog>()?;
     module.add_class::<PyAnalysisDelta>()?;
     module.add_class::<PyDocumentSession>()?;
@@ -913,6 +1011,7 @@ fn bibmgr_native(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_function(wrap_pyfunction!(py_canonicalize_for_storage, module)?)?;
     module.add_function(wrap_pyfunction!(py_export, module)?)?;
     module.add_function(wrap_pyfunction!(export_source, module)?)?;
+    module.add_function(wrap_pyfunction!(export_source_workflow, module)?)?;
     module.add_function(wrap_pyfunction!(export_profiles, module)?)?;
     module.add_function(wrap_pyfunction!(builtin_configuration, module)?)?;
     module.add_function(wrap_pyfunction!(validate_export_profile, module)?)?;
