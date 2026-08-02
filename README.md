@@ -1,36 +1,80 @@
 # ![BibMgR Logo](docs/assets/bibmgr-logo.png)
 
-## 環境構築
+**BibMgR** is a BibTeX reference manager for collecting, validating, editing, and exporting bibliography data. It provides a shared authenticated web library with revision history and a CLI built on the same source-preserving Rust core.
 
-まず, 依存関係をインストールしてください.
+## Prerequisites
+
+Developing, testing, or building this repository from source requires the following tools:
+
+- `uv`: provisions the Python environment, installs locked dependencies, and runs Poe tasks; the application supports Python 3.11–3.13, while `.python-version` selects 3.12 only as the default contributor version
+- Rust 1.86 or later (`rustc` and `cargo`): builds the CLI and Python native extension
+- Node.js 22.12 or later in the Node.js 22 release line, with npm 10 or later: manages frontend dependencies, the development server, tests, and production builds
+
+Before setup, verify that each command is available:
+
+```bash
+uv --version
+rustc --version
+cargo --version
+node --version
+npm --version
+```
+
+## Setup
+
+Install the locked dependencies:
 
 ```bash
 uv sync
 uv run poe setup
 ```
 
-利用可能なタスクは次のコマンドで確認できます.
+List the available tasks with:
 
 ```bash
 uv run poe --help
 ```
 
-## CLIのインストール (Optional)
+## CLI installation (optional)
 
-BibTeX検証をCLIツールとして使用したい場合は, GitHubから直接インストールできます. repositoryのcloneは不要です. CLIの実行ファイル名は`bibmgr`です.
+To use BibTeX validation from the command line, install the CLI directly from GitHub without cloning the repository:
 
 ```bash
 cargo install --git https://github.com/EhimeNLP/bibmgr.git --locked bibmgr-cli
 bibmgr --version
 ```
 
-更新時は`--force`を付けて再インストールします.
+Add `--force` to replace an existing Cargo installation:
 
 ```bash
 cargo install --git https://github.com/EhimeNLP/bibmgr.git --locked --force bibmgr-cli
 ```
 
-開発や内容確認のためにrepositoryをcloneする場合は, ローカルpathからもインストールできます.
+Alternatively, Linux and macOS users can install a prebuilt binary without requiring Rust:
+
+```bash
+curl --proto '=https' --tlsv1.2 -LsSf \
+  https://github.com/EhimeNLP/bibmgr/releases/latest/download/bibmgr-installer.sh |
+  sh
+```
+
+The installer verifies the release archive with SHA-256 and writes the `bibmgr` executable to `~/.local/bin` by default. If that directory is not already on `PATH`, add it in your shell configuration:
+
+```bash
+export PATH="$HOME/.local/bin:$PATH"
+```
+
+Set `BIBMGR_INSTALL_DIR` to select another destination, or `BIBMGR_VERSION` to install a specific release. A version may be written with or without the leading `v`.
+
+```bash
+curl --proto '=https' --tlsv1.2 -LsSf \
+  https://github.com/EhimeNLP/bibmgr/releases/latest/download/bibmgr-installer.sh |
+  BIBMGR_INSTALL_DIR="$HOME/bin" BIBMGR_VERSION=v0.1.0 sh
+```
+
+Run the installer again to update an existing installation. Windows x86_64 users can download `bibmgr-x86_64-pc-windows-msvc.zip` from the [latest release](https://github.com/EhimeNLP/bibmgr/releases/latest), extract `bibmgr.exe`, and place it on `PATH`.
+
+If you clone the repository for development or inspection, you can install from the local path:
 
 ```bash
 git clone https://github.com/EhimeNLP/bibmgr.git
@@ -38,64 +82,64 @@ cd bibmgr
 cargo install --locked --path crates/bibmgr-cli
 ```
 
-ローカルcheckoutから更新する場合は, checkoutを更新してから再インストールします.
+To update an installation from a local checkout, update the checkout and reinstall:
 
 ```bash
 git pull
 cargo install --locked --force --path crates/bibmgr-cli
 ```
 
-インストールせずにリリース用バイナリを生成する場合はPoe taskを使用します.
+To build a release binary without installing it, use the Poe task:
 
 ```bash
 uv run --frozen poe build-cli
 ./target/release/bibmgr --version
 ```
 
-## CLIの利用
+## CLI usage
 
-基本的なコマンドは次のとおりです. 詳細なオプションは `bibmgr COMMAND --help`, 終了コードやJSON出力仕様は[`docs/cli.md`](docs/cli.md)で確認できます.
+The following examples cover the basic commands. Use `bibmgr COMMAND --help` for detailed options, and see [`docs/cli.md`](docs/cli.md) for exit codes and the JSON output contract.
 
 ```bash
-# 検査
+# Lint
 bibmgr lint references.bib --profile laboratory
 
-# CI向けJSON出力
+# Emit JSON for CI
 bibmgr lint references.bib --profile laboratory --format json
 
-# source-preservingな安全な修正をpreview
+# Preview safe, source-preserving fixes
 bibmgr fix references.bib --safe --dry-run
 
-# laboratory profile向けに最適化して別ファイルへexport
+# Export a separate file using the laboratory profile
 bibmgr export references.bib --profile laboratory --output references.exported.bib
 
-# export結果をJSON DTOとして取得
+# Return the export result as a JSON DTO
 bibmgr export references.bib --profile classical-bst --format json
 
-# semantic ASTを確認
+# Inspect the semantic AST
 bibmgr inspect references.bib --ast
 ```
 
-## 開発環境
+## Development
 
-文献ライブラリAPIにはPostgreSQL 18を使用します. メール認証の開発用受信箱にはMailpitを使用します. Dockerが利用できる環境では両サービスを起動し, マイグレーションを適用します.
+The reference library API uses PostgreSQL 18. Mailpit provides the development inbox for email authentication. If Docker is available, start both services and apply the database migrations:
 
 ```bash
 uv run poe dev-services-up
 uv run poe db-migrate
 ```
 
-Mailpitの受信箱は`http://127.0.0.1:8025/`で確認できます. 開発バックエンドは未設定時に`127.0.0.1:1025`へ認証メールを送信します.
+Open the Mailpit inbox at `http://127.0.0.1:8025/`. Unless configured otherwise, the development backend sends authentication email through `127.0.0.1:1025`.
 
-Dockerは必須ではありません. macOSではPostgreSQL 18とMailpitをHomebrewで直接起動できます. ローカルDBの作成、初回アカウント作成、BibTeX登録、サービス停止までの手順は[`docs/local-development.md`](docs/local-development.md)を参照してください.
+Docker is optional. On macOS, PostgreSQL 18 and Mailpit can run directly through Homebrew. See [`docs/local-development.md`](docs/local-development.md) for instructions covering local database creation, the first account, BibTeX registration, and service shutdown.
 
-開発DBを空の最新schemaへ戻す場合は次を実行し, 表示されたDB名を入力して確認します. リモートDBに対するresetは拒否されます.
+To reset the development database to an empty current schema, run the following task and type the displayed database name to confirm. The task refuses to reset a remote database.
 
 ```bash
 uv run poe db-reset
 ```
 
-接続先は`BIBMGR_DATABASE_URL`で変更できます. 未設定時は`postgresql+psycopg://bibmgr:bibmgr@127.0.0.1:5432/bibmgr`を使用します. 登録ポリシーはサーバー側の`BIBMGR_REGISTRATION_POLICY`で選択し, 未設定時は原文保存用の`archive`です. 研究室ルールは登録時ではなくexport時に適用します. ログイン可能なメールドメインは未設定時に`ai.cs.ehime-u.ac.jp`です.
+Set `BIBMGR_DATABASE_URL` to change the database connection. It defaults to `postgresql+psycopg://bibmgr:bibmgr@127.0.0.1:5432/bibmgr`. The server-owned `BIBMGR_REGISTRATION_POLICY` selects the registration policy and defaults to the source-preserving `archive` policy. Laboratory rules apply during export rather than registration. The default permitted login domain is `ai.cs.ehime-u.ac.jp`.
 
 ```bash
 BIBMGR_DATABASE_URL=postgresql+psycopg://user:password@db.example/bibmgr \
@@ -103,7 +147,7 @@ BIBMGR_REGISTRATION_POLICY=archive \
 uv run poe db-migrate
 ```
 
-バックエンドとフロントエンドの開発サーバを同時に起動します.
+Start the backend and frontend development servers together:
 
 ```bash
 uv run poe dev
@@ -116,18 +160,18 @@ uv run poe dev
 - API documentation: `http://127.0.0.1:8000/docs`
 - Development email inbox: `http://127.0.0.1:8025/`
 
-ログイン後の`History`画面では, 編集・削除を含む文献ごとの連番revisionを確認できます. 削除済み文献も履歴一覧に残り, 過去状態を選択して確認後に復元できます. 復元は既存履歴を変更せず, 新しいrevisionとして追加されます.
+After login, the `History` view shows sequential per-reference revisions, including edits and deletions. Deleted references remain in the history index and can be reviewed and restored from a selected earlier state. A restore appends a new revision without rewriting existing history.
 
-研究室ドメイン外の利用者は`BIBMGR_AUTH_ALLOWED_EMAILS`へ完全なメールアドレスを個別に追加します. ドメイン指定やワイルドカードでは許可されません.
+To permit a user outside the laboratory domain, add their complete email address to `BIBMGR_AUTH_ALLOWED_EMAILS`. Domain entries and wildcards are not accepted.
 
-個別に起動する場合は別々のターミナルで実行します.
+To run the servers separately, use two terminals:
 
 ```bash
 uv run poe dev-backend
 uv run poe dev-frontend
 ```
 
-待ち受けアドレスとポートは環境変数で変更できます.
+The listening addresses and ports can be changed with environment variables:
 
 ```bash
 HOST=127.0.0.1 PORT=8000 \
@@ -135,39 +179,39 @@ FRONTEND_HOST=127.0.0.1 FRONTEND_PORT=5173 \
 uv run poe dev
 ```
 
-テスト一式と, format・lint・typecheck・lockfile・schema・Markdown・fuzz/benchmark buildを含む統合検査は次のタスクで実行します.
+Run the complete test suite and the integrated checks, including formatting, linting, type checking, lockfile, schema, Markdown, and fuzz/benchmark builds, with:
 
 ```bash
 uv run poe test
 uv run poe check
 ```
 
-## 本番環境への導入
+## Production deployment
 
-固定された依存関係からCLI, ネイティブ拡張wheel, バックエンドwheel, フロントエンド静的ファイルを生成します.
+Build the CLI, native extension wheel, backend wheel, and frontend static files from the locked dependencies:
 
 ```bash
 uv run --frozen poe build
 ```
 
-生成物は次の場所に出力されます.
+The artifacts are written to:
 
 - CLI: `target/release/bibmgr`
 - Native wheel: `dist/native/*.whl`
 - Backend wheel: `dist/backend/*.whl`
 - Frontend static files: `frontend/dist/`
 
-ソースチェックアウトからバックエンドを起動する場合は, lockfileを変更せず環境を同期してから, reloadを行わない本番運用向けタスクを実行します.
+To run the backend from a source checkout, synchronize the environment without modifying the lockfile, then use the production-oriented task that disables automatic reload:
 
 ```bash
 uv sync --frozen
 HOST=0.0.0.0 PORT=8000 uv run --frozen poe start-backend
 ```
 
-wheelだけを実行ホストへ導入する場合は, Python 3.12環境へネイティブ拡張wheelとバックエンドwheelをインストールして起動します.
+To deploy only the wheels to a runtime host, install the native extension and backend wheels into a supported Python 3.11–3.13 environment and start the application. The following example uses Python 3.11, matching the production container:
 
 ```bash
-uv venv --python 3.12 .venv-runtime
+uv venv --python 3.11 .venv-runtime
 uv pip install \
   --python .venv-runtime/bin/python \
   dist/native/*.whl \
@@ -177,20 +221,24 @@ uv pip install \
   --port 8000
 ```
 
-`frontend/dist/` は静的ファイルサーバまたはCDNから配信し, `/api/`をバックエンドへ転送するリバースプロキシを構成します.
+Serve `frontend/dist/` from a static file server or CDN, and configure a reverse proxy that forwards `/api/` to the backend.
 
-本番向けのPostgreSQL 18, migration job, backend, Vue/Caddyの共通構成は`compose.production.yaml`にあります. 公開方式は, CaddyがTLSを終端する`compose.production.direct.yaml`と, 外部リバースプロキシがTLSを終端する`compose.production.proxy.yaml`から選択します.
+`compose.production.yaml` contains the shared production configuration for PostgreSQL 18, the migration job, the backend, and Vue/Caddy. Choose either `compose.production.direct.yaml`, where Caddy terminates TLS directly, or `compose.production.proxy.yaml`, where an external reverse proxy terminates TLS.
 
 ```bash
 cp .env.production.example .env.production
 
-# Caddyから直接HTTPSで公開する場合
+# Publish HTTPS directly through Caddy
 uv run poe prod-direct-config
 uv run poe prod-direct-up
 
-# 外部リバースプロキシ配下で公開する場合
+# Run behind an external reverse proxy
 uv run poe prod-proxy-config
 uv run poe prod-proxy-up
 ```
 
-本番バックエンドでは`BIBMGR_ENV=production`, secret file, SMTP接続情報, secure cookie, HTTPSを必須とします. アカウント管理, 認証データの定期削除, 監視, backup/restore, systemd timerを含む手順は[`docs/operations.md`](docs/operations.md), 認証仕様は[`docs/authentication.md`](docs/authentication.md)を参照してください.
+The production backend requires `BIBMGR_ENV=production`, a secret file, SMTP connection settings, secure cookies, and HTTPS. See [`docs/operations.md`](docs/operations.md) for account management, periodic authentication-data cleanup, monitoring, backup/restore, and systemd timers. See [`docs/authentication.md`](docs/authentication.md) for the authentication contract.
+
+## License
+
+The BibMgR application and libraries are distributed under the terms of either the [Apache License, Version 2.0](LICENSE-APACHE) or the [MIT License](LICENSE-MIT), at your option.

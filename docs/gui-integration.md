@@ -10,7 +10,7 @@ The frontend never parses BibTeX to produce diagnostics or decide whether a reco
 
 ## Endpoints
 
-The example backend exposes schema-v1 JSON:
+The backend exposes schema-v1 JSON:
 
 | Method and path | Purpose |
 | --- | --- |

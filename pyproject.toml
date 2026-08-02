@@ -2,14 +2,15 @@
 name = "bibmgr-development"
 version = "0.1.0"
 description = "Development environment and task definitions for bibmgr"
-requires-python = ">=3.12,<3.13"
+requires-python = ">=3.11,<3.14"
+license = "MIT OR Apache-2.0"
 dependencies = [
   "poethepoet>=0.48,<0.49",
 ]
 
 [dependency-groups]
 dev = [
-  "bibmgr-backend-example[test]",
+  "bibmgr-backend[test]",
   "bibmgr-native",
   "maturin>=1.9,<2",
 ]
@@ -18,7 +19,7 @@ dev = [
 package = false
 
 [tool.uv.sources]
-bibmgr-backend-example = { path = "backend", editable = true }
+bibmgr-backend = { path = "backend", editable = true }
 bibmgr-native = { path = "crates/bibmgr-python", editable = true }
 
 [tool.poe]
