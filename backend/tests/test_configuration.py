@@ -74,7 +74,7 @@ def configuration_context() -> Iterator[
     database = create_engine("sqlite+pysqlite://")
     Base.metadata.create_all(database)
     session = Session(database, expire_on_commit=False)
-    actor = UserRecord(email="configuration-test@ai.cs.ehime-u.ac.jp")
+    actor = UserRecord(email="configuration-test@example.test")
     session.add(actor)
     session.flush()
     yield ApplicationConfiguration(ConfigurationEngineStub()), session, actor.id

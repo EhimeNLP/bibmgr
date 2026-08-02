@@ -63,6 +63,11 @@ from .models import (
     UpdateApplicationConfigurationRequest,
 )
 from .native import NativeCallError, NativeEngine
+from .security import (
+    RequestProtection,
+    RequestProtectionMiddleware,
+    RequestRateLimitError,
+)
 
 
 LOGGER = logging.getLogger("bibmgr.http")
@@ -72,6 +77,9 @@ if not LOGGER.handlers:
     LOGGER.addHandler(_request_log_handler)
 LOGGER.setLevel(logging.INFO)
 LOGGER.propagate = False
+_METRIC_METHODS = frozenset(
+    {"DELETE", "GET", "HEAD", "OPTIONS", "PATCH", "POST", "PUT"}
+)
 
 
 class ErrorPayload(BaseModel):
@@ -181,6 +189,7 @@ def create_app(
     session_factory: Callable[[], Session] | None = None,
     registration_policy: str | None = None,
     authentication: AuthenticationManager | None = None,
+    request_protection: RequestProtection | None = None,
 ) -> FastAPI:
     application = FastAPI(
         title="bibmgr backend",
@@ -195,6 +204,9 @@ def create_app(
     library = ReferenceLibrary(selected_engine)
     configuration = ApplicationConfiguration(selected_engine)
     selected_authentication = authentication or AuthenticationManager()
+    selected_request_protection = (
+        request_protection or RequestProtection.from_environment()
+    )
     selected_registration_policy = (
         registration_policy
         if registration_policy is not None
@@ -204,6 +216,10 @@ def create_app(
     request_duration_seconds: Counter[tuple[str, str]] = Counter()
     request_duration_samples: Counter[tuple[str, str]] = Counter()
     metrics_lock = Lock()
+    application.add_middleware(
+        RequestProtectionMiddleware,
+        protection=selected_request_protection,
+    )
 
     @application.middleware("http")
     async def observe_request(
@@ -216,15 +232,21 @@ def create_app(
         try:
             response = await call_next(request)
             status_code = response.status_code
+            response.headers["Cache-Control"] = "no-store"
             response.headers["X-Request-ID"] = request_id
             return response
         finally:
             duration = time.perf_counter() - started_at
             route = request.scope.get("route")
             route_path = getattr(route, "path", "unmatched")
-            key = (request.method, route_path)
+            metric_method = (
+                request.method
+                if request.method in _METRIC_METHODS
+                else "OTHER"
+            )
+            key = (metric_method, route_path)
             with metrics_lock:
-                request_counts[(request.method, route_path, status_code)] += 1
+                request_counts[(metric_method, route_path, status_code)] += 1
                 request_duration_seconds[key] += duration
                 request_duration_samples[key] += 1
             LOGGER.info(
@@ -268,13 +290,17 @@ def create_app(
             str | None, Header(alias="X-CSRF-Token")
         ] = None,
     ) -> AuthenticatedSession:
-        return selected_authentication.require_write_session(
+        authenticated = selected_authentication.require_write_session(
             session,
             token=request.cookies.get(
                 selected_authentication.cookie_name
             ),
             csrf_token=csrf_token,
         )
+        selected_request_protection.check_authenticated_write(
+            str(authenticated.user.id)
+        )
+        return authenticated
 
     def require_authenticated_session(
         request: Request,
@@ -288,6 +314,9 @@ def create_app(
             raise AuthenticationRequiredError(
                 "Login is required for this operation."
             )
+        selected_request_protection.check_authenticated_user(
+            str(authenticated.user.id)
+        )
         return authenticated
 
     AuthenticatedSessionDependency = Annotated[
@@ -377,6 +406,20 @@ def create_app(
             "authentication_rate_limited",
             str(error),
         )
+        response.headers["Cache-Control"] = "no-store"
+        response.headers["Retry-After"] = str(error.retry_after)
+        return response
+
+    @application.exception_handler(RequestRateLimitError)
+    async def request_rate_limit_handler(
+        _request: Request, error: RequestRateLimitError
+    ) -> JSONResponse:
+        response = error_response(
+            429,
+            "rate_limited",
+            str(error),
+        )
+        response.headers["Cache-Control"] = "no-store"
         response.headers["Retry-After"] = str(error.retry_after)
         return response
 

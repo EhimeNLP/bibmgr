@@ -8,6 +8,7 @@ from sqlalchemy.pool import StaticPool
 from bibmgr_backend.app import create_app
 from bibmgr_backend.auth import AuthenticationManager
 from bibmgr_backend.db_models import Base
+from bibmgr_backend.models import MAX_BIBTEX_SOURCE_CHARACTERS
 from bibmgr_backend.native import NativeCallError
 
 
@@ -210,7 +211,7 @@ def client_and_engine(
         )
     )
     if authenticated:
-        email = "transport@ai.cs.ehime-u.ac.jp"
+        email = "transport@example.test"
         assert client.post(
             "/auth/email/start", json={"email": email}
         ).status_code == 202
@@ -428,7 +429,7 @@ def test_application_configuration_is_editable_with_revision_checks() -> None:
     assert saved.status_code == 200
     assert saved.json()["setting"]["revision"] == 1
     assert saved.json()["setting"]["updated_by"]["email"] == (
-        "transport@ai.cs.ehime-u.ac.jp"
+        "transport@example.test"
     )
 
     unchanged_override = client.put(
@@ -557,7 +558,7 @@ def test_application_configuration_is_editable_with_revision_checks() -> None:
     assert deleted_event["before_data"]["profile"] == "custom-profile"
     assert deleted_event["after_data"] is None
     assert deleted_event["actor"]["email"] == (
-        "transport@ai.cs.ehime-u.ac.jp"
+        "transport@example.test"
     )
 
     venue_history = client.get(
@@ -587,6 +588,19 @@ def test_unknown_request_fields_are_rejected() -> None:
             "message": "Request validation failed.",
         },
     }
+    assert engine.calls == []
+
+
+def test_bibtex_source_character_limit_is_enforced_before_native_work() -> None:
+    client, engine = client_and_engine()
+
+    response = client.post(
+        "/bibtex/analyze",
+        json={"source": "x" * (MAX_BIBTEX_SOURCE_CHARACTERS + 1)},
+    )
+
+    assert response.status_code == 422
+    assert response.json()["error"]["code"] == "invalid_request"
     assert engine.calls == []
 
 
@@ -660,6 +674,7 @@ def test_request_ids_and_metrics_use_normalized_routes() -> None:
     response = client.get("/healthz", headers={"X-Request-ID": "test-request-1"})
 
     assert response.status_code == 200
+    assert response.headers["Cache-Control"] == "no-store"
     assert response.headers["X-Request-ID"] == "test-request-1"
     metrics = client.get("/metrics").text
     assert (
@@ -669,6 +684,22 @@ def test_request_ids_and_metrics_use_normalized_routes() -> None:
     assert (
         'bibmgr_http_request_duration_seconds_count'
         '{method="GET",route="/healthz"} 1'
+        in metrics
+    )
+
+
+def test_metrics_bound_unrecognized_http_method_cardinality() -> None:
+    client, _engine = client_and_engine()
+
+    assert client.request("CUSTOM-ONE", "/missing").status_code == 404
+    assert client.request("CUSTOM-TWO", "/missing").status_code == 404
+
+    metrics = client.get("/metrics").text
+    assert 'method="CUSTOM-ONE"' not in metrics
+    assert 'method="CUSTOM-TWO"' not in metrics
+    assert (
+        'bibmgr_http_requests_total'
+        '{method="OTHER",route="unmatched",status="404"} 2'
         in metrics
     )
 

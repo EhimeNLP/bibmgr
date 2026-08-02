@@ -1,4 +1,4 @@
-"""Passwordless laboratory email authentication and session handling."""
+"""Passwordless email authentication and session handling."""
 
 from __future__ import annotations
 
@@ -7,6 +7,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from email.message import EmailMessage
+from enum import Enum
 from hashlib import sha256
 import hmac
 import os
@@ -35,7 +36,7 @@ EMAIL_REQUEST_COOLDOWN = timedelta(seconds=60)
 IP_REQUEST_WINDOW = timedelta(hours=1)
 IP_REQUEST_LIMIT = 30
 SESSION_LIFETIME = timedelta(days=7)
-DEFAULT_EMAIL_DOMAIN = "ai.cs.ehime-u.ac.jp"
+DEFAULT_EMAIL_DOMAIN = "example.test"
 DEFAULT_SESSION_COOKIE = "bibmgr_session"
 _DEVELOPMENT_AUTH_SECRET = secrets.token_bytes(32)
 
@@ -74,6 +75,21 @@ class EmailDeliveryError(AuthenticationError):
     """The configured SMTP transport could not deliver a login code."""
 
 
+class SmtpSecurity(str, Enum):
+    """Supported SMTP connection security modes."""
+
+    PLAIN = "plain"
+    STARTTLS = "starttls"
+    IMPLICIT_TLS = "implicit_tls"
+
+
+_SMTP_DEFAULT_PORTS = {
+    SmtpSecurity.PLAIN: 25,
+    SmtpSecurity.STARTTLS: 587,
+    SmtpSecurity.IMPLICIT_TLS: 465,
+}
+
+
 @dataclass(frozen=True)
 class AuthenticatedSession:
     user: UserRecord
@@ -100,29 +116,100 @@ class SmtpLoginCodeMailer:
         sender: str,
         username: str | None = None,
         password: str | None = None,
-        starttls: bool = False,
+        security: SmtpSecurity | str = SmtpSecurity.PLAIN,
+        ca_file: str | None = None,
     ) -> None:
-        self.host = host
+        normalized_host = host.strip()
+        normalized_sender = normalize_email(sender)
+        if not normalized_host:
+            raise RuntimeError("BIBMGR_SMTP_HOST must not be empty.")
+        if normalized_sender is None:
+            raise RuntimeError(
+                "BIBMGR_EMAIL_FROM must be one complete email address."
+            )
+        try:
+            normalized_security = SmtpSecurity(security)
+        except ValueError as error:
+            supported = ", ".join(mode.value for mode in SmtpSecurity)
+            raise RuntimeError(
+                f"BIBMGR_SMTP_SECURITY must be one of: {supported}."
+            ) from error
+        normalized_username = username.strip() if username else None
+        normalized_password = password if password else None
+        if not 1 <= port <= 65535:
+            raise RuntimeError(
+                "BIBMGR_SMTP_PORT must be between 1 and 65535."
+            )
+        if bool(normalized_username) != bool(normalized_password):
+            raise RuntimeError(
+                "BIBMGR_SMTP_USERNAME and an SMTP password must be "
+                "configured together."
+            )
+        if (
+            normalized_security is SmtpSecurity.PLAIN
+            and normalized_username is not None
+        ):
+            raise RuntimeError(
+                "SMTP authentication requires starttls or implicit_tls."
+            )
+        if normalized_security is SmtpSecurity.PLAIN and ca_file:
+            raise RuntimeError(
+                "BIBMGR_SMTP_CA_FILE requires starttls or implicit_tls."
+            )
+        self.host = normalized_host
         self.port = port
-        self.sender = sender
-        self.username = username
-        self.password = password
-        self.starttls = starttls
+        self.sender = normalized_sender
+        self.username = normalized_username
+        self.password = normalized_password
+        self.security = normalized_security
+        self.ca_file = ca_file or None
 
     @classmethod
     def from_environment(cls) -> SmtpLoginCodeMailer:
+        production = os.environ.get("BIBMGR_ENV") == "production"
         host = os.environ.get("BIBMGR_SMTP_HOST")
-        if os.environ.get("BIBMGR_ENV") == "production" and not host:
+        if production and not host:
             raise RuntimeError(
                 "BIBMGR_SMTP_HOST is required in production."
             )
+        sender = os.environ.get("BIBMGR_EMAIL_FROM")
+        if production and not sender:
+            raise RuntimeError(
+                "BIBMGR_EMAIL_FROM is required in production."
+            )
+        if "BIBMGR_SMTP_STARTTLS" in os.environ:
+            raise RuntimeError(
+                "BIBMGR_SMTP_STARTTLS has been replaced by "
+                "BIBMGR_SMTP_SECURITY."
+            )
+        configured_security = os.environ.get("BIBMGR_SMTP_SECURITY")
+        if production and not configured_security:
+            raise RuntimeError(
+                "BIBMGR_SMTP_SECURITY is required in production."
+            )
+        try:
+            security = SmtpSecurity(
+                configured_security or SmtpSecurity.PLAIN.value
+            )
+        except ValueError as error:
+            supported = ", ".join(mode.value for mode in SmtpSecurity)
+            raise RuntimeError(
+                f"BIBMGR_SMTP_SECURITY must be one of: {supported}."
+            ) from error
+        configured_port = os.environ.get("BIBMGR_SMTP_PORT")
+        if configured_port is None:
+            port = _SMTP_DEFAULT_PORTS[security] if production else 1025
+        else:
+            try:
+                port = int(configured_port)
+            except ValueError as error:
+                raise RuntimeError(
+                    "BIBMGR_SMTP_PORT must be an integer."
+                ) from error
         return cls(
             host=host or "127.0.0.1",
-            port=int(os.environ.get("BIBMGR_SMTP_PORT", "1025")),
-            sender=os.environ.get(
-                "BIBMGR_EMAIL_FROM",
-                f"bibmgr@{DEFAULT_EMAIL_DOMAIN}",
-            ),
+            port=port,
+            sender=sender or f"bibmgr@{DEFAULT_EMAIL_DOMAIN}",
             username=os.environ.get("BIBMGR_SMTP_USERNAME"),
             password=(
                 os.environ.get("BIBMGR_SMTP_PASSWORD")
@@ -130,8 +217,16 @@ class SmtpLoginCodeMailer:
                     "BIBMGR_SMTP_PASSWORD_FILE", allow_empty=True
                 )
             ),
-            starttls=_environment_flag("BIBMGR_SMTP_STARTTLS"),
+            security=security,
+            ca_file=os.environ.get("BIBMGR_SMTP_CA_FILE"),
         )
+
+    def _tls_context(self) -> ssl.SSLContext:
+        context = ssl.create_default_context()
+        if self.ca_file:
+            context.load_verify_locations(cafile=self.ca_file)
+        context.minimum_version = ssl.TLSVersion.TLSv1_2
+        return context
 
     def send_login_code(
         self,
@@ -154,12 +249,30 @@ class SmtpLoginCodeMailer:
         )
 
         try:
-            with smtplib.SMTP(self.host, self.port, timeout=10) as smtp:
-                if self.starttls:
-                    smtp.starttls(context=ssl.create_default_context())
+            if self.security is SmtpSecurity.IMPLICIT_TLS:
+                connection = smtplib.SMTP_SSL(
+                    self.host,
+                    self.port,
+                    timeout=10,
+                    context=self._tls_context(),
+                )
+            else:
+                connection = smtplib.SMTP(
+                    self.host, self.port, timeout=10
+                )
+            with connection as smtp:
+                if self.security is SmtpSecurity.STARTTLS:
+                    smtp.ehlo()
+                    smtp.starttls(context=self._tls_context())
+                    smtp.ehlo()
                 if self.username:
-                    smtp.login(self.username, self.password or "")
-                smtp.send_message(message)
+                    assert self.password is not None
+                    smtp.login(self.username, self.password)
+                smtp.send_message(
+                    message,
+                    from_addr=self.sender,
+                    to_addrs=[recipient],
+                )
         except (OSError, smtplib.SMTPException) as error:
             raise EmailDeliveryError(
                 "The login email could not be delivered."
@@ -184,11 +297,18 @@ class AuthenticationManager:
     ) -> None:
         self.mailer = mailer or SmtpLoginCodeMailer.from_environment()
         self.secret = secret or authentication_secret()
-        self.allowed_domain = (
-            allowed_domain
-            or os.environ.get(
-                "BIBMGR_AUTH_EMAIL_DOMAIN", DEFAULT_EMAIL_DOMAIN
+        configured_domain = allowed_domain or os.environ.get(
+            "BIBMGR_AUTH_EMAIL_DOMAIN"
+        )
+        if (
+            os.environ.get("BIBMGR_ENV") == "production"
+            and not configured_domain
+        ):
+            raise RuntimeError(
+                "BIBMGR_AUTH_EMAIL_DOMAIN is required in production."
             )
+        self.allowed_domain = (
+            configured_domain or DEFAULT_EMAIL_DOMAIN
         ).casefold()
         configured_allowed_emails = (
             allowed_emails

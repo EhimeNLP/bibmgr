@@ -12,7 +12,7 @@ const authenticatedSession = {
   authenticated: true,
   user: {
     id: "7ca9f85d-b16f-470b-a6a8-ab6d8582eb36",
-    email: "member@ai.cs.ehime-u.ac.jp",
+    email: "member@example.test",
   },
   csrfToken: "csrf-token",
 };
@@ -35,9 +35,9 @@ describe("authentication API", () => {
       .mockResolvedValueOnce(jsonResponse(authenticatedSession));
     vi.stubGlobal("fetch", fetchMock);
 
-    await startEmailLogin("member@ai.cs.ehime-u.ac.jp");
+    await startEmailLogin("member@example.test");
     await expect(
-      verifyEmailLogin("member@ai.cs.ehime-u.ac.jp", "12345678"),
+      verifyEmailLogin("member@example.test", "12345678"),
     ).resolves.toEqual(authenticatedSession);
 
     expect(fetchMock.mock.calls[0]?.[0]).toBe("/api/auth/email/start");
@@ -45,7 +45,7 @@ describe("authentication API", () => {
     const [, verifyInit] = fetchMock.mock.calls[1] as [string, RequestInit];
     expect(verifyInit.credentials).toBe("include");
     expect(JSON.parse(String(verifyInit.body))).toEqual({
-      email: "member@ai.cs.ehime-u.ac.jp",
+      email: "member@example.test",
       code: "12345678",
     });
     expect(authenticatedWriteHeaders({ json: true }).get("X-CSRF-Token")).toBe(

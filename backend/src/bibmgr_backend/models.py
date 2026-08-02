@@ -1,9 +1,15 @@
 """Transport request and persisted-reference response models."""
 
 from datetime import datetime
-from typing import Any, Literal
+from typing import Annotated, Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
+
+
+MAX_BIBTEX_SOURCE_CHARACTERS = 500_000
+MAX_PROFILE_NAME_CHARACTERS = 128
+MAX_FIX_IDS = 1_000
+MAX_FIX_ID_CHARACTERS = 256
 
 
 class StrictRequest(BaseModel):
@@ -13,26 +19,34 @@ class StrictRequest(BaseModel):
 
 
 class AnalyzeRequest(StrictRequest):
-    source: str
-    profile: str = "laboratory"
+    source: str = Field(max_length=MAX_BIBTEX_SOURCE_CHARACTERS)
+    profile: str = Field(
+        default="laboratory", max_length=MAX_PROFILE_NAME_CHARACTERS
+    )
     mode: Literal["strict", "tolerant"] = "tolerant"
 
 
 class ApplyFixesRequest(StrictRequest):
-    source: str
-    source_revision: str = Field(min_length=1)
-    fix_ids: list[str] = Field(min_length=1)
-    profile: str = "laboratory"
+    source: str = Field(max_length=MAX_BIBTEX_SOURCE_CHARACTERS)
+    source_revision: str = Field(min_length=1, max_length=128)
+    fix_ids: list[
+        Annotated[str, Field(max_length=MAX_FIX_ID_CHARACTERS)]
+    ] = Field(min_length=1, max_length=MAX_FIX_IDS)
+    profile: str = Field(
+        default="laboratory", max_length=MAX_PROFILE_NAME_CHARACTERS
+    )
 
 
 class RegistrationRequest(StrictRequest):
-    source: str
-    policy: str = "archive"
+    source: str = Field(max_length=MAX_BIBTEX_SOURCE_CHARACTERS)
+    policy: str = Field(default="archive", max_length=MAX_PROFILE_NAME_CHARACTERS)
 
 
 class ExportRequest(StrictRequest):
-    source: str
-    profile: str = "laboratory"
+    source: str = Field(max_length=MAX_BIBTEX_SOURCE_CHARACTERS)
+    profile: str = Field(
+        default="laboratory", max_length=MAX_PROFILE_NAME_CHARACTERS
+    )
     venue_name_style: Literal["full", "abbreviated"] = "full"
 
 
@@ -56,7 +70,9 @@ class CitationContextInput(StrictRequest):
 
 
 class RegisterReferencesRequest(StrictRequest):
-    bibtex: str = Field(min_length=1)
+    bibtex: str = Field(
+        min_length=1, max_length=MAX_BIBTEX_SOURCE_CHARACTERS
+    )
     source: Literal["manual", "file"]
     citation_contexts: list[CitationContextInput] = Field(
         default_factory=list, max_length=1000
@@ -64,7 +80,9 @@ class RegisterReferencesRequest(StrictRequest):
 
 
 class UpdateReferenceRequest(StrictRequest):
-    bibtex: str = Field(min_length=1)
+    bibtex: str = Field(
+        min_length=1, max_length=MAX_BIBTEX_SOURCE_CHARACTERS
+    )
     source_revision: str = Field(
         pattern=r"^sha256:[0-9a-f]{64}$"
     )

@@ -416,7 +416,7 @@ describe("SettingsPanel", () => {
           occurred_at: "2026-07-30T10:15:00Z",
           actor: {
             id: "66fb7ea4-8779-4b84-8b5c-f26f1192e102",
-            email: "member@ai.cs.ehime-u.ac.jp",
+            email: "member@example.test",
           },
         },
       ],
@@ -445,7 +445,7 @@ describe("SettingsPanel", () => {
     );
     expect(wrapper.get(".settings-history").text()).toContain("Deleted");
     expect(wrapper.get(".settings-history").text()).toContain(
-      "member@ai.cs.ehime-u.ac.jp",
+      "member@example.test",
     );
     await wrapper.get(".settings-history details").trigger("click");
     const diff = wrapper.get(".unified-diff");
@@ -495,7 +495,7 @@ describe("SettingsPanel", () => {
           occurred_at: "2026-07-30T10:15:00Z",
           actor: {
             id: "66fb7ea4-8779-4b84-8b5c-f26f1192e102",
-            email: "member@ai.cs.ehime-u.ac.jp",
+            email: "member@example.test",
           },
         },
       ],
@@ -591,7 +591,7 @@ describe("SettingsPanel", () => {
             occurred_at: "2026-07-30T10:15:00Z",
             actor: {
               id: "66fb7ea4-8779-4b84-8b5c-f26f1192e102",
-              email: "member@ai.cs.ehime-u.ac.jp",
+              email: "member@example.test",
             },
           },
         ],
@@ -643,7 +643,7 @@ describe("SettingsPanel", () => {
           occurred_at: "2026-07-30T10:15:00Z",
           actor: {
             id: "66fb7ea4-8779-4b84-8b5c-f26f1192e102",
-            email: "member@ai.cs.ehime-u.ac.jp",
+            email: "member@example.test",
           },
         },
       ],

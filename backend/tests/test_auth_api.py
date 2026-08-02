@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
+import ssl
 from typing import Any
 
 from fastapi.testclient import TestClient
@@ -15,6 +16,7 @@ from bibmgr_backend.auth import (
     AuthenticationManager,
     EmailDeliveryError,
     SmtpLoginCodeMailer,
+    SmtpSecurity,
     allowed_email_exceptions,
     authentication_secret,
     normalize_email,
@@ -25,6 +27,7 @@ from bibmgr_backend.db_models import (
     UserRecord,
     UserSessionRecord,
 )
+from bibmgr_backend.security import RateLimitPolicy, RequestProtection
 
 
 class UnusedEngine:
@@ -143,6 +146,7 @@ def build_client(
     allowed_emails: set[str] | None = None,
     cookie_path: str = "/",
     mailer: CapturingMailer | None = None,
+    request_protection: RequestProtection | None = None,
 ) -> tuple[
     TestClient,
     CapturingMailer,
@@ -175,6 +179,7 @@ def build_client(
             UnusedEngine(),
             session_factory=sessions,
             authentication=authentication,
+            request_protection=request_protection,
         )
     )
     return client, selected_mailer, clock, sessions
@@ -189,19 +194,19 @@ def test_email_login_creates_session_and_logout_revokes_it() -> None:
     )
     started = client.post(
         "/auth/email/start",
-        json={"email": "Researcher@AI.CS.EHIME-U.AC.JP"},
+        json={"email": "Researcher@EXAMPLE.TEST"},
     )
 
     assert refused.status_code == 202
     assert started.status_code == 202
     assert mailer.messages == [
-        ("researcher@ai.cs.ehime-u.ac.jp", "12345678", 10)
+        ("researcher@example.test", "12345678", 10)
     ]
 
     verified = client.post(
         "/auth/email/verify",
         json={
-            "email": "researcher@ai.cs.ehime-u.ac.jp",
+            "email": "researcher@example.test",
             "code": "12345678",
         },
     )
@@ -209,14 +214,14 @@ def test_email_login_creates_session_and_logout_revokes_it() -> None:
     assert verified.status_code == 200
     payload = verified.json()
     assert payload["authenticated"] is True
-    assert payload["user"]["email"] == "researcher@ai.cs.ehime-u.ac.jp"
+    assert payload["user"]["email"] == "researcher@example.test"
     assert payload["csrfToken"]
     assert client.get("/auth/session").json() == payload
 
     reused = client.post(
         "/auth/email/verify",
         json={
-            "email": "researcher@ai.cs.ehime-u.ac.jp",
+            "email": "researcher@example.test",
             "code": "12345678",
         },
     )
@@ -242,11 +247,83 @@ def test_email_login_creates_session_and_logout_revokes_it() -> None:
         assert stored_session.revoked_at is not None
 
 
+def test_authenticated_requests_are_rate_limited_per_user() -> None:
+    protection = RequestProtection(
+        global_policy=RateLimitPolicy(
+            "global", requests_per_minute=10_000, burst=100
+        ),
+        authenticated_policy=RateLimitPolicy(
+            "authenticated", requests_per_minute=1, burst=1
+        ),
+    )
+    client, mailer, _clock, _sessions = build_client(
+        request_protection=protection
+    )
+    email = "member@example.test"
+    assert client.post(
+        "/auth/email/start", json={"email": email}
+    ).status_code == 202
+    assert client.post(
+        "/auth/email/verify",
+        json={"email": email, "code": mailer.messages[0][1]},
+    ).status_code == 200
+
+    assert client.get("/bibtex/export/profiles").status_code == 200
+    limited = client.get("/bibtex/export/profiles")
+
+    assert limited.status_code == 429
+    assert limited.headers["retry-after"] == "60"
+    assert limited.json()["error"]["code"] == "rate_limited"
+
+
+def test_authenticated_writes_have_a_separate_rate_limit() -> None:
+    protection = RequestProtection(
+        global_policy=RateLimitPolicy(
+            "global", requests_per_minute=10_000, burst=100
+        ),
+        authenticated_policy=RateLimitPolicy(
+            "authenticated", requests_per_minute=10_000, burst=100
+        ),
+        authenticated_write_policy=RateLimitPolicy(
+            "write", requests_per_minute=1, burst=1
+        ),
+    )
+    client, mailer, _clock, _sessions = build_client(
+        request_protection=protection
+    )
+    email = "member@example.test"
+    assert client.post(
+        "/auth/email/start", json={"email": email}
+    ).status_code == 202
+    login = client.post(
+        "/auth/email/verify",
+        json={"email": email, "code": mailer.messages[0][1]},
+    )
+    assert login.status_code == 200
+    csrf_token = login.json()["csrfToken"]
+
+    headers = {
+        "X-CSRF-Token": csrf_token,
+        "If-Match": f"sha256:{'0' * 64}",
+    }
+    missing_reference = (
+        "/references/00000000-0000-0000-0000-000000000001"
+    )
+    assert client.delete(
+        missing_reference,
+        headers=headers,
+    ).status_code == 404
+
+    limited = client.delete(missing_reference, headers=headers)
+    assert limited.status_code == 429
+    assert limited.json()["error"]["code"] == "rate_limited"
+
+
 def test_session_cookie_can_be_scoped_to_a_proxy_subpath() -> None:
     client, _mailer, _clock, _sessions = build_client(
         cookie_path="/bibmgr/"
     )
-    email = "member@ai.cs.ehime-u.ac.jp"
+    email = "member@example.test"
     assert client.post(
         "/auth/email/start", json={"email": email}
     ).status_code == 202
@@ -262,7 +339,7 @@ def test_session_cookie_can_be_scoped_to_a_proxy_subpath() -> None:
 
 def test_login_code_is_rate_limited_and_expires() -> None:
     client, mailer, clock, sessions = build_client()
-    email = "member@ai.cs.ehime-u.ac.jp"
+    email = "member@example.test"
 
     assert client.post(
         "/auth/email/start", json={"email": email}
@@ -291,7 +368,7 @@ def test_failed_delivery_consumes_challenge_and_preserves_request_slot() -> None
     client, _mailer, _clock, sessions = build_client(
         mailer=failing_mailer
     )
-    email = "member@ai.cs.ehime-u.ac.jp"
+    email = "member@example.test"
 
     failed = client.post("/auth/email/start", json={"email": email})
 
@@ -322,11 +399,11 @@ def test_exact_external_email_allowlist_is_additive() -> None:
     ).status_code == 202
     assert client.post(
         "/auth/email/start",
-        json={"email": "member@ai.cs.ehime-u.ac.jp"},
+        json={"email": "member@example.test"},
     ).status_code == 202
     assert [message[0] for message in mailer.messages] == [
         "visitor@example.org",
-        "member@ai.cs.ehime-u.ac.jp",
+        "member@example.test",
     ]
 
 
@@ -428,12 +505,12 @@ def test_application_access_requires_session_and_writes_require_csrf() -> None:
     clock.advance(timedelta(minutes=1))
     client.post(
         "/auth/email/start",
-        json={"email": "member@ai.cs.ehime-u.ac.jp"},
+        json={"email": "member@example.test"},
     )
     verified = client.post(
         "/auth/email/verify",
         json={
-            "email": "member@ai.cs.ehime-u.ac.jp",
+            "email": "member@example.test",
             "code": mailer.messages[-1][1],
         },
     )
@@ -507,13 +584,203 @@ def test_production_smtp_requires_an_explicit_host(
         SmtpLoginCodeMailer.from_environment()
 
 
+def test_production_requires_an_explicit_email_domain(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("BIBMGR_ENV", "production")
+    monkeypatch.delenv("BIBMGR_AUTH_EMAIL_DOMAIN", raising=False)
+
+    with pytest.raises(RuntimeError, match="BIBMGR_AUTH_EMAIL_DOMAIN"):
+        AuthenticationManager(
+            mailer=CapturingMailer(),
+            secret=b"x" * 32,
+        )
+
+
+def test_production_smtp_requires_an_explicit_security_mode(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("BIBMGR_ENV", "production")
+    monkeypatch.setenv("BIBMGR_SMTP_HOST", "smtp.example")
+    monkeypatch.setenv("BIBMGR_EMAIL_FROM", "bibmgr@example.test")
+    monkeypatch.delenv("BIBMGR_SMTP_SECURITY", raising=False)
+    monkeypatch.delenv("BIBMGR_SMTP_STARTTLS", raising=False)
+
+    with pytest.raises(RuntimeError, match="BIBMGR_SMTP_SECURITY"):
+        SmtpLoginCodeMailer.from_environment()
+
+
+def test_production_smtp_requires_an_explicit_sender(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("BIBMGR_ENV", "production")
+    monkeypatch.setenv("BIBMGR_SMTP_HOST", "smtp.example")
+    monkeypatch.delenv("BIBMGR_EMAIL_FROM", raising=False)
+
+    with pytest.raises(RuntimeError, match="BIBMGR_EMAIL_FROM"):
+        SmtpLoginCodeMailer.from_environment()
+
+
+def test_development_smtp_defaults_to_mailpit(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    for name in (
+        "BIBMGR_ENV",
+        "BIBMGR_SMTP_HOST",
+        "BIBMGR_SMTP_PORT",
+        "BIBMGR_SMTP_SECURITY",
+        "BIBMGR_SMTP_STARTTLS",
+    ):
+        monkeypatch.delenv(name, raising=False)
+
+    mailer = SmtpLoginCodeMailer.from_environment()
+
+    assert mailer.host == "127.0.0.1"
+    assert mailer.port == 1025
+    assert mailer.security is SmtpSecurity.PLAIN
+
+
+@pytest.mark.parametrize(
+    ("security", "expected_port"),
+    [
+        ("plain", 25),
+        ("starttls", 587),
+        ("implicit_tls", 465),
+    ],
+)
+def test_production_smtp_uses_mode_specific_default_ports(
+    monkeypatch: pytest.MonkeyPatch,
+    security: str,
+    expected_port: int,
+) -> None:
+    monkeypatch.setenv("BIBMGR_ENV", "production")
+    monkeypatch.setenv("BIBMGR_SMTP_HOST", "smtp.example")
+    monkeypatch.setenv("BIBMGR_EMAIL_FROM", "bibmgr@example.test")
+    monkeypatch.setenv("BIBMGR_SMTP_SECURITY", security)
+    monkeypatch.delenv("BIBMGR_SMTP_PORT", raising=False)
+    monkeypatch.delenv("BIBMGR_SMTP_STARTTLS", raising=False)
+
+    mailer = SmtpLoginCodeMailer.from_environment()
+
+    assert mailer.security.value == security
+    assert mailer.port == expected_port
+
+
+@pytest.mark.parametrize("configured_port", ["not-a-port", "0", "65536"])
+def test_smtp_environment_rejects_invalid_ports(
+    monkeypatch: pytest.MonkeyPatch,
+    configured_port: str,
+) -> None:
+    monkeypatch.setenv("BIBMGR_SMTP_PORT", configured_port)
+
+    with pytest.raises(RuntimeError, match="BIBMGR_SMTP_PORT"):
+        SmtpLoginCodeMailer.from_environment()
+
+
+def test_smtp_environment_rejects_an_invalid_security_mode(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("BIBMGR_SMTP_SECURITY", "tls")
+
+    with pytest.raises(RuntimeError, match="must be one of"):
+        SmtpLoginCodeMailer.from_environment()
+
+
+def test_smtp_environment_rejects_deprecated_starttls_flag(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("BIBMGR_SMTP_STARTTLS", "true")
+
+    with pytest.raises(RuntimeError, match="has been replaced"):
+        SmtpLoginCodeMailer.from_environment()
+
+
+def test_smtp_configuration_rejects_insecure_authentication() -> None:
+    with pytest.raises(RuntimeError, match="configured together"):
+        SmtpLoginCodeMailer(
+            host="smtp.example",
+            port=587,
+            sender="bibmgr@example.test",
+            username="smtp-user",
+            security=SmtpSecurity.STARTTLS,
+        )
+    with pytest.raises(RuntimeError, match="configured together"):
+        SmtpLoginCodeMailer(
+            host="smtp.example",
+            port=587,
+            sender="bibmgr@example.test",
+            password="smtp-password",
+            security=SmtpSecurity.STARTTLS,
+        )
+    with pytest.raises(RuntimeError, match="requires starttls"):
+        SmtpLoginCodeMailer(
+            host="smtp.example",
+            port=25,
+            sender="bibmgr@example.test",
+            username="smtp-user",
+            password="smtp-password",
+            security=SmtpSecurity.PLAIN,
+        )
+    with pytest.raises(RuntimeError, match="CA_FILE requires"):
+        SmtpLoginCodeMailer(
+            host="relay.example",
+            port=25,
+            sender="bibmgr@example.test",
+            security=SmtpSecurity.PLAIN,
+            ca_file="/run/secrets/private-ca.pem",
+        )
+    with pytest.raises(RuntimeError, match="complete email address"):
+        SmtpLoginCodeMailer(
+            host="relay.example",
+            port=25,
+            sender="not-an-email-address",
+            security=SmtpSecurity.PLAIN,
+        )
+
+
+def test_smtp_tls_context_extends_system_trust_with_a_custom_ca_file(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    default_context_calls = 0
+    observed_ca_files: list[str] = []
+
+    class FakeTlsContext:
+        minimum_version: ssl.TLSVersion | None = None
+
+        def load_verify_locations(self, *, cafile: str) -> None:
+            observed_ca_files.append(cafile)
+
+    def fake_create_default_context() -> Any:
+        nonlocal default_context_calls
+        default_context_calls += 1
+        return FakeTlsContext()
+
+    monkeypatch.setattr(
+        "bibmgr_backend.auth.ssl.create_default_context",
+        fake_create_default_context,
+    )
+    mailer = SmtpLoginCodeMailer(
+        host="smtp.example",
+        port=465,
+        sender="bibmgr@example.test",
+        security=SmtpSecurity.IMPLICIT_TLS,
+        ca_file="/run/secrets/private-ca.pem",
+    )
+
+    context = mailer._tls_context()
+
+    assert default_context_calls == 1
+    assert observed_ca_files == ["/run/secrets/private-ca.pem"]
+    assert context.minimum_version is ssl.TLSVersion.TLSv1_2
+
+
 def test_email_normalization_rejects_ambiguous_addresses() -> None:
     assert (
-        normalize_email(" Member@AI.CS.EHIME-U.AC.JP ")
-        == "member@ai.cs.ehime-u.ac.jp"
+        normalize_email(" Member@EXAMPLE.TEST ")
+        == "member@example.test"
     )
-    assert normalize_email("member@@ai.cs.ehime-u.ac.jp") is None
-    assert normalize_email("member\n@ai.cs.ehime-u.ac.jp") is None
+    assert normalize_email("member@@example.test") is None
+    assert normalize_email("member\n@example.test") is None
 
 
 def test_allowed_email_exceptions_parse_complete_addresses(
@@ -529,10 +796,11 @@ def test_allowed_email_exceptions_parse_complete_addresses(
     }
 
 
-def test_smtp_mailer_sends_the_login_code(
+def test_starttls_mailer_sends_the_login_code(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     sent_messages: list[Any] = []
+    ehlo_count = 0
 
     class FakeSmtp:
         def __init__(
@@ -546,33 +814,48 @@ def test_smtp_mailer_sends_the_login_code(
         def __exit__(self, *_args: object) -> None:
             return None
 
+        def ehlo(self) -> None:
+            nonlocal ehlo_count
+            ehlo_count += 1
+
         def starttls(self, *, context: Any) -> None:
-            assert context is not None
+            assert context.minimum_version is ssl.TLSVersion.TLSv1_2
+            assert context.check_hostname
+            assert context.verify_mode is ssl.CERT_REQUIRED
 
         def login(self, username: str, password: str) -> None:
             assert (username, password) == ("smtp-user", "smtp-password")
 
-        def send_message(self, message: Any) -> None:
+        def send_message(
+            self,
+            message: Any,
+            *,
+            from_addr: str,
+            to_addrs: list[str],
+        ) -> None:
+            assert from_addr == "bibmgr@example.test"
+            assert to_addrs == ["member@example.test"]
             sent_messages.append(message)
 
     monkeypatch.setattr("bibmgr_backend.auth.smtplib.SMTP", FakeSmtp)
     mailer = SmtpLoginCodeMailer(
         host="smtp.example",
         port=587,
-        sender="bibmgr@ai.cs.ehime-u.ac.jp",
+        sender="bibmgr@example.test",
         username="smtp-user",
         password="smtp-password",
-        starttls=True,
+        security=SmtpSecurity.STARTTLS,
     )
 
     mailer.send_login_code(
-        recipient="member@ai.cs.ehime-u.ac.jp",
+        recipient="member@example.test",
         code="12345678",
         expires_in_minutes=10,
     )
 
+    assert ehlo_count == 2
     assert len(sent_messages) == 1
-    assert sent_messages[0]["To"] == "member@ai.cs.ehime-u.ac.jp"
+    assert sent_messages[0]["To"] == "member@example.test"
     content = sent_messages[0].get_content()
     assert sent_messages[0]["Subject"] == "BibMgR login code"
     assert "Use the following code to sign in to BibMgR:" in content
@@ -580,3 +863,119 @@ def test_smtp_mailer_sends_the_login_code(
     assert "expires in 10 minutes" in content
     assert "If you did not request this code" in content
     assert "ログイン" not in content
+
+
+def test_implicit_tls_mailer_uses_smtp_ssl(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    sent_messages: list[Any] = []
+
+    class FakeSmtpSsl:
+        def __init__(
+            self,
+            host: str,
+            port: int,
+            timeout: int,
+            context: ssl.SSLContext,
+        ) -> None:
+            assert (host, port, timeout) == ("smtp.example", 465, 10)
+            assert context.minimum_version is ssl.TLSVersion.TLSv1_2
+            assert context.check_hostname
+            assert context.verify_mode is ssl.CERT_REQUIRED
+
+        def __enter__(self) -> FakeSmtpSsl:
+            return self
+
+        def __exit__(self, *_args: object) -> None:
+            return None
+
+        def login(self, username: str, password: str) -> None:
+            assert (username, password) == ("smtp-user", "smtp-password")
+
+        def send_message(
+            self,
+            message: Any,
+            *,
+            from_addr: str,
+            to_addrs: list[str],
+        ) -> None:
+            assert from_addr == "bibmgr@example.test"
+            assert to_addrs == ["member@example.test"]
+            sent_messages.append(message)
+
+    def unexpected_smtp(*_args: object, **_kwargs: object) -> None:
+        raise AssertionError("implicit TLS must not use plaintext SMTP")
+
+    monkeypatch.setattr("bibmgr_backend.auth.smtplib.SMTP", unexpected_smtp)
+    monkeypatch.setattr(
+        "bibmgr_backend.auth.smtplib.SMTP_SSL", FakeSmtpSsl
+    )
+    mailer = SmtpLoginCodeMailer(
+        host="smtp.example",
+        port=465,
+        sender="bibmgr@example.test",
+        username="smtp-user",
+        password="smtp-password",
+        security=SmtpSecurity.IMPLICIT_TLS,
+    )
+
+    mailer.send_login_code(
+        recipient="member@example.test",
+        code="12345678",
+        expires_in_minutes=10,
+    )
+
+    assert len(sent_messages) == 1
+
+
+def test_plain_mailer_uses_an_unauthenticated_connection(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    sent_messages: list[Any] = []
+
+    class FakeSmtp:
+        def __init__(
+            self, host: str, port: int, timeout: int
+        ) -> None:
+            assert (host, port, timeout) == ("relay.example", 25, 10)
+
+        def __enter__(self) -> FakeSmtp:
+            return self
+
+        def __exit__(self, *_args: object) -> None:
+            return None
+
+        def send_message(
+            self,
+            message: Any,
+            *,
+            from_addr: str,
+            to_addrs: list[str],
+        ) -> None:
+            assert from_addr == "bibmgr@example.test"
+            assert to_addrs == ["member@example.test"]
+            sent_messages.append(message)
+
+    def unexpected_smtp_ssl(
+        *_args: object, **_kwargs: object
+    ) -> None:
+        raise AssertionError("plain SMTP must not use SMTP_SSL")
+
+    monkeypatch.setattr("bibmgr_backend.auth.smtplib.SMTP", FakeSmtp)
+    monkeypatch.setattr(
+        "bibmgr_backend.auth.smtplib.SMTP_SSL", unexpected_smtp_ssl
+    )
+    mailer = SmtpLoginCodeMailer(
+        host="relay.example",
+        port=25,
+        sender="bibmgr@example.test",
+        security=SmtpSecurity.PLAIN,
+    )
+
+    mailer.send_login_code(
+        recipient="member@example.test",
+        code="12345678",
+        expires_in_minutes=10,
+    )
+
+    assert len(sent_messages) == 1

@@ -45,10 +45,15 @@ RUN /opt/bibmgr/bin/pip install \
     && chown bibmgr:nogroup /var/lib/bibmgr/backups
 
 ENV PATH="/opt/bibmgr/bin:${PATH}" \
-    PYTHONUNBUFFERED=1
+    PYTHONUNBUFFERED=1 \
+    UVICORN_BACKLOG=128 \
+    UVICORN_FORWARDED_ALLOW_IPS=127.0.0.1 \
+    UVICORN_LIMIT_CONCURRENCY=64 \
+    UVICORN_TIMEOUT_GRACEFUL_SHUTDOWN=30 \
+    UVICORN_TIMEOUT_KEEP_ALIVE=5
 
 USER bibmgr
 WORKDIR /var/lib/bibmgr
 EXPOSE 8000
 
-CMD ["uvicorn", "bibmgr_backend.app:app", "--host", "0.0.0.0", "--port", "8000", "--proxy-headers", "--forwarded-allow-ips=*"]
+CMD ["uvicorn", "bibmgr_backend.app:app", "--host", "0.0.0.0", "--port", "8000", "--proxy-headers"]

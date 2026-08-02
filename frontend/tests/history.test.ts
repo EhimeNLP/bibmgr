@@ -13,7 +13,7 @@ const session = {
   authenticated: true,
   user: {
     id: "7ca9f85d-b16f-470b-a6a8-ab6d8582eb36",
-    email: "member@ai.cs.ehime-u.ac.jp",
+    email: "member@example.test",
   },
   csrfToken: "history-csrf-token",
 };
@@ -76,7 +76,7 @@ describe("reference history API", () => {
     vi.stubGlobal("fetch", fetchMock);
 
     await verifyEmailLogin(
-      "member@ai.cs.ehime-u.ac.jp",
+      "member@example.test",
       "12345678",
     );
     await expect(listReferenceHistory()).resolves.toEqual([summary]);

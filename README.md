@@ -1,4 +1,4 @@
-# ![BibMgR Logo](docs/assets/bibmgr-logo.png)
+<p style="text-align: center"><img src="docs/assets/bibmgr-logo.svg" alt="BibMgR Logo" width=100%></p>
 
 **BibMgR** is a BibTeX reference manager for collecting, validating, editing, and exporting bibliography data. It provides a shared authenticated web library with revision history and a CLI built on the same source-preserving Rust core.
 
@@ -139,7 +139,7 @@ To reset the development database to an empty current schema, run the following 
 uv run poe db-reset
 ```
 
-Set `BIBMGR_DATABASE_URL` to change the database connection. It defaults to `postgresql+psycopg://bibmgr:bibmgr@127.0.0.1:5432/bibmgr`. The server-owned `BIBMGR_REGISTRATION_POLICY` selects the registration policy and defaults to the source-preserving `archive` policy. Laboratory rules apply during export rather than registration. The default permitted login domain is `ai.cs.ehime-u.ac.jp`.
+Set `BIBMGR_DATABASE_URL` to change the database connection. It defaults to `postgresql+psycopg://bibmgr:bibmgr@127.0.0.1:5432/bibmgr`. The server-owned `BIBMGR_REGISTRATION_POLICY` selects the registration policy and defaults to the source-preserving `archive` policy. Laboratory rules apply during export rather than registration. `BIBMGR_AUTH_EMAIL_DOMAIN` selects the exact permitted login domain; local development defaults to the reserved domain `example.test`, while production requires an explicit value.
 
 ```bash
 BIBMGR_DATABASE_URL=postgresql+psycopg://user:password@db.example/bibmgr \
@@ -162,7 +162,7 @@ uv run poe dev
 
 After login, the `History` view shows sequential per-reference revisions, including edits and deletions. Deleted references remain in the history index and can be reviewed and restored from a selected earlier state. A restore appends a new revision without rewriting existing history.
 
-To permit a user outside the laboratory domain, add their complete email address to `BIBMGR_AUTH_ALLOWED_EMAILS`. Domain entries and wildcards are not accepted.
+To permit a user outside the configured login domain, add their complete email address to `BIBMGR_AUTH_ALLOWED_EMAILS`. Domain entries and wildcards are not accepted.
 
 To run the servers separately, use two terminals:
 
