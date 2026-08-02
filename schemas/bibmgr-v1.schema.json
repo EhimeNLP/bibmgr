@@ -8,6 +8,7 @@
     { "$ref": "#/$defs/ApplyFixResult" },
     { "$ref": "#/$defs/RegistrationValidation" },
     { "$ref": "#/$defs/ExportResult" },
+    { "$ref": "#/$defs/ExportWorkflowResult" },
     { "$ref": "#/$defs/ExportProfileCatalog" },
     { "$ref": "#/$defs/AnalysisDelta" },
     { "$ref": "#/$defs/CstInspection" },
@@ -315,7 +316,7 @@
       },
       "additionalProperties": true
     },
-    "ExportResult": {
+    "ExportResultBase": {
       "type": "object",
       "required": [
         "schema_version",
@@ -346,56 +347,52 @@
       },
       "additionalProperties": true
     },
-    "ExportWorkflowResult": {
-      "type": "object",
-      "required": [
-        "schema_version",
-        "source",
-        "profile",
-        "venue_name_style",
-        "record_count",
-        "warnings",
-        "input_applied_fix_ids",
-        "output_applied_fix_ids",
-        "input_diagnostics",
-        "output_diagnostics"
-      ],
-      "properties": {
-        "schema_version": { "$ref": "#/$defs/SchemaVersion" },
-        "source": { "type": "string" },
-        "profile": { "$ref": "#/$defs/OpaqueId" },
-        "venue_name_style": { "$ref": "#/$defs/VenueNameStyle" },
-        "record_count": { "type": "integer", "minimum": 0 },
-        "warnings": {
-          "type": "array",
-          "items": {
-            "type": "object",
-            "required": ["record_index", "message"],
-            "properties": {
-              "record_index": { "type": "integer", "minimum": 0 },
-              "message": { "type": "string" }
-            },
-            "additionalProperties": false
+    "ExportResult": {
+      "allOf": [
+        { "$ref": "#/$defs/ExportResultBase" },
+        {
+          "not": {
+            "anyOf": [
+              { "required": ["input_applied_fix_ids"] },
+              { "required": ["output_applied_fix_ids"] },
+              { "required": ["input_diagnostics"] },
+              { "required": ["output_diagnostics"] }
+            ]
           }
-        },
-        "input_applied_fix_ids": {
-          "type": "array",
-          "items": { "$ref": "#/$defs/OpaqueId" }
-        },
-        "output_applied_fix_ids": {
-          "type": "array",
-          "items": { "$ref": "#/$defs/OpaqueId" }
-        },
-        "input_diagnostics": {
-          "type": "array",
-          "items": { "$ref": "#/$defs/Diagnostic" }
-        },
-        "output_diagnostics": {
-          "type": "array",
-          "items": { "$ref": "#/$defs/Diagnostic" }
         }
-      },
-      "additionalProperties": true
+      ]
+    },
+    "ExportWorkflowResult": {
+      "allOf": [
+        { "$ref": "#/$defs/ExportResultBase" },
+        {
+          "type": "object",
+          "required": [
+            "input_applied_fix_ids",
+            "output_applied_fix_ids",
+            "input_diagnostics",
+            "output_diagnostics"
+          ],
+          "properties": {
+            "input_applied_fix_ids": {
+              "type": "array",
+              "items": { "$ref": "#/$defs/OpaqueId" }
+            },
+            "output_applied_fix_ids": {
+              "type": "array",
+              "items": { "$ref": "#/$defs/OpaqueId" }
+            },
+            "input_diagnostics": {
+              "type": "array",
+              "items": { "$ref": "#/$defs/Diagnostic" }
+            },
+            "output_diagnostics": {
+              "type": "array",
+              "items": { "$ref": "#/$defs/Diagnostic" }
+            }
+          }
+        }
+      ]
     },
     "ExportProfileId": {
       "type": "string",
