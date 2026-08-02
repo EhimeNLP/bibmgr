@@ -222,7 +222,9 @@ class SmtpLoginCodeMailer:
         )
 
     def _tls_context(self) -> ssl.SSLContext:
-        context = ssl.create_default_context(cafile=self.ca_file)
+        context = ssl.create_default_context()
+        if self.ca_file:
+            context.load_verify_locations(cafile=self.ca_file)
         context.minimum_version = ssl.TLSVersion.TLSv1_2
         return context
 

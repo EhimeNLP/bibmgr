@@ -738,16 +738,22 @@ def test_smtp_configuration_rejects_insecure_authentication() -> None:
         )
 
 
-def test_smtp_tls_context_uses_a_custom_ca_file(
+def test_smtp_tls_context_extends_system_trust_with_a_custom_ca_file(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    observed_ca_files: list[str | None] = []
+    default_context_calls = 0
+    observed_ca_files: list[str] = []
 
-    def fake_create_default_context(
-        *, cafile: str | None = None
-    ) -> ssl.SSLContext:
-        observed_ca_files.append(cafile)
-        return ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
+    class FakeTlsContext:
+        minimum_version: ssl.TLSVersion | None = None
+
+        def load_verify_locations(self, *, cafile: str) -> None:
+            observed_ca_files.append(cafile)
+
+    def fake_create_default_context() -> Any:
+        nonlocal default_context_calls
+        default_context_calls += 1
+        return FakeTlsContext()
 
     monkeypatch.setattr(
         "bibmgr_backend.auth.ssl.create_default_context",
@@ -763,6 +769,7 @@ def test_smtp_tls_context_uses_a_custom_ca_file(
 
     context = mailer._tls_context()
 
+    assert default_context_calls == 1
     assert observed_ca_files == ["/run/secrets/private-ca.pem"]
     assert context.minimum_version is ssl.TLSVersion.TLSv1_2
 
