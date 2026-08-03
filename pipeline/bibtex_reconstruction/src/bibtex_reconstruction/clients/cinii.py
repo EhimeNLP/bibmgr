@@ -58,11 +58,18 @@ class CiNiiClient(BaseAPIClient):
         if not basic:
             return None, None
 
-        initial_best = max(basic, key=lambda item: self._score(reference, item))
+        ranked_basic = sorted(
+            basic,
+            key=lambda item: self._score(reference, item),
+            reverse=True,
+        )
+        initial_best = ranked_basic[0]
         if self._score(reference, initial_best) >= 0.90:
             detail_targets = [initial_best]
         else:
-            detail_targets = basic[: settings.cinii_detail_candidate_count]
+            detail_targets = ranked_basic[
+                : settings.cinii_detail_candidate_count
+            ]
 
         enriched: list[VerifiedCitationInfo] = []
         for metadata in detail_targets:
@@ -78,7 +85,9 @@ class CiNiiClient(BaseAPIClient):
             )
 
         candidates = enriched + [
-            metadata for metadata in basic if metadata not in detail_targets
+            metadata
+            for metadata in ranked_basic
+            if metadata not in detail_targets
         ]
         selected = max(
             candidates,
