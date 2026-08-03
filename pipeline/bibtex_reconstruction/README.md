@@ -1,88 +1,37 @@
-# BibTeX reconstruction
+# BibTeX Reconstruction
 
-`metadata_extraction`のJSONから初期登録用BibTeXを復元するCLIです．`ExtractionResult.to_dict()`の生JSONと，`bibmgr-paper-parse --format json`の正規化JSONを入力できます．検索候補と出典を保持し，最終候補だけをRustで検証します．データベースへの登録は行いません．
+This package reconstructs initialization-time BibTeX from `metadata_extraction` JSON. It writes validated entries and a JSON audit report, but does not register anything in BibMgR.
 
-## Architecture
+## Sync
 
-```mermaid
-flowchart TD
-    IN[metadata_extraction JSON] --> LOCAL{Local DB照合}
-    LOCAL -- yes --> KEEP[登録済みBibTeXとkeyを保持]
-    LOCAL -- no --> DOI[入力DOIの公式Citeを確認]
-    DOI -- insufficient --> SEARCH[ACL公式index + 外部APIを並列検索]
-    SEARCH --> CAND[候補をprovider別に保存・採点]
-    CAND -- insufficient --> QUERY[LLMで検索queryを改善]
-    QUERY --> SEARCH
-    DOI -- sufficient --> SELECT[公式Cite → Content Negotiation → direct export]
-    CAND --> SELECT
-    CAND -- complete typed metadata --> SYNTH[type別に決定論的にBibTeX生成]
-    CAND -- synthesis unavailable --> ARXIV[arXiv公式misc]
-    SELECT --> FILL[同じDOIの証拠で欠損fieldだけ補完]
-    FILL --> RUST[Rust検証]
-    SYNTH --> RUST
-    ARXIV --> RUST
-    KEEP --> RUST
-    RUST -- fail --> FALLBACK[key安全化 / 同じDOIの別BibTeX]
-    FALLBACK --> RUST
-    FALLBACK -- exhausted --> REVIEW[manual review]
-    RUST -- pass --> KEY[surname-year-venue-concept]
-    KEY --> BIB[reconstructed.bib]
-    CAND --> REPORT[reconstruction-report.json + artifacts]
-    REVIEW --> REPORT
-    KEY --> REPORT
-```
-
-## 判断規則
-
-- ACL Anthology，Crossref，Semantic Scholar，CiNII，J-STAGE，arXivを並列検索し，各候補・`not_found`・`api_error`を統合せずreportへ保存します．ACLは公式BibTeX indexをlocal cacheします．
-- CiNIIは複数候補の詳細を取得し，日本語・英語のtitleとauthorを別名として保持したまま再採点します．
-- 照合用copyだけを正規化し，title 70%，author 30%のscoreを計算します．原metadataとBibTeXは変更しません．
-- trusted DOIにはscore `0.80`以上，direct exportとmetadata生成にはscore `0.90`以上と強いauthor一致を要求します．
-- 入力DOIの公式CiteとContent NegotiationをAPI検索より先に試します．APIは並列検索し，scoreで適格性を判定した後，同等の候補をACL Anthology，Crossref，Semantic Scholar，CiNII，J-STAGE，arXivの順に扱います．信頼できるDOIが見つかればその公式BibTeXを優先し，取得できない場合だけ適格なdirect exportを使います．
-- 補完は同じDOIを持つ1ソースから欠損fieldにだけ行い，既存値は上書きしません．不一致は`manual_review`に送ります．
-- APIのBibTeXを直接取得できない場合は，単一候補のpublication typeが一意で，type別必須fieldが揃うときだけ`article`，`inproceedings`，`book`，`incollection`を生成します．各fieldの出典と年の差はreportに残します．
-- 生成条件を満たす正式版候補がない場合は，title・authorが強く一致したarXiv公式`misc`をyearの差で棄却せず，改変せず採用します．明示的なarXiv IDはtitle検索を経由せず直接解決します．
-- Rust検証に失敗した場合はfieldを変えずにkeyを安全化し，同じDOIのContent Negotiationとdirect exportへfallbackします．
-- LLMに許可するのは検索query改善とcitation keyのconcept生成だけです．BibTeX生成，field補完，候補採用には使用しません．
-
-## Citation key
-
-```text
-{surname}-{year}-{venue}-{concept}
-```
-
-`surname`，`year`，`venue`はルールで生成します．`concept`は次の順で決定します．
-
-1. title中の固有名・acronymをルールで抽出
-2. 抽出できない場合だけLLMが代表的な手法・モデル・dataset名を選択
-3. LLMを利用できない場合はtitle由来の技術語へfallback
-
-`concept`は小文字ASCII英数字の1語です．衝突時は別候補を試し，最後にstable hashを付けます．Local DBから採用したentryでは既存keyを保持します．
-
-## Setup
-
-Python 3.12と`uv`を使用します．個別の`pip install`は不要です．
+From the repository root:
 
 ```bash
 uv sync --project pipeline/bibtex_reconstruction --frozen
 ```
 
-公開可能な設定は[config.toml](./config.toml)，credentialは`.env`で管理します．local vLLMと認証不要APIだけなら`.env`は不要です．
+Linux x86_64 uses the PyTorch and vLLM CUDA 12.9 wheels pinned in `uv.lock`. A host CUDA Toolkit is not required, but the NVIDIA driver must support the pinned CUDA runtime. RTX PRO 6000 Blackwell requires an R580 or newer driver in the validated configuration.
+
+## Configure
+
+Public runtime settings are in [`config.toml`](./config.toml). Unknown keys are rejected at startup.
+
+Copy `.env.sample` only when private values are required:
 
 ```bash
 cp pipeline/bibtex_reconstruction/.env.sample \
   pipeline/bibtex_reconstruction/.env
 ```
 
-credentialは`CROSSREF_MAILTO`，`CINII_APPID`，`SEMANTIC_SCHOLAR_API_KEY`です．J-STAGEとarXivに登録は必要ありません．
+Optional private values are `CROSSREF_MAILTO`, `CINII_APPID`, `SEMANTIC_SCHOLAR_API_KEY`, `BIBTEX_RECONSTRUCTION_LLM_API_KEY`, `BIBTEX_RECONSTRUCTION_LOCAL_LLM_API_KEY`, and `BIBTEX_RECONSTRUCTION_LOCAL_DB_COOKIE`.
 
-Linux x86_64ではPyTorchとvLLMのCUDA 12.9版を`uv.lock`に固定しています．ホストのCUDA Toolkitは不要ですが，BlackwellではR580以降のNVIDIA driverが必要です．
+ACL Anthology, J-STAGE, and arXiv require no credentials. CiNii and Semantic Scholar can be called without their optional keys, subject to provider limits.
 
-## Run
+## Serve Local vLLM
 
-repository rootから2つのterminalを使います．以下はvLLM 0.24.0+cu129とQwen3.6-27Bで動作確認済みの設定です．GPU構成に対応するコマンドを最初のterminalで実行します．
+The default local model is `Qwen/Qwen3.6-27B` at `http://127.0.0.1:8001/v1`. The following limits were validated with vLLM 0.24.0+cu129.
 
-### RTX PRO 6000 Blackwell 96 GB ×1
+RTX PRO 6000 Blackwell 96 GB ×1:
 
 ```bash
 VLLM_USE_FLASHINFER_SAMPLER=0 \
@@ -97,11 +46,9 @@ VLLM_USE_FLASHINFER_SAMPLER=0 \
   --generation-config vllm
 ```
 
-この構成ではvLLMの`max-num-seqs=1024`という自動設定がMamba cache容量を超えるため，`--max-model-len`と`--max-num-seqs`を省略しないでください．
+`--max-model-len` and `--max-num-seqs` are required here because vLLM's automatically selected `max-num-seqs=1024` exceeds the available Mamba cache blocks.
 
-### RTX A6000 48 GB ×2
-
-Qwen3.6-27BのBF16 weightは1枚の48 GB GPUに収まらないため，2枚に分割します．
+RTX A6000 48 GB ×2:
 
 ```bash
 uv run --project pipeline/bibtex_reconstruction --frozen \
@@ -112,35 +59,99 @@ uv run --project pipeline/bibtex_reconstruction --frozen \
   --tensor-parallel-size 2 \
   --max-model-len 8192 \
   --max-num-seqs 4 \
-  --gpu-memory-utilization 0.90 \
-  --enable-prefix-caching \
   --generation-config vllm
 ```
 
-別のterminalでCLIを実行します．`bibtex-vllm-check`はstructured outputを確認する任意の事前検査です．
+The BF16 weights do not fit on one 48 GB RTX A6000, so this configuration uses tensor parallelism across two GPUs. Prefix caching is omitted because vLLM 0.24.0 reports Mamba-layer support as experimental for this model.
+
+The health check is optional and verifies JSON-schema constrained output:
 
 ```bash
 uv run --project pipeline/bibtex_reconstruction --frozen \
   bibtex-vllm-check
-
-uv run --project pipeline/bibtex_reconstruction --frozen \
-  bibtex-reconstruction \
-  pipeline/bibtex_reconstruction/data/input.json \
-  --output pipeline/bibtex_reconstruction/data/reconstructed.bib \
-  --report-output pipeline/bibtex_reconstruction/data/reconstruction-report.json
 ```
 
-処理後はvLLM側のterminalで`Ctrl-C`を押してserverを停止します．
+Without a local LLM, set `local_llm_enabled = false` in `config.toml`. Reconstruction still runs, but query improvement is skipped and citation-key concept generation uses deterministic fallbacks unless the optional remote fallback is enabled.
+
+## Reconstruct
+
+Run the CLI from a second terminal:
+
+```bash
+uv run --project pipeline/bibtex_reconstruction --frozen \
+  bibtex-reconstruction extracted/paper.json \
+  --output reconstructed.bib \
+  --report-output reconstruction-report.json
+```
+
+Use `bibtex-reconstruction --help` for concurrency, artifact, logging, and review-related options. `--fail-on-review` returns exit status 2 when at least one reference requires manual review.
+
+## Input
+
+The CLI accepts both raw `ExtractionResult.to_dict()` JSON and normalized `bibmgr-paper-parse --format json` output. A normalized document has this shape:
+
+```json
+{
+  "title": "Source paper",
+  "authors": ["Source Author"],
+  "year": "2025",
+  "reference_count": 1,
+  "references": [
+    {
+      "id": "b0",
+      "title": "Cited paper",
+      "authors": ["Cited Author"],
+      "year": "2020",
+      "doi": "10.0000/example",
+      "venue": "Example Conference",
+      "raw_text": "Cited Author. Cited paper. 2020."
+    }
+  ]
+}
+```
+
+`reference_count` must equal the number of references, reference IDs must be unique, and every reference must contain non-empty `raw_text`.
+
+## Reconstruction Policy
+
+```mermaid
+flowchart LR
+    INPUT[Input JSON] --> SEARCH[Local DB, DOI, and provider search]
+    SEARCH --> SELECT[Score and select evidence]
+    SELECT --> VALIDATE[Rust validation]
+    SELECT -- insufficient --> REVIEW[Manual review]
+    VALIDATE -- pass --> KEY[Preserve or generate key]
+    VALIDATE -- unresolved --> REVIEW
+    KEY --> OUTPUT[BibTeX and JSON report]
+    REVIEW --> OUTPUT
+```
+
+- Local DB entries take priority, and input DOI evidence is considered before external provider candidates.
+- ACL Anthology, Crossref, Semantic Scholar, CiNii, J-STAGE, and arXiv are searched in parallel. Candidates remain independent, and normalized title and author values are used only for comparison.
+- Eligible non-DOI candidates are selected in the order above. Missing fields may be added from one same-DOI source without overwriting existing values; conflicting or insufficient evidence requires manual review.
+- Acceptance thresholds are defined in [`config.toml`](./config.toml). LLM output is limited to search-query improvement and citation-key concept generation; it never supplies BibTeX fields or selects a candidate.
+
+## Citation Key
+
+Generated keys use:
+
+```text
+{surname}-{year}-{venue}-{concept}
+```
+
+Surname, year, and venue are deterministic. The concept is selected from the title by rules, or generated by the LLM from the title, raw citation, and its pretrained knowledge when rules are insufficient. Deterministic fallbacks handle unavailable LLM output and key collisions, while Local DB entries keep their stored keys.
 
 ## Output
 
-| path | 内容 |
+| Path | Content |
 |---|---|
-| `reconstructed.bib` | Rust検証を通過したentry |
-| `reconstruction-report.json` | 候補，採否，検証，key生成，review理由 |
-| `reconstruction-report-artifacts/` | 原入力，API応答，BibTeXをSHA-256で保存した証拠 |
+| `reconstructed.bib` | Entries accepted by per-entry Rust validation |
+| `reconstruction-report.json` | Candidates, evidence, selection, validation, key generation, and review reasons |
+| `reconstruction-report-artifacts/` | Input, provider payloads, and BibTeX evidence stored by SHA-256 |
 
-## Test
+The artifact directory defaults to `<report-stem>-artifacts` and can be changed with `--artifact-directory`.
+
+## Tests
 
 ```bash
 uv run --project pipeline/bibtex_reconstruction --frozen \
