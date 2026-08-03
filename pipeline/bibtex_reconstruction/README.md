@@ -80,7 +80,9 @@ Linux x86_64ではPyTorchとvLLMのCUDA 12.9版を`uv.lock`に固定していま
 
 ## Run
 
-repository rootから2つのterminalを使います．最初のterminalでlocal vLLMを起動します．
+repository rootから2つのterminalを使います．以下はvLLM 0.24.0+cu129とQwen3.6-27Bで動作確認済みの設定です．GPU構成に対応するコマンドを最初のterminalで実行します．
+
+### RTX PRO 6000 Blackwell 96 GB ×1
 
 ```bash
 VLLM_USE_FLASHINFER_SAMPLER=0 \
@@ -88,7 +90,31 @@ VLLM_USE_FLASHINFER_SAMPLER=0 \
   vllm serve Qwen/Qwen3.6-27B \
   --host 127.0.0.1 \
   --port 8001 \
-  --language-model-only
+  --language-model-only \
+  --max-model-len 8192 \
+  --max-num-seqs 2 \
+  --gpu-memory-utilization 0.75 \
+  --generation-config vllm
+```
+
+この構成ではvLLMの`max-num-seqs=1024`という自動設定がMamba cache容量を超えるため，`--max-model-len`と`--max-num-seqs`を省略しないでください．
+
+### RTX A6000 48 GB ×2
+
+Qwen3.6-27BのBF16 weightは1枚の48 GB GPUに収まらないため，2枚に分割します．
+
+```bash
+uv run --project pipeline/bibtex_reconstruction --frozen \
+  vllm serve Qwen/Qwen3.6-27B \
+  --host 127.0.0.1 \
+  --port 8001 \
+  --language-model-only \
+  --tensor-parallel-size 2 \
+  --max-model-len 8192 \
+  --max-num-seqs 4 \
+  --gpu-memory-utilization 0.90 \
+  --enable-prefix-caching \
+  --generation-config vllm
 ```
 
 別のterminalでCLIを実行します．`bibtex-vllm-check`はstructured outputを確認する任意の事前検査です．
