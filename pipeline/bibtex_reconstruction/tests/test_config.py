@@ -110,6 +110,25 @@ def test_invalid_environment_value_fails_at_startup(monkeypatch):
         Settings(_env_file=None)
 
 
+def test_unknown_toml_setting_fails_at_startup(tmp_path, monkeypatch):
+    toml_path = tmp_path / "config.toml"
+    toml_path.write_text(
+        "similarity_threshod = 0.7\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(config_module, "CONFIG_PATH", toml_path)
+
+    with pytest.raises(ValidationError) as raised:
+        Settings(_env_file=None)
+
+    errors = raised.value.errors()
+    assert any(
+        error["type"] == "extra_forbidden"
+        and error["loc"] == ("similarity_threshod",)
+        for error in errors
+    )
+
+
 def test_local_db_timeout_must_be_positive():
     with pytest.raises(ValidationError):
         Settings(localdb_timeout=0, _env_file=None)

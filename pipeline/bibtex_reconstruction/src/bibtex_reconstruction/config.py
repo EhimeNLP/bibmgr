@@ -153,7 +153,7 @@ class Settings(BaseSettings):
         env_file_encoding="utf-8",
         env_prefix="BIBTEX_RECONSTRUCTION_",
         populate_by_name=True,
-        extra="ignore",
+        extra="forbid",
     )
 
 
