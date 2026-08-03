@@ -97,6 +97,8 @@ class Settings(BaseSettings):
     doi_base_url: str = "https://doi.org/"
     doi_timeout: int = Field(15, ge=1)
     doi_wait_sec: float = Field(0.1, ge=0)
+    doi_max_bytes: int = Field(2_000_000, ge=1)
+    doi_max_redirects: int = Field(5, ge=0)
 
     # Official citation export discovered from DOI landing pages
     citation_site_timeout: int = Field(15, ge=1)

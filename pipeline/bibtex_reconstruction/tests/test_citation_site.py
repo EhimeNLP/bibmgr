@@ -268,7 +268,7 @@ def test_default_transport_pins_the_validated_address(monkeypatch):
     client = OfficialCitationClient(resolver=public_resolver)
     requested: list[tuple[str, str]] = []
 
-    def fake_pinned_get(url, *, address, headers):
+    def fake_pinned_get(url, *, address, headers, timeout=None):
         requested.append((url, address))
         return FakeResponse(
             text="@article{key, title={Pinned Citation}}",

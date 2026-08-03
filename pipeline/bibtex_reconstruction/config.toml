@@ -41,6 +41,8 @@ retry_backoff_sec = 2
 doi_base_url = "https://doi.org/"
 doi_timeout = 15
 doi_wait_sec = 0.1
+doi_max_bytes = 2000000
+doi_max_redirects = 5
 
 # Official citation export discovered from DOI landing pages
 citation_site_timeout = 15

@@ -123,7 +123,7 @@ class OfficialCitationClient:
         if not normalized:
             return None
 
-        landing = self._get(
+        landing = self.get_public_response(
             f"{settings.doi_base_url.rstrip('/')}/{normalized}",
             headers={
                 "Accept": "text/html,application/xhtml+xml",
@@ -153,7 +153,7 @@ class OfficialCitationClient:
             return OfficialCitation(embedded, landing_url)
 
         for citation_url in self._citation_links(source, landing_url):
-            response = self._get(
+            response = self.get_public_response(
                 citation_url,
                 headers={
                     "Accept": (
@@ -177,28 +177,47 @@ class OfficialCitationClient:
                 )
         return None
 
-    def _get(
+    def get_public_response(
         self,
         url: str,
         *,
         headers: dict[str, str],
         operation: str,
+        timeout: int | None = None,
+        wait_sec: float | None = None,
+        max_bytes: int | None = None,
+        max_redirects: int | None = None,
+        rate_limiter: ProviderRateLimiter | None = None,
+        api_name: str | None = None,
     ) -> requests.Response | None:
+        """Safely fetch a bounded response from a public HTTP(S) URL."""
+
+        request_timeout = timeout or settings.citation_site_timeout
+        request_wait = (
+            settings.citation_site_wait_sec if wait_sec is None else wait_sec
+        )
+        response_limit = max_bytes or settings.citation_site_max_bytes
+        redirect_limit = (
+            settings.citation_site_max_redirects
+            if max_redirects is None
+            else max_redirects
+        )
+        limiter = rate_limiter or self._rate_limiter
+        error_api_name = api_name or self.api_name
         current_url = url
         response: requests.Response | None = None
-        for redirect_count in range(
-            settings.citation_site_max_redirects + 1
-        ):
+        for redirect_count in range(redirect_limit + 1):
             resolved = self._resolve_public_addresses(current_url)
             if not resolved:
                 return None
             try:
-                response = self._rate_limiter.call(
-                    settings.citation_site_wait_sec,
+                response = limiter.call(
+                    request_wait,
                     lambda: self._request(
                         current_url,
                         address=resolved[0],
                         headers=headers,
+                        timeout=request_timeout,
                     ),
                 )
             except requests.exceptions.RequestException as exc:
@@ -208,7 +227,7 @@ class OfficialCitationClient:
                     exc.__class__.__name__,
                 )
                 raise APIClientError(
-                    api_name=self.api_name,
+                    api_name=error_api_name,
                     operation=operation,
                     error_type=exc.__class__.__name__,
                 ) from exc
@@ -224,7 +243,7 @@ class OfficialCitationClient:
             self._close_response(response)
             if not location:
                 return None
-            if redirect_count >= settings.citation_site_max_redirects:
+            if redirect_count >= redirect_limit:
                 logger.warning(
                     "citation request failed operation=%s reason=too_many_redirects",
                     operation,
@@ -241,13 +260,16 @@ class OfficialCitationClient:
         if not 200 <= response.status_code < 400:
             self._close_response(response)
             raise APIClientError(
-                api_name=self.api_name,
+                api_name=error_api_name,
                 operation=operation,
                 error_type="HTTPError",
                 status_code=response.status_code,
             )
         try:
-            buffered = self._buffer_response(response)
+            buffered = self._buffer_response(
+                response,
+                max_bytes=response_limit,
+            )
         except requests.exceptions.RequestException as exc:
             logger.warning(
                 "citation response read failed operation=%s error_type=%s",
@@ -255,7 +277,7 @@ class OfficialCitationClient:
                 exc.__class__.__name__,
             )
             raise APIClientError(
-                api_name=self.api_name,
+                api_name=error_api_name,
                 operation=operation,
                 error_type=exc.__class__.__name__,
             ) from exc
@@ -356,14 +378,20 @@ class OfficialCitationClient:
         return result
 
     @classmethod
-    def _buffer_response(cls, response: requests.Response) -> bool:
+    def _buffer_response(
+        cls,
+        response: requests.Response,
+        *,
+        max_bytes: int | None = None,
+    ) -> bool:
         """Read at most the configured body limit, then close the connection."""
 
+        response_limit = max_bytes or settings.citation_site_max_bytes
         headers = getattr(response, "headers", {}) or {}
         content_length = headers.get("Content-Length")
         if content_length:
             try:
-                if int(content_length) > settings.citation_site_max_bytes:
+                if int(content_length) > response_limit:
                     cls._close_response(response)
                     return False
             except ValueError:
@@ -374,13 +402,13 @@ class OfficialCitationClient:
             for chunk in response.iter_content(
                 chunk_size=min(
                     _STREAM_CHUNK_BYTES,
-                    settings.citation_site_max_bytes + 1,
+                    response_limit + 1,
                 )
             ):
                 if not chunk:
                     continue
                 total += len(chunk)
-                if total > settings.citation_site_max_bytes:
+                if total > response_limit:
                     return False
                 chunks.append(chunk)
             response._content = b"".join(chunks)
@@ -402,16 +430,22 @@ class OfficialCitationClient:
         *,
         address: str,
         headers: dict[str, str],
+        timeout: int,
     ) -> requests.Response:
         if self._http is not None:
             return self._http.get(
                 url,
                 headers=headers,
-                timeout=settings.citation_site_timeout,
+                timeout=timeout,
                 allow_redirects=False,
                 stream=True,
             )
-        return self._pinned_get(url, address=address, headers=headers)
+        return self._pinned_get(
+            url,
+            address=address,
+            headers=headers,
+            timeout=timeout,
+        )
 
     @staticmethod
     def _host_header(hostname: str, port: int, scheme: str) -> str:
@@ -425,6 +459,7 @@ class OfficialCitationClient:
         *,
         address: str,
         headers: dict[str, str],
+        timeout: int | None = None,
     ) -> requests.Response:
         parsed = urlparse(url)
         hostname = parsed.hostname or ""
@@ -448,7 +483,7 @@ class OfficialCitationClient:
             response = session.get(
                 url,
                 headers=request_headers,
-                timeout=settings.citation_site_timeout,
+                timeout=timeout or settings.citation_site_timeout,
                 allow_redirects=False,
                 stream=True,
             )
