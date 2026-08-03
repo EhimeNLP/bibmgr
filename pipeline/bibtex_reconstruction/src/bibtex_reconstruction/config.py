@@ -114,7 +114,6 @@ class Settings(BaseSettings):
     crossref_mailto: str = Field("", validation_alias="CROSSREF_MAILTO")
 
     # ACL Anthology authoritative bibliography cache
-    acl_anthology_base_url: str = "https://aclanthology.org"
     acl_anthology_bibtex_url: str = "https://aclanthology.org/anthology.bib.gz"
     acl_anthology_cache_path: Path = Path("data/cache/acl-anthology.bib")
     acl_anthology_cache_max_age_hours: int = Field(168, ge=0)

@@ -57,7 +57,6 @@ crossref_timeout = 10
 crossref_wait_sec = 1.0
 
 # ACL Anthology (authoritative for covered NLP publications)
-acl_anthology_base_url = "https://aclanthology.org"
 acl_anthology_bibtex_url = "https://aclanthology.org/anthology.bib.gz"
 acl_anthology_cache_path = "data/cache/acl-anthology.bib"
 acl_anthology_cache_max_age_hours = 168
