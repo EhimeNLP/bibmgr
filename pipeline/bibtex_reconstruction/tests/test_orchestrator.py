@@ -267,7 +267,7 @@ def test_exact_doi_collects_both_representations_and_prefers_official():
 
 def test_official_base_is_supplemented_without_reformatting():
     official = """@article{official,
-  title = {},
+  title = {A Reliable Paper},
   author = {Ada Example},
   journal = {Journal of Tests},
 }"""
@@ -285,7 +285,68 @@ def test_official_base_is_supplemented_without_reformatting():
     assert result.selection.source_kind.value == "official_citation"
     assert {
         item.field for item in result.selection.supplements
-    } == {"title", "year", "doi"}
+    } == {"year", "doi"}
+
+
+def test_mismatched_bibtex_dois_are_rejected_and_audited():
+    mismatched = VALID_BIBTEX.replace(
+        "10.1000/example",
+        "10.9999/wrong",
+    )
+    result = service(
+        doi_client=FakeDoiClient(mismatched),
+        citation_client=FakeCitationClient(mismatched),
+    ).reconstruct_reference(input_data(doi="10.1000/example"))
+
+    assert result.outcome == ReconstructionOutcome.MANUAL_REVIEW
+    assert result.doi_groups[0].official_citation is None
+    assert result.doi_groups[0].content_negotiation is None
+    assert len(result.doi_groups[0].rejected_evidence) == 2
+    assert {
+        item.observed_doi
+        for item in result.doi_groups[0].rejected_evidence
+    } == {"10.9999/wrong"}
+
+
+def test_mismatched_official_citation_falls_back_to_matching_negotiation():
+    mismatched = VALID_BIBTEX.replace(
+        "10.1000/example",
+        "10.9999/wrong",
+    )
+    result = service(
+        doi_client=FakeDoiClient(VALID_BIBTEX),
+        citation_client=FakeCitationClient(mismatched),
+    ).reconstruct_reference(input_data(doi="10.1000/example"))
+
+    assert result.outcome == ReconstructionOutcome.READY
+    assert result.reconstruction_path == ReconstructionPath.DOI_CONTENT_NEGOTIATION
+    assert result.reconstructed_bibtex == VALID_BIBTEX
+    assert len(result.doi_groups[0].rejected_evidence) == 1
+
+
+def test_doi_less_bibtex_requires_matching_title_and_authors():
+    matching = VALID_BIBTEX.replace(
+        "  doi = {10.1000/example}\n",
+        "",
+    )
+    result = service(
+        doi_client=FakeDoiClient(matching),
+    ).reconstruct_reference(input_data(doi="10.1000/example"))
+
+    assert result.outcome == ReconstructionOutcome.READY
+    assert result.reconstructed_bibtex == matching
+
+    unrelated = matching.replace(
+        "A Reliable Paper",
+        "An Unrelated Paper",
+    ).replace("Ada Example", "Grace Different")
+    rejected = service(
+        doi_client=FakeDoiClient(unrelated),
+    ).reconstruct_reference(input_data(doi="10.1000/example"))
+
+    assert rejected.outcome == ReconstructionOutcome.MANUAL_REVIEW
+    assert rejected.doi_groups[0].content_negotiation is None
+    assert rejected.doi_groups[0].rejected_evidence[0].observed_doi is None
 
 
 def test_invalid_provider_key_is_repaired_without_changing_fields():

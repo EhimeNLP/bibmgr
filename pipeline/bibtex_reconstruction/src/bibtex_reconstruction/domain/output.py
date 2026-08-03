@@ -77,6 +77,18 @@ class BibtexEvidence(BaseModel):
     artifact_id: Optional[str] = None
 
 
+class RejectedBibtexEvidence(BaseModel):
+    """A retrieved representation withheld after identity verification."""
+
+    source_kind: BibtexSourceKind
+    bibtex: str
+    reason: str
+    requested_doi: str
+    observed_doi: Optional[str] = None
+    source_url: Optional[str] = None
+    artifact_id: Optional[str] = None
+
+
 class DoiEvidenceGroup(BaseModel):
     """All exact evidence associated with one normalized DOI."""
 
@@ -84,6 +96,9 @@ class DoiEvidenceGroup(BaseModel):
     candidate_ids: List[str] = Field(default_factory=list)
     official_citation: Optional[BibtexEvidence] = None
     content_negotiation: Optional[BibtexEvidence] = None
+    rejected_evidence: List[RejectedBibtexEvidence] = Field(
+        default_factory=list
+    )
 
 
 class FieldSupplement(BaseModel):

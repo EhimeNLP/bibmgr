@@ -33,6 +33,7 @@ from ..domain import (
     InputData,
     ProcessedReference,
     QueryImprovementAudit,
+    RejectedBibtexEvidence,
     ReconstructionAttempt,
     RustValidationResult,
     SelectionDecision,
@@ -46,6 +47,7 @@ from ..domain.enums import (
 from ..matching import (
     calculate_author_similarity,
     calculate_citation_similarity,
+    calculate_similarity,
 )
 from ..parsing.bibtex import (
     bibtex_fields,
@@ -173,7 +175,7 @@ class ReconstructionOrchestrator:
         # provider search. Fetch both DOI representations first and avoid API
         # search entirely when they already yield a complete source.
         input_doi_groups = [
-            self._collect_doi_evidence(doi, [])
+            self._collect_doi_evidence(search_input, doi, [])
             for doi in extracted_dois
         ]
         for group in input_doi_groups:
@@ -272,7 +274,11 @@ class ReconstructionOrchestrator:
         for doi in trusted_dois:
             group = input_groups.get(doi)
             if group is None:
-                group = self._collect_doi_evidence(doi, candidates)
+                group = self._collect_doi_evidence(
+                    search_input,
+                    doi,
+                    candidates,
+                )
             else:
                 group = group.model_copy(
                     update={
@@ -639,11 +645,13 @@ class ReconstructionOrchestrator:
 
     def _collect_doi_evidence(
         self,
+        input_data: InputData,
         doi: str,
         candidates: Sequence[CandidateResult],
     ) -> DoiEvidenceGroup:
         official: BibtexEvidence | None = None
         negotiated: BibtexEvidence | None = None
+        rejected: list[RejectedBibtexEvidence] = []
         try:
             citation = self.citation_client.fetch_bibtex(doi)
         except Exception as exc:
@@ -654,12 +662,15 @@ class ReconstructionOrchestrator:
             )
         else:
             if citation is not None:
-                official = self._bibtex_evidence(
+                official, rejection = self._bibtex_evidence(
+                    input_data,
                     citation.bibtex,
                     source_kind=BibtexSourceKind.OFFICIAL_CITATION,
                     doi=doi,
                     source_url=citation.source_url,
                 )
+                if rejection is not None:
+                    rejected.append(rejection)
         try:
             source = self.doi_client.fetch_bibtex(doi)
         except Exception as exc:
@@ -670,13 +681,16 @@ class ReconstructionOrchestrator:
             )
         else:
             if source:
-                negotiated = self._bibtex_evidence(
+                negotiated, rejection = self._bibtex_evidence(
+                    input_data,
                     source,
                     source_kind=(
                         BibtexSourceKind.DOI_CONTENT_NEGOTIATION
                     ),
                     doi=doi,
                 )
+                if rejection is not None:
+                    rejected.append(rejection)
         return DoiEvidenceGroup(
             doi=doi,
             candidate_ids=[
@@ -686,23 +700,64 @@ class ReconstructionOrchestrator:
             ],
             official_citation=official,
             content_negotiation=negotiated,
+            rejected_evidence=rejected,
         )
 
-    @staticmethod
+    @classmethod
     def _bibtex_evidence(
+        cls,
+        input_data: InputData,
         bibtex: str,
         *,
         source_kind: BibtexSourceKind,
         doi: str,
         source_url: str | None = None,
-    ) -> BibtexEvidence:
+    ) -> tuple[BibtexEvidence | None, RejectedBibtexEvidence | None]:
+        fields = bibtex_fields(bibtex)
+        observed_doi = normalize_doi(fields.get("doi"))
+        reason: str | None = None
+        if observed_doi and observed_doi != doi:
+            reason = "BibTeX DOI does not match the requested DOI"
+        elif not observed_doi:
+            reference = input_data.parsed_data
+            title = fields.get("title", "")
+            authors = cls._bibtex_authors(fields.get("author", ""))
+            title_matches = calculate_similarity(
+                reference.title or "",
+                title,
+            ) >= settings.trusted_doi_threshold
+            authors_match = cls._authors_are_consistent(
+                reference.authors,
+                authors,
+            )
+            if not title_matches or not authors_match:
+                reason = (
+                    "DOI-less BibTeX does not match the input title and authors"
+                )
+        if reason is not None:
+            return None, RejectedBibtexEvidence(
+                source_kind=source_kind,
+                bibtex=bibtex,
+                reason=reason,
+                requested_doi=doi,
+                observed_doi=observed_doi,
+                source_url=source_url,
+            )
         return BibtexEvidence(
             source_kind=source_kind,
             bibtex=bibtex,
             doi=doi,
             source_url=source_url,
             quality_issues=list(inspect_bibtex(bibtex).missing_fields),
-        )
+        ), None
+
+    @staticmethod
+    def _bibtex_authors(value: str) -> list[str]:
+        return [
+            author.strip()
+            for author in re.split(r"\s+and\s+", value, flags=re.IGNORECASE)
+            if author.strip()
+        ]
 
     def _select_from_doi_group(
         self,

@@ -106,6 +106,7 @@ class ArtifactStore:
             for evidence in (
                 group.official_citation,
                 group.content_negotiation,
+                *group.rejected_evidence,
             ):
                 if evidence is not None:
                     evidence.artifact_id = self.add_text(
