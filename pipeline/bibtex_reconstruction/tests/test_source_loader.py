@@ -1,4 +1,6 @@
 import json
+import runpy
+from pathlib import Path
 
 import pytest
 from pydantic import ValidationError
@@ -52,6 +54,44 @@ def write_payload(tmp_path, payload: dict):
     return input_path
 
 
+def raw_extraction_result_payload() -> dict:
+    models = runpy.run_path(
+        str(
+            Path(__file__).resolve().parents[2]
+            / "metadata_extraction"
+            / "paper_extractor"
+            / "models.py"
+        )
+    )
+    result = models["ExtractionResult"](
+        input_pdf=Path("paper.pdf"),
+        metadata=models["PaperMetadata"](
+            title="Raw extraction document",
+            authors=["Source Author"],
+            year="2025",
+            source="paddleocr-vl",
+            confidence=0.9,
+            raw={"provider": "native output"},
+        ),
+        references=[
+            models["Reference"](
+                id="b0",
+                raw_text="First Author. First cited work. 2020.",
+                title="First cited work",
+                authors=["First Author"],
+                year="2020",
+                venue="Example Venue",
+                source="paddleocr-vl",
+                confidence=0.8,
+                raw={"block": 1},
+            )
+        ],
+        warnings=["example warning"],
+        saved_files=[Path("paper.native.json")],
+    )
+    return result.to_dict()
+
+
 def test_loader_accepts_metadata_extraction_document(tmp_path):
     document = load_metadata_document(
         write_payload(tmp_path, metadata_payload())
@@ -67,6 +107,29 @@ def test_loader_accepts_metadata_extraction_document(tmp_path):
     ]
     assert document.references[1].year == "2017a"
     assert document.references[1].comparison_year == 2017
+
+
+def test_loader_accepts_raw_extraction_result_output(tmp_path):
+    payload = raw_extraction_result_payload()
+
+    document = load_metadata_document(write_payload(tmp_path, payload))
+
+    assert set(payload) == {
+        "input_pdf",
+        "engine",
+        "metadata",
+        "references",
+        "warnings",
+        "saved_files",
+    }
+    assert document.title == "Raw extraction document"
+    assert document.authors == ["Source Author"]
+    assert document.reference_count == 1
+    assert document.references[0].id == "b0"
+    assert document.references[0].title == "First cited work"
+    assert document.references[0].raw_text == (
+        "First Author. First cited work. 2020."
+    )
 
 
 def test_loader_rejects_reference_count_mismatch(tmp_path):

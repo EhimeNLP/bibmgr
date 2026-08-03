@@ -1,6 +1,6 @@
 # BibTeX reconstruction
 
-`metadata_extraction`のJSONから初期登録用BibTeXを復元するCLIです．検索候補と出典を保持し，最終候補だけをRustで検証します．データベースへの登録は行いません．
+`metadata_extraction`のJSONから初期登録用BibTeXを復元するCLIです．`ExtractionResult.to_dict()`の生JSONと，`bibmgr-paper-parse --format json`の正規化JSONを入力できます．検索候補と出典を保持し，最終候補だけをRustで検証します．データベースへの登録は行いません．
 
 ## Architecture
 
