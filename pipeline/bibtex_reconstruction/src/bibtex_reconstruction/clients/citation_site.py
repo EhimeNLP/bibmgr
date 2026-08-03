@@ -4,12 +4,16 @@ from __future__ import annotations
 
 import ipaddress
 import logging
+import socket
 from dataclasses import dataclass
 from html import unescape
+from typing import Callable
 from urllib.parse import urljoin, urlparse
 
 import requests
 from lxml import etree, html
+from requests.adapters import HTTPAdapter
+from requests.packages.urllib3 import HTTPConnectionPool, HTTPSConnectionPool
 
 from ..config import settings
 from ..parsing.identifiers import normalize_doi
@@ -18,6 +22,8 @@ from .rate_limit import ProviderRateLimiter
 
 
 logger = logging.getLogger(__name__)
+
+_AddressResolver = Callable[..., list[tuple]]
 
 _BIBTEX_MEDIA_TYPES = {
     "application/x-bibtex",
@@ -34,13 +40,78 @@ class OfficialCitation:
     source_url: str
 
 
+class _PinnedAddressAdapter(HTTPAdapter):
+    """Connect to one validated address while preserving HTTP/TLS identity."""
+
+    def __init__(
+        self,
+        *,
+        address: str,
+        hostname: str,
+        port: int,
+        scheme: str,
+    ) -> None:
+        self._address = address
+        self._hostname = hostname
+        self._port = port
+        self._scheme = scheme
+        super().__init__(max_retries=0)
+
+    def get_connection_with_tls_context(
+        self,
+        request,
+        verify,
+        proxies=None,
+        cert=None,
+    ):
+        parsed = urlparse(request.url)
+        if (
+            parsed.scheme != self._scheme
+            or parsed.hostname != self._hostname
+            or (parsed.port or self._default_port(parsed.scheme)) != self._port
+        ):
+            raise requests.exceptions.InvalidURL(
+                "request URL does not match the pinned origin"
+            )
+        if self._scheme == "https":
+            return HTTPSConnectionPool(
+                self._address,
+                self._port,
+                assert_hostname=self._hostname,
+                server_hostname=self._hostname,
+                maxsize=1,
+                block=True,
+            )
+        return HTTPConnectionPool(
+            self._address,
+            self._port,
+            maxsize=1,
+            block=True,
+        )
+
+    @staticmethod
+    def _default_port(scheme: str) -> int:
+        return 443 if scheme == "https" else 80
+
+    @staticmethod
+    def request_url(request, proxies):
+        # The pool connects directly to a validated IP, so never emit an
+        # absolute proxy-form URL even when proxy variables exist.
+        return request.path_url
+
+
 class OfficialCitationClient:
     """Resolve a DOI and retrieve a BibTeX export advertised by its site."""
 
     api_name = "Official Citation Site"
 
-    def __init__(self, session: requests.Session | None = None) -> None:
-        self._http = session or requests
+    def __init__(
+        self,
+        session: requests.Session | None = None,
+        resolver: _AddressResolver = socket.getaddrinfo,
+    ) -> None:
+        self._http = session
+        self._resolver = resolver
         self._rate_limiter = ProviderRateLimiter.for_provider("citation_site")
 
     def fetch_bibtex(self, doi: str) -> OfficialCitation | None:
@@ -116,16 +187,16 @@ class OfficialCitationClient:
         for redirect_count in range(
             settings.citation_site_max_redirects + 1
         ):
-            if not self._is_safe_public_url(current_url):
+            resolved = self._resolve_public_addresses(current_url)
+            if not resolved:
                 return None
             try:
                 response = self._rate_limiter.call(
                     settings.citation_site_wait_sec,
-                    lambda: self._http.get(
+                    lambda: self._request(
                         current_url,
+                        address=resolved[0],
                         headers=headers,
-                        timeout=settings.citation_site_timeout,
-                        allow_redirects=False,
                     ),
                 )
             except requests.exceptions.RequestException as exc:
@@ -278,34 +349,112 @@ class OfficialCitationClient:
                 pass
         return len(response.content) <= settings.citation_site_max_bytes
 
+    def _request(
+        self,
+        url: str,
+        *,
+        address: str,
+        headers: dict[str, str],
+    ) -> requests.Response:
+        if self._http is not None:
+            return self._http.get(
+                url,
+                headers=headers,
+                timeout=settings.citation_site_timeout,
+                allow_redirects=False,
+            )
+        return self._pinned_get(url, address=address, headers=headers)
+
     @staticmethod
-    def _is_safe_public_url(url: str) -> bool:
+    def _host_header(hostname: str, port: int, scheme: str) -> str:
+        host = f"[{hostname}]" if ":" in hostname else hostname
+        default_port = 443 if scheme == "https" else 80
+        return host if port == default_port else f"{host}:{port}"
+
+    def _pinned_get(
+        self,
+        url: str,
+        *,
+        address: str,
+        headers: dict[str, str],
+    ) -> requests.Response:
+        parsed = urlparse(url)
+        hostname = parsed.hostname or ""
+        port = parsed.port or (443 if parsed.scheme == "https" else 80)
+        request_headers = dict(headers)
+        request_headers["Host"] = self._host_header(
+            hostname,
+            port,
+            parsed.scheme,
+        )
+        session = requests.Session()
+        session.trust_env = False
+        adapter = _PinnedAddressAdapter(
+            address=address,
+            hostname=hostname,
+            port=port,
+            scheme=parsed.scheme,
+        )
+        session.mount(f"{parsed.scheme}://", adapter)
+        try:
+            return session.get(
+                url,
+                headers=request_headers,
+                timeout=settings.citation_site_timeout,
+                allow_redirects=False,
+            )
+        finally:
+            session.close()
+
+    def _is_safe_public_url(self, url: str) -> bool:
+        return bool(self._resolve_public_addresses(url))
+
+    def _resolve_public_addresses(self, url: str) -> tuple[str, ...]:
         try:
             parsed = urlparse(url)
         except ValueError:
-            return False
+            return ()
         if parsed.scheme not in {"http", "https"}:
-            return False
+            return ()
         if not parsed.hostname or parsed.username or parsed.password:
-            return False
+            return ()
         try:
             port = parsed.port
         except ValueError:
-            return False
+            return ()
         if port not in {None, 80, 443}:
-            return False
+            return ()
         hostname = parsed.hostname.casefold().rstrip(".")
         if hostname == "localhost" or hostname.endswith(".localhost"):
-            return False
+            return ()
         try:
             address = ipaddress.ip_address(hostname)
         except ValueError:
-            return True
-        return not (
-            address.is_private
-            or address.is_loopback
-            or address.is_link_local
-            or address.is_multicast
-            or address.is_reserved
-            or address.is_unspecified
-        )
+            try:
+                records = self._resolver(
+                    hostname,
+                    port or (443 if parsed.scheme == "https" else 80),
+                    type=socket.SOCK_STREAM,
+                )
+            except (OSError, UnicodeError):
+                return ()
+            addresses = tuple(
+                dict.fromkeys(
+                    str(record[4][0]).split("%", 1)[0]
+                    for record in records
+                    if len(record) >= 5 and record[4]
+                )
+            )
+        else:
+            addresses = (str(address),)
+        if not addresses:
+            return ()
+        try:
+            parsed_addresses = tuple(
+                ipaddress.ip_address(value) for value in addresses
+            )
+        except ValueError:
+            return ()
+        if not all(address.is_global for address in parsed_addresses):
+            return ()
+        return tuple(str(address) for address in parsed_addresses)
