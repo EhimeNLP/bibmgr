@@ -1,8 +1,14 @@
 import socket
 
+import pytest
+
 from bibtex_reconstruction.clients.citation_site import (
     OfficialCitationClient,
 )
+from bibtex_reconstruction.config import settings
+
+
+_AUTO_CONTENT_LENGTH = object()
 
 
 def public_resolver(host, port, **kwargs):
@@ -26,17 +32,33 @@ class FakeResponse:
         status_code: int = 200,
         content_type: str = "text/html; charset=utf-8",
         location: str | None = None,
+        chunks: list[bytes] | None = None,
+        content_length: int | None | object = _AUTO_CONTENT_LENGTH,
     ) -> None:
         self.text = text
         self.url = url
         self.status_code = status_code
         self.content = text.encode()
+        self.chunks = chunks if chunks is not None else [self.content]
+        self.iterated_chunks = 0
+        self.closed = False
         self.headers = {
             "Content-Type": content_type,
-            "Content-Length": str(len(self.content)),
         }
+        if content_length is _AUTO_CONTENT_LENGTH:
+            self.headers["Content-Length"] = str(len(self.content))
+        elif content_length is not None:
+            self.headers["Content-Length"] = str(content_length)
         if location:
             self.headers["Location"] = location
+
+    def iter_content(self, chunk_size):
+        for chunk in self.chunks:
+            self.iterated_chunks += 1
+            yield chunk
+
+    def close(self):
+        self.closed = True
 
 
 class FakeSession:
@@ -136,6 +158,8 @@ def test_does_not_follow_redirect_to_private_network():
 
     assert result is None
     assert len(session.calls) == 1
+    assert redirect.iterated_chunks == 0
+    assert redirect.closed
 
 
 def test_rejects_hostname_resolving_to_private_network():
@@ -260,3 +284,25 @@ def test_default_transport_pins_the_validated_address(monkeypatch):
     assert requested == [
         ("https://doi.org/10.1000/example", "93.184.216.34")
     ]
+
+
+@pytest.mark.parametrize("content_length", [None, 1])
+def test_streaming_body_stops_at_size_limit(monkeypatch, content_length):
+    response = FakeResponse(
+        text="",
+        url="https://doi.org/10.1000/example",
+        chunks=[b"123456", b"789012", b"must-not-be-read"],
+        content_length=content_length,
+    )
+    session = FakeSession([response])
+    monkeypatch.setattr(settings, "citation_site_max_bytes", 10)
+
+    result = OfficialCitationClient(
+        session=session,
+        resolver=public_resolver,
+    ).fetch_bibtex("10.1000/example")
+
+    assert result is None
+    assert response.iterated_chunks == 2
+    assert response.closed
+    assert session.calls[0][1]["stream"] is True

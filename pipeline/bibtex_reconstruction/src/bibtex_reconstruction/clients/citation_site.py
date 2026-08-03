@@ -24,6 +24,8 @@ from .rate_limit import ProviderRateLimiter
 logger = logging.getLogger(__name__)
 
 _AddressResolver = Callable[..., list[tuple]]
+_REDIRECT_STATUSES = {301, 302, 303, 307, 308}
+_STREAM_CHUNK_BYTES = 64 * 1024
 
 _BIBTEX_MEDIA_TYPES = {
     "application/x-bibtex",
@@ -211,7 +213,7 @@ class OfficialCitationClient:
                     error_type=exc.__class__.__name__,
                 ) from exc
 
-            if response.status_code not in {301, 302, 303, 307, 308}:
+            if response.status_code not in _REDIRECT_STATUSES:
                 break
             location = str(
                 (getattr(response, "headers", {}) or {}).get(
@@ -219,6 +221,7 @@ class OfficialCitationClient:
                     "",
                 )
             ).strip()
+            self._close_response(response)
             if not location:
                 return None
             if redirect_count >= settings.citation_site_max_redirects:
@@ -233,15 +236,30 @@ class OfficialCitationClient:
             return None
 
         if response.status_code in {204, 404, 406}:
+            self._close_response(response)
             return None
         if not 200 <= response.status_code < 400:
+            self._close_response(response)
             raise APIClientError(
                 api_name=self.api_name,
                 operation=operation,
                 error_type="HTTPError",
                 status_code=response.status_code,
             )
-        if not self._response_size_allowed(response):
+        try:
+            buffered = self._buffer_response(response)
+        except requests.exceptions.RequestException as exc:
+            logger.warning(
+                "citation response read failed operation=%s error_type=%s",
+                operation,
+                exc.__class__.__name__,
+            )
+            raise APIClientError(
+                api_name=self.api_name,
+                operation=operation,
+                error_type=exc.__class__.__name__,
+            ) from exc
+        if not buffered:
             logger.warning(
                 "citation response rejected operation=%s reason=too_large",
                 operation,
@@ -337,17 +355,46 @@ class OfficialCitationClient:
                 break
         return result
 
-    @staticmethod
-    def _response_size_allowed(response: requests.Response) -> bool:
+    @classmethod
+    def _buffer_response(cls, response: requests.Response) -> bool:
+        """Read at most the configured body limit, then close the connection."""
+
         headers = getattr(response, "headers", {}) or {}
         content_length = headers.get("Content-Length")
         if content_length:
             try:
                 if int(content_length) > settings.citation_site_max_bytes:
+                    cls._close_response(response)
                     return False
             except ValueError:
                 pass
-        return len(response.content) <= settings.citation_site_max_bytes
+        chunks: list[bytes] = []
+        total = 0
+        try:
+            for chunk in response.iter_content(
+                chunk_size=min(
+                    _STREAM_CHUNK_BYTES,
+                    settings.citation_site_max_bytes + 1,
+                )
+            ):
+                if not chunk:
+                    continue
+                total += len(chunk)
+                if total > settings.citation_site_max_bytes:
+                    return False
+                chunks.append(chunk)
+            response._content = b"".join(chunks)
+            response._content_consumed = True
+            return True
+        finally:
+            cls._close_response(response)
+
+    @staticmethod
+    def _close_response(response: requests.Response) -> None:
+        response.close()
+        session = getattr(response, "_citation_site_session", None)
+        if session is not None:
+            session.close()
 
     def _request(
         self,
@@ -362,6 +409,7 @@ class OfficialCitationClient:
                 headers=headers,
                 timeout=settings.citation_site_timeout,
                 allow_redirects=False,
+                stream=True,
             )
         return self._pinned_get(url, address=address, headers=headers)
 
@@ -397,14 +445,18 @@ class OfficialCitationClient:
         )
         session.mount(f"{parsed.scheme}://", adapter)
         try:
-            return session.get(
+            response = session.get(
                 url,
                 headers=request_headers,
                 timeout=settings.citation_site_timeout,
                 allow_redirects=False,
+                stream=True,
             )
-        finally:
+        except Exception:
             session.close()
+            raise
+        response._citation_site_session = session
+        return response
 
     def _is_safe_public_url(self, url: str) -> bool:
         return bool(self._resolve_public_addresses(url))
