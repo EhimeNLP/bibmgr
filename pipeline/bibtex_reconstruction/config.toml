@@ -1,0 +1,89 @@
+# Non-secret runtime configuration for bibtex-reconstruction.
+# Store credentials, API keys, cookies, and personal contact data in .env.
+
+# Search and candidate selection
+similarity_threshold = 0.80
+trusted_doi_threshold = 0.80
+direct_bibtex_threshold = 0.90
+reference_threads = 2
+api_threads = 3
+
+# Optional remote LLM fallback
+remote_llm_fallback_enabled = false
+llm_provider = "gemini"
+llm_model = "gemini-flash-lite-latest"
+llm_base_url = ""
+temperature = 0.1
+max_output_tokens = 2048
+llm_timeout = 120
+
+# Primary local LLM
+local_llm_enabled = true
+local_llm_model = "Qwen/Qwen3.6-27B"
+local_llm_base_url = "http://127.0.0.1:8001/v1"
+local_llm_timeout = 120
+local_llm_temperature = 0.0
+local_llm_max_output_tokens = 2048
+local_llm_seed = 0
+concept_generation_batch_size = 32
+query_improvement_enabled = true
+query_improvement_max_queries = 3
+query_improvement_max_rounds = 1
+
+# Optional BibMgR reference-library lookup
+localdb_enabled = false
+localdb_base_url = "http://127.0.0.1:8000/references/page"
+localdb_timeout = 5
+
+# Shared API behavior
+max_retries = 2
+retry_backoff_sec = 2
+doi_base_url = "https://doi.org/"
+doi_timeout = 15
+doi_wait_sec = 0.1
+doi_max_bytes = 2000000
+doi_max_redirects = 5
+
+# Official citation export discovered from DOI landing pages
+citation_site_timeout = 15
+citation_site_wait_sec = 0.5
+citation_site_max_bytes = 2000000
+citation_site_max_links = 5
+citation_site_max_redirects = 5
+
+# Crossref
+crossref_base_url = "https://api.crossref.org/works"
+crossref_timeout = 10
+crossref_wait_sec = 1.0
+
+# ACL Anthology (authoritative for covered NLP publications)
+acl_anthology_bibtex_url = "https://aclanthology.org/anthology.bib.gz"
+acl_anthology_cache_path = "data/cache/acl-anthology.bib"
+acl_anthology_cache_max_age_hours = 168
+acl_anthology_timeout = 120
+acl_anthology_wait_sec = 0.5
+
+# CiNii
+cinii_base_url = "https://cir.nii.ac.jp/opensearch/v2"
+cinii_timeout = 10
+cinii_wait_sec = 1.0
+cinii_result_count = 10
+cinii_detail_candidate_count = 3
+
+# Semantic Scholar
+semanticscholar_base_url = "https://api.semanticscholar.org/graph/v1/paper/search"
+semanticscholar_timeout = 20
+semanticscholar_wait_sec = 5.0
+semanticscholar_max_retries = 4
+
+# J-STAGE
+jstage_base_url = "https://api.jstage.jst.go.jp/searchapi/do"
+jstage_timeout = 10
+jstage_wait_sec = 0.5
+
+# arXiv (kept as the lowest-trust candidate source)
+arxiv_base_url = "https://export.arxiv.org/api/query"
+arxiv_bibtex_base_url = "https://arxiv.org/bibtex"
+arxiv_timeout = 30
+arxiv_wait_sec = 3.0
+arxiv_max_retries = 3

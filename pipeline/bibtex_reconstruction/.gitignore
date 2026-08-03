@@ -1,17 +1,4 @@
-__pycache__/
-*.py[cod]
-*$py.class
-
-venv/
-env/
-.venv/
-
 .env
 
-*.log
-.pytest_cache/
-
-test_data/
-.vscode/
-.idea/
-.DS_Store
+/data/
+*.sh
