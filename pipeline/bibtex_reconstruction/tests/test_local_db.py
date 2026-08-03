@@ -56,6 +56,7 @@ def test_local_db_returns_the_stored_source_without_reformatting(monkeypatch):
     assert request.call_args.kwargs["params"]["identifier"] == (
         "10.1000/stored"
     )
+    assert request.call_args.kwargs["timeout"] == 5
 
 
 def test_local_db_can_search_by_doi_without_a_title(monkeypatch):

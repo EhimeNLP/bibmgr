@@ -38,6 +38,7 @@ def test_project_toml_settings_are_valid(monkeypatch):
     assert configured.local_llm_model == "Qwen/Qwen3.6-27B"
     assert configured.local_llm_base_url == "http://127.0.0.1:8001/v1"
     assert configured.local_llm_temperature == 0.0
+    assert configured.localdb_timeout == 5
     assert configured.remote_llm_fallback_enabled is False
     assert configured.llm_provider == "gemini"
     assert configured.llm_model
@@ -107,3 +108,8 @@ def test_invalid_environment_value_fails_at_startup(monkeypatch):
 
     with pytest.raises(ValidationError):
         Settings(_env_file=None)
+
+
+def test_local_db_timeout_must_be_positive():
+    with pytest.raises(ValidationError):
+        Settings(localdb_timeout=0, _env_file=None)

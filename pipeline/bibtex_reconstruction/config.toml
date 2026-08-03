@@ -33,7 +33,7 @@ query_improvement_max_rounds = 1
 # Optional BibMgR reference-library lookup
 localdb_enabled = false
 localdb_base_url = "http://127.0.0.1:8000/references/page"
-localdb_timeout = 0
+localdb_timeout = 5
 
 # Shared API behavior
 max_retries = 2

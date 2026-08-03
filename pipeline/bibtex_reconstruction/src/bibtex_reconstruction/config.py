@@ -88,7 +88,7 @@ class Settings(BaseSettings):
     # Optional BibMgR reference-library lookup
     localdb_enabled: bool = False
     localdb_base_url: str = "http://127.0.0.1:8000/references/page"
-    localdb_timeout: int = Field(5, ge=0)
+    localdb_timeout: int = Field(5, ge=1)
     localdb_cookie: str = Field("", validation_alias="BIBTEX_RECONSTRUCTION_LOCAL_DB_COOKIE")
 
     # Shared API behavior
