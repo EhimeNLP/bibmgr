@@ -177,6 +177,7 @@ class LLMInvocationAudit(BaseModel):
 class QueryImprovementAudit(BaseModel):
     """Queries generated after deterministic search was insufficient."""
 
+    query_round: int = Field(1, ge=1)
     queries: List[str] = Field(default_factory=list)
     invocation: Optional[LLMInvocationAudit] = None
 

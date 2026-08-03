@@ -213,25 +213,53 @@ class ReconstructionOrchestrator:
                 candidates,
             )
         ):
-            audit = self.query_improver.improve(search_reference)
-            query_audits.append(audit)
-            for query in self._prioritized_queries(audit.queries):
-                improved = search_reference.model_copy(
-                    update={"title": query}
-                )
-                candidates.extend(
-                    self._search_candidates(
-                        InputData(parsed_data=improved),
-                        query_round=1,
-                        comparison_input=search_input,
+            attempted_queries = {
+                self._query_identity(search_reference.title or "")
+            }
+            improvement_reference = search_reference
+            for query_round in range(
+                1,
+                settings.query_improvement_max_rounds + 1,
+            ):
+                audit = self.query_improver.improve(
+                    improvement_reference
+                ).model_copy(update={"query_round": query_round})
+                query_audits.append(audit)
+                round_queries: list[str] = []
+                for query in self._prioritized_queries(audit.queries):
+                    identity = self._query_identity(query)
+                    if not identity or identity in attempted_queries:
+                        continue
+                    attempted_queries.add(identity)
+                    round_queries.append(query)
+
+                if not round_queries:
+                    break
+                for query in round_queries:
+                    improved = search_reference.model_copy(
+                        update={"title": query}
                     )
-                )
+                    candidates.extend(
+                        self._search_candidates(
+                            InputData(parsed_data=improved),
+                            query_round=query_round,
+                            comparison_input=search_input,
+                        )
+                    )
+                    if self._deterministic_search_succeeded(
+                        search_input,
+                        candidates,
+                    ):
+                        break
+                candidates = self._sort_candidates(candidates)
                 if self._deterministic_search_succeeded(
                     search_input,
                     candidates,
                 ):
                     break
-            candidates = self._sort_candidates(candidates)
+                improvement_reference = search_reference.model_copy(
+                    update={"title": round_queries[0]}
+                )
 
         trusted_dois = list(extracted_dois)
         for candidate in candidates:
@@ -454,6 +482,12 @@ class ReconstructionOrchestrator:
                 else 1
             ),
         )
+
+    @staticmethod
+    def _query_identity(query: str) -> str:
+        """Normalize a query only for detecting repeated searches."""
+
+        return " ".join(query.split()).casefold()
 
     @staticmethod
     def _candidate(

@@ -416,6 +416,79 @@ def test_llm_is_used_only_to_retry_search_queries(monkeypatch):
     assert result.reconstructed_bibtex is None
 
 
+def test_query_improvement_runs_for_each_configured_round(monkeypatch):
+    monkeypatch.setattr(settings, "query_improvement_enabled", True)
+    monkeypatch.setattr(settings, "query_improvement_max_rounds", 3)
+
+    class MultiRoundQueryImprover:
+        def __init__(self):
+            self.titles = []
+
+        def improve(self, reference):
+            self.titles.append(reference.title)
+            return QueryImprovementAudit(
+                queries=[f"Round {len(self.titles)} Query"]
+            )
+
+    class ThirdRoundMatchClient(SearchClient):
+        def search(self, data):
+            query = data.parsed_data.title
+            self.queries.append(query)
+            if query != "Round 3 Query":
+                return (
+                    VerifiedCitationInfo(
+                        title="Unrelated Work",
+                        authors=["Other Author"],
+                        year=1999,
+                    ),
+                    None,
+                )
+            return (
+                VerifiedCitationInfo(
+                    title=self.title,
+                    authors=self.authors,
+                    year=self.year,
+                    venue="Journal of Tests",
+                    doi=self.doi,
+                ),
+                self.bibtex,
+            )
+
+    improver = MultiRoundQueryImprover()
+    client = ThirdRoundMatchClient("Crossref API")
+    result = service(
+        external_clients=[client],
+        doi_client=FakeDoiClient(VALID_BIBTEX),
+        query_improver=improver,
+    ).reconstruct_reference(input_data())
+
+    assert improver.titles == [
+        "A Reliable Paper",
+        "Round 1 Query",
+        "Round 2 Query",
+    ]
+    assert client.queries == [
+        "A Reliable Paper",
+        "Round 1 Query",
+        "Round 2 Query",
+        "Round 3 Query",
+    ]
+    assert [
+        audit.query_round for audit in result.query_improvements
+    ] == [1, 2, 3]
+    assert [
+        audit.queries for audit in result.query_improvements
+    ] == [
+        ["Round 1 Query"],
+        ["Round 2 Query"],
+        ["Round 3 Query"],
+    ]
+    assert {
+        candidate.query_round for candidate in result.candidates
+    } == {0, 1, 2, 3}
+    assert result.outcome == ReconstructionOutcome.READY
+
+
 def test_improved_query_result_is_scored_against_original_citation(
     monkeypatch,
 ):
