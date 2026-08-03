@@ -6,7 +6,7 @@
 
 ```mermaid
 flowchart TD
-    IN[metadata_extraction JSON] --> LOCAL{Local DB完全一致}
+    IN[metadata_extraction JSON] --> LOCAL{Local DB照合}
     LOCAL -- yes --> KEEP[登録済みBibTeXとkeyを保持]
     LOCAL -- no --> DOI[入力DOIの公式Citeを確認]
     DOI -- insufficient --> SEARCH[ACL公式index + 外部APIを並列検索]
@@ -57,7 +57,7 @@ flowchart TD
 2. 抽出できない場合だけLLMが代表的な手法・モデル・dataset名を選択
 3. LLMを利用できない場合はtitle由来の技術語へfallback
 
-`concept`は小文字ASCII英数字の1語です．衝突時は別候補を試し，最後にstable hashを付けます．Local DB完全一致では既存keyを保持します．
+`concept`は小文字ASCII英数字の1語です．衝突時は別候補を試し，最後にstable hashを付けます．Local DBから採用したentryでは既存keyを保持します．
 
 ## Setup
 

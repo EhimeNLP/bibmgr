@@ -158,7 +158,10 @@ class ReconstructionOrchestrator:
                     source_kind=BibtexSourceKind.LOCAL_DB,
                     candidate_id=candidate.candidate_id,
                     doi=normalize_doi(metadata.doi),
-                    reason="exact existing local-library entry",
+                    reason=(
+                        "existing local-library entry selected by configured "
+                        "matching"
+                    ),
                 ),
             )
             return self._finalize(
