@@ -51,12 +51,17 @@ class FakeResponse:
     content: bytes
 
 
-def input_data() -> InputData:
+def input_data(
+    *,
+    title: str = "自然言語処理",
+    authors: list[str] | None = None,
+) -> InputData:
     return InputData(
         parsed_data=ReferenceData(
             id="ref-1",
-            title="自然言語処理",
-            raw_text="自然言語処理",
+            title=title,
+            authors=authors or [],
+            raw_text=title,
         )
     )
 
@@ -72,13 +77,39 @@ def test_jstage_parses_atom_and_prism_namespaces(monkeypatch):
 
     assert metadata is not None
     assert metadata.title == "自然言語処理"
+    assert metadata.alternative_titles == ["Natural Language Processing"]
     assert metadata.authors == ["橋田 浩一"]
+    assert metadata.alternative_authors == [["Koichi Hashida"]]
     assert metadata.venue == "試験学会誌"
     assert metadata.year == 2001
     assert metadata.doi == "10.1541/example.121.195"
     assert metadata.url == "https://example.test/ja"
     assert bibtex is None
     assert metadata.raw_payload
+
+
+def test_jstage_selects_english_primary_and_preserves_japanese(monkeypatch):
+    client = JStageClient()
+    monkeypatch.setattr(
+        client,
+        "_make_request",
+        lambda **kwargs: FakeResponse(JSTAGE_ATOM),
+    )
+
+    metadata, _ = client.search(
+        input_data(
+            title="Natural Language Processing",
+            authors=["Koichi Hashida"],
+        )
+    )
+
+    assert metadata is not None
+    assert metadata.title == "Natural Language Processing"
+    assert metadata.alternative_titles == ["自然言語処理"]
+    assert metadata.authors == ["Koichi Hashida"]
+    assert metadata.alternative_authors == [["橋田 浩一"]]
+    assert metadata.venue == "The Journal of Tests"
+    assert metadata.url == "https://example.test/en"
 
 
 def test_jstage_rejects_service_error_with_empty_entry(monkeypatch):
