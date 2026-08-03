@@ -70,6 +70,23 @@ class BatchedProvider:
         )
 
 
+class JapaneseProvider:
+    provider_label = "local_vllm"
+    model = "Qwen/Test"
+
+    def generate(self, prompt, response_model):
+        assert "日本語形態素解析の研究" in prompt
+        return ConceptGenerationResponse(
+            concepts=[
+                ConceptGenerationItem(
+                    ref_id="b1",
+                    concept="morphology",
+                    source_terms=["日本語形態素解析の研究"],
+                )
+            ]
+        )
+
+
 class ExplicitGenerator:
     def generate(self, requests):
         audit = LLMInvocationAudit(
@@ -133,6 +150,17 @@ def source_without_venue(key: str, title: str) -> str:
     )
 
 
+def japanese_source(key: str) -> str:
+    return (
+        f"@article{{{key},\n"
+        "  title = {日本語形態素解析の研究},\n"
+        "  author = {山田, 太郎},\n"
+        "  journal = {自然言語処理},\n"
+        "  year = {2024},\n"
+        "}"
+    )
+
+
 def test_rule_candidates_are_deterministic():
     candidates = concept_candidates(
         "BERT: Pre-training of Deep Bidirectional Transformers"
@@ -176,6 +204,24 @@ def test_llm_generates_one_grounded_concept_word():
     assert result["b1"].concept == "transformer"
     assert result["b1"].audit.task == LLMTask.KEY_CONCEPT_GENERATION
     assert len(result["b1"].audit.prompt_sha256) == 64
+
+
+def test_llm_accepts_exact_non_english_grounding_terms():
+    generator = ConfiguredConceptGenerator([JapaneseProvider()])
+    result = generator.generate(
+        [
+            ConceptRequest(
+                ref_id="b1",
+                title="日本語形態素解析の研究",
+                raw_text="山田太郎，日本語形態素解析の研究，2024年",
+                candidates=("work12345678",),
+                source_terms=("work12345678", "日本語形態素解析の研究"),
+            )
+        ]
+    )
+
+    assert result["b1"].concept == "morphology"
+    assert result["b1"].source_terms == ("日本語形態素解析の研究",)
 
 
 def test_llm_multiword_concept_is_rejected():
@@ -297,6 +343,43 @@ def test_missing_venue_uses_unknown_without_aborting_key_generation():
     assert item.outcome == ReconstructionOutcome.READY
     assert "devlin-2019-unknown-bert" in item.reconstructed_bibtex
     assert item.citation_key.venue == "unknown"
+
+
+def test_non_english_key_uses_llm_concept_and_stable_ascii_parts():
+    item = ready("b1", japanese_source("Original"))
+    CitationKeyGenerator(
+        concept_generator=ConfiguredConceptGenerator([JapaneseProvider()]),
+        validator=AcceptedValidator(),
+    ).apply([item])
+
+    assert item.outcome == ReconstructionOutcome.READY
+    assert re.search(
+        r"author[0-9a-f]{8}-2024-[a-z0-9]+-morphology",
+        item.reconstructed_bibtex,
+    )
+    assert item.citation_key.concept == "morphology"
+    assert item.citation_key.concept_method == "local_vllm"
+
+
+def test_non_english_key_has_deterministic_fallback_without_llm():
+    first = ready("b1", japanese_source("First"))
+    second = ready("b2", japanese_source("Second"))
+    generator = CitationKeyGenerator(
+        concept_generator=RuleGenerator(),
+        validator=AcceptedValidator(),
+    )
+
+    generator.apply([first])
+    generator.apply([second])
+
+    assert first.outcome == ReconstructionOutcome.READY
+    assert first.citation_key.generated_citation_key == (
+        second.citation_key.generated_citation_key
+    )
+    assert re.fullmatch(
+        r"author[0-9a-f]{8}-2024-[a-z0-9]+-work[0-9a-f]{8}",
+        first.citation_key.generated_citation_key,
+    )
 
 
 def test_invalid_key_record_isolated_from_other_references():

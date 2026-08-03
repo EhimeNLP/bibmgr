@@ -110,6 +110,7 @@ class ConceptRequest:
     title: str
     raw_text: str
     candidates: tuple[str, ...]
+    source_terms: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -181,7 +182,9 @@ class ConfiguredConceptGenerator:
                 "ref_id": request.ref_id,
                 "title": request.title,
                 "raw_citation": request.raw_text,
-                "rule_terms": list(request.candidates),
+                "rule_terms": list(
+                    request.source_terms or request.candidates
+                ),
             }
             for request in requests
         ]
@@ -207,6 +210,8 @@ class ConfiguredConceptGenerator:
             "OUTPUT RULES\n"
             "- concept: exactly one concise lowercase ASCII word using only "
             "a-z and 0-9\n"
+            "- for non-English papers, translate or romanize the canonical "
+            "concept into one recognizable ASCII word\n"
             "- no spaces, hyphens, or concatenated multi-word phrases\n"
             "- source_terms: exact rule_terms used as paper-identification clues\n"
             "- include every ref_id\n"
@@ -230,19 +235,18 @@ class ConfiguredConceptGenerator:
                 continue
             concept = _normalize_concept(item.concept)
             source_terms = tuple(
-                term
-                for term in (
-                    _normalize_concept(term) for term in item.source_terms
-                )
-                if term
+                term.strip() for term in item.source_terms if term.strip()
             )
-            grounded = set(request.candidates)
+            grounded = {
+                _grounding_identity(term)
+                for term in (request.source_terms or request.candidates)
+            }
             if (
                 not concept
                 or len(concept) > 32
                 or not source_terms
                 or any(
-                    term not in grounded
+                    _grounding_identity(term) not in grounded
                     for term in source_terms
                 )
             ):
@@ -350,6 +354,10 @@ class CitationKeyGenerator:
                 title=item.title,
                 raw_text=item.result.original_data.raw_text,
                 candidates=item.candidates,
+                source_terms=_concept_source_terms(
+                    item.title,
+                    item.candidates,
+                ),
             )
             for item in prepared
             if item.rule_concept is None
@@ -500,7 +508,10 @@ class CitationKeyGenerator:
             family_text = family
         else:
             family_text = "-".join(str(part) for part in family)
-        surname = _slug(family_text) or "ref"
+        surname = _slug(family_text) or _stable_fallback(
+            "author",
+            family_text,
+        )
 
         date = record.get("date", {}).get("value", {})
         year_value = date.get("year")
@@ -511,7 +522,7 @@ class CitationKeyGenerator:
         title = str(record.get("title", {}).get("value") or "").strip()
         candidates = concept_candidates(title)
         if not candidates:
-            raise ValueError("title has no portable concept candidate")
+            candidates = (_stable_fallback("work", title),)
         rule_concept = representative_concept(title)
         if rule_concept is not None:
             candidates = (
@@ -627,6 +638,28 @@ def _candidate_word(value: str) -> str:
     return _slug(value).replace("-", "")
 
 
+def _concept_source_terms(
+    title: str,
+    candidates: Sequence[str],
+) -> tuple[str, ...]:
+    """Return exact multilingual clues the model may cite as grounding."""
+
+    terms = list(candidates)
+    if title and any(ord(character) > 127 for character in title):
+        terms.append(title.strip())
+    return tuple(dict.fromkeys(term for term in terms if term))
+
+
+def _grounding_identity(value: str) -> str:
+    return unicodedata.normalize("NFKC", value).casefold().strip()
+
+
+def _stable_fallback(prefix: str, value: str) -> str:
+    normalized = _grounding_identity(value) or prefix
+    digest = hashlib.sha256(normalized.encode("utf-8")).hexdigest()[:8]
+    return f"{prefix}{digest}"
+
+
 def _slug(value: str) -> str:
     ascii_value = unicodedata.normalize("NFKD", value).encode(
         "ascii",
@@ -663,7 +696,10 @@ def _venue_slug(value: dict[str, object]) -> str:
         for token in re.findall(r"[A-Za-z][A-Za-z0-9]*", raw)
         if token.casefold() not in _VENUE_STOP_WORDS
     )
-    return _slug(acronym or raw) or "unknown"
+    portable = _slug(acronym or raw)
+    if portable:
+        return portable
+    return _stable_fallback("venue", raw) if raw else "unknown"
 
 
 def _record_identity(record: dict[str, object], ref_id: str) -> str:
