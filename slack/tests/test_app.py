@@ -320,7 +320,7 @@ def test_japanese_mode_explains_the_malformed_absolute_url_rule() -> None:
     assert "invalid absolute URL" not in summary
     assert (
         "[BIB-SEMANTIC-106] "
-        "URLはhttp://またはhttps://で始まる有効な絶対URLである必要があります。"
+        "URLは `http://` または `https://` で始まる有効な絶対URLである必要があります。"
         in summary
     )
 

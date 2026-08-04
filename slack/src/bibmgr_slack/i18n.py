@@ -84,7 +84,7 @@ JA_DIAGNOSTIC_DESCRIPTIONS = {
     "BIB-SEMANTIC-012": "リポジトリ名またはその識別子が登録ルールに適合していません。",
     "BIB-SEMANTIC-101": "未定義のBibTeX文字列マクロが参照されています。",
     "BIB-SEMANTIC-102": "BibTeX文字列マクロの展開結果を一意に決定できません。",
-    "BIB-SEMANTIC-106": "URLはhttp://またはhttps://で始まる有効な絶対URLである必要があります。",
+    "BIB-SEMANTIC-106": "URLは `http://` または `https://` で始まる有効な絶対URLである必要があります。",
     "LAB-KEY-002": "引用キーがプロファイルで指定された形式と一致していません。",
     "LAB-ENTRY-003": "エントリ種別に応じた必須フィールドが不足しています。",
     "LAB-ENTRY-004": "このプロファイルでは使用できないフィールドが含まれています。",
