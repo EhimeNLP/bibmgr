@@ -295,6 +295,34 @@ def test_japanese_mode_does_not_expose_english_core_diagnostic_text() -> None:
     assert "required fields are missing" not in summary
     assert "only the first URL was exported" not in summary
     assert "未解決" in summary
+    assert "エントリ種別に応じた必須フィールドが不足しています。" in summary
+
+
+def test_japanese_mode_explains_the_malformed_absolute_url_rule() -> None:
+    service = bot(Engine(), language="ja")
+
+    summary = service._result_summary(  # noqa: SLF001 - formatting is the unit under test
+        {
+            "input_applied_fix_ids": [],
+            "output_applied_fix_ids": [],
+            "input_diagnostics": [
+                {
+                    "code": "BIB-SEMANTIC-106",
+                    "message": "invalid absolute URL: example.com/paper",
+                    "blocking": True,
+                }
+            ],
+            "output_diagnostics": [],
+            "warnings": [],
+        }
+    )
+
+    assert "invalid absolute URL" not in summary
+    assert (
+        "[BIB-SEMANTIC-106] "
+        "URLはhttp://またはhttps://で始まる有効な絶対URLである必要があります。"
+        in summary
+    )
 
 
 def test_invalid_syntax_is_reported_before_profile_selection() -> None:
