@@ -233,7 +233,7 @@ class BibmgrSlackBot:
             "channel": pending.channel_id,
             "text": self.translator.text("exported", profile=profile.id),
             "blocks": self._result_blocks(result, profile.id),
-            "mrkdwn": False,
+            "mrkdwn": True,
             "unfurl_links": False,
             "unfurl_media": False,
         }
@@ -270,7 +270,7 @@ class BibmgrSlackBot:
             {
                 "type": "section",
                 "text": {
-                    "type": "plain_text",
+                    "type": "mrkdwn",
                     "text": self.translator.text("exported", profile=profile_id),
                 },
             },

@@ -175,6 +175,14 @@ def test_mention_then_selection_exports_in_the_original_thread() -> None:
     assert acknowledged == [True]
     assert engine.workflow_calls[0][1]["profile"] == "modern"
     assert client.messages[-1]["thread_ts"] == "1.0"
+    assert client.messages[-1]["mrkdwn"] is True
+    assert client.messages[-1]["blocks"][0] == {
+        "type": "section",
+        "text": {
+            "type": "mrkdwn",
+            "text": "Exported with the `modern` profile.",
+        },
+    }
     assert client.messages[-1]["blocks"][1]["type"] == "rich_text"
 
 
