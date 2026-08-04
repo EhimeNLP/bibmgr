@@ -10,6 +10,10 @@ class InputError(ValueError):
 
 
 CODE_BLOCK = re.compile(r"```([\s\S]*?)```")
+SLACK_HTTP_LINK = re.compile(
+    r"<(https?://[^\s>|]+)(?:\|[^>]*)?>",
+    flags=re.IGNORECASE,
+)
 
 
 def extract_bibtex(text: str) -> str:
@@ -27,4 +31,9 @@ def extract_bibtex(text: str) -> str:
 
 
 def _decode_slack_entities(value: str) -> str:
-    return value.replace("&lt;", "<").replace("&gt;", ">").replace("&amp;", "&")
+    decoded_links = SLACK_HTTP_LINK.sub(lambda match: match.group(1), value)
+    return (
+        decoded_links.replace("&lt;", "<")
+        .replace("&gt;", ">")
+        .replace("&amp;", "&")
+    )
