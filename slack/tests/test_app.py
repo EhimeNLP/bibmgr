@@ -22,8 +22,14 @@ class Dto:
 
 
 class Engine:
-    def __init__(self, *, syntax_status: str = "ok") -> None:
+    def __init__(
+        self,
+        *,
+        syntax_status: str = "ok",
+        diagnostics: list[dict[str, Any]] | None = None,
+    ) -> None:
         self.syntax_status = syntax_status
+        self.diagnostics = diagnostics
         self.workflow_calls: list[tuple[str, dict[str, Any]]] = []
 
     def analyze(self, _source: str, **_kwargs: Any) -> Dto:
@@ -31,15 +37,19 @@ class Engine:
             {
                 "syntax": {"status": self.syntax_status},
                 "bibliography": {"records": [{}] if self.syntax_status == "ok" else []},
-                "diagnostics": [
-                    {
-                        "code": "BIB-SYNTAX-103",
-                        "severity": "error",
-                        "message": "missing separator",
-                    }
-                ]
-                if self.syntax_status != "ok"
-                else [],
+                "diagnostics": self.diagnostics
+                if self.diagnostics is not None
+                else (
+                    [
+                        {
+                            "code": "BIB-SYNTAX-103",
+                            "severity": "error",
+                            "message": "missing separator",
+                        }
+                    ]
+                    if self.syntax_status != "ok"
+                    else []
+                ),
             }
         )
 
@@ -334,4 +344,79 @@ def test_invalid_syntax_is_reported_before_profile_selection() -> None:
 
     assert len(client.messages) == 1
     assert "not valid BibTeX" in client.messages[0]["text"]
+    assert "Syntax findings (1):" in client.messages[0]["text"]
+    assert "• [BIB-SYNTAX-103] missing separator" in client.messages[0]["text"]
     assert "blocks" not in client.messages[0]
+
+
+def test_invalid_syntax_reports_non_error_syntax_findings_only() -> None:
+    diagnostics = [
+        {
+            "code": "BIB-SYNTAX-002",
+            "severity": "warning",
+            "message": "field `AUTHOR` should be spelled `author`",
+        },
+        {
+            "code": "LAB-ENTRY-003",
+            "severity": "warning",
+            "message": "entry is missing required fields: journal, year",
+        },
+        {
+            "code": "BIB-SYNTAX-006",
+            "severity": "information",
+            "message": "use one space on each side of `=`",
+        },
+        {
+            "code": "BIB-SYNTAX-109",
+            "severity": "error",
+            "message": "entry ended before its closing delimiter",
+        },
+    ]
+    service = bot(
+        Engine(syntax_status="partial", diagnostics=diagnostics),
+        language="en",
+    )
+    client = Client()
+    event, body = mention_payload()
+
+    service.handle_mention(event=event, body=body, client=client)
+
+    text = client.messages[0]["text"]
+    assert "Syntax findings (3):" in text
+    assert "[BIB-SYNTAX-002] field `AUTHOR` should be spelled `author`" in text
+    assert "[BIB-SYNTAX-006] use one space on each side of `=`" in text
+    assert "[BIB-SYNTAX-109] entry ended before its closing delimiter" in text
+    assert "LAB-ENTRY-003" not in text
+
+
+def test_invalid_syntax_uses_japanese_rule_descriptions() -> None:
+    diagnostics = [
+        {
+            "code": "BIB-SYNTAX-004",
+            "severity": "information",
+            "message": "last field should have a trailing comma",
+        },
+        {
+            "code": "BIB-SYNTAX-107",
+            "severity": "error",
+            "message": "expected comma or entry close after field value",
+        },
+    ]
+    service = bot(
+        Engine(syntax_status="partial", diagnostics=diagnostics),
+        language="ja",
+    )
+    client = Client()
+    event, body = mention_payload()
+
+    service.handle_mention(event=event, body=body, client=client)
+
+    text = client.messages[0]["text"]
+    assert "構文上の問題が2件あります：" in text
+    assert "[BIB-SYNTAX-004] 最後のフィールドに末尾のカンマが必要です。" in text
+    assert (
+        "[BIB-SYNTAX-107] "
+        "フィールド値の後にカンマまたはエントリの閉じ括弧が必要です。"
+        in text
+    )
+    assert "last field should have a trailing comma" not in text
