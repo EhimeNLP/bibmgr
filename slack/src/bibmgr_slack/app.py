@@ -133,19 +133,11 @@ class BibmgrSlackBot:
             )
             return
         if analysis.get("syntax", {}).get("status") != "ok":
-            codes = sorted(
-                {
-                    str(item.get("code"))
-                    for item in analysis.get("diagnostics", [])
-                    if item.get("severity") == "error" and item.get("code")
-                }
-            )
-            suffix = f" ({', '.join(codes)})" if codes else ""
             self._post_plain(
                 client,
                 channel_id,
                 thread_ts,
-                self.translator.text("invalid_syntax", codes=suffix),
+                self._invalid_syntax_summary(analysis),
             )
             return
         record_count = len(analysis.get("bibliography", {}).get("records", []))
@@ -233,7 +225,7 @@ class BibmgrSlackBot:
             "channel": pending.channel_id,
             "text": self.translator.text("exported", profile=profile.id),
             "blocks": self._result_blocks(result, profile.id),
-            "mrkdwn": False,
+            "mrkdwn": True,
             "unfurl_links": False,
             "unfurl_media": False,
         }
@@ -270,7 +262,7 @@ class BibmgrSlackBot:
             {
                 "type": "section",
                 "text": {
-                    "type": "plain_text",
+                    "type": "mrkdwn",
                     "text": self.translator.text("exported", profile=profile_id),
                 },
             },
@@ -324,6 +316,25 @@ class BibmgrSlackBot:
             lines.extend(
                 f"• {self.translator.export_warning(item)}"
                 for item in warnings[:MAX_REPORTED_FINDINGS]
+            )
+        return "\n".join(lines)
+
+    def _invalid_syntax_summary(self, analysis: dict[str, Any]) -> str:
+        diagnostics = _unique_diagnostics(
+            [
+                item
+                for item in analysis.get("diagnostics", [])
+                if str(item.get("code", "")).startswith("BIB-SYNTAX-")
+            ]
+        )
+        lines = [self.translator.text("invalid_syntax")]
+        if diagnostics:
+            lines.append(
+                self.translator.text("syntax_findings", count=len(diagnostics))
+            )
+            lines.extend(
+                f"• {self.translator.diagnostic(item)}"
+                for item in diagnostics[:MAX_REPORTED_FINDINGS]
             )
         return "\n".join(lines)
 
