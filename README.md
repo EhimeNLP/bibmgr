@@ -53,9 +53,7 @@ cargo install --git https://github.com/EhimeNLP/bibmgr.git --locked --force bibm
 Alternatively, Linux and macOS users can install a prebuilt binary without requiring Rust:
 
 ```bash
-curl --proto '=https' --tlsv1.2 -LsSf \
-  https://github.com/EhimeNLP/bibmgr/releases/latest/download/bibmgr-installer.sh |
-  sh
+curl -LsSf https://github.com/EhimeNLP/bibmgr/releases/latest/download/bibmgr-installer.sh | sh
 ```
 
 The installer verifies the release archive with SHA-256 and writes the `bibmgr` executable to `~/.local/bin` by default. If that directory is not already on `PATH`, add it in your shell configuration:
@@ -67,8 +65,7 @@ export PATH="$HOME/.local/bin:$PATH"
 Set `BIBMGR_INSTALL_DIR` to select another destination, or `BIBMGR_VERSION` to install a specific release. A version may be written with or without the leading `v`.
 
 ```bash
-curl --proto '=https' --tlsv1.2 -LsSf \
-  https://github.com/EhimeNLP/bibmgr/releases/latest/download/bibmgr-installer.sh |
+curl -LsSf https://github.com/EhimeNLP/bibmgr/releases/latest/download/bibmgr-installer.sh |
   BIBMGR_INSTALL_DIR="$HOME/bin" BIBMGR_VERSION=v0.1.0 sh
 ```
 
