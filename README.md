@@ -10,16 +10,6 @@ Developing, testing, or building this repository from source requires the follow
 - Rust 1.86 or later (`rustc` and `cargo`): builds the CLI and Python native extension
 - Node.js 22.12 or later in the Node.js 22 release line, with npm 10 or later: manages frontend dependencies, the development server, tests, and production builds
 
-Before setup, verify that each command is available:
-
-```bash
-uv --version
-rustc --version
-cargo --version
-node --version
-npm --version
-```
-
 ## Setup
 
 Install the locked dependencies:
