@@ -3,7 +3,7 @@ name = "bibmgr-development"
 version = "0.1.0"
 description = "Development environment and task definitions for bibmgr"
 requires-python = ">=3.11,<3.14"
-license = "MIT OR Apache-2.0"
+license = "MIT"
 dependencies = [
   "jsonschema>=4.25,<5",
   "poethepoet>=0.48,<0.49",

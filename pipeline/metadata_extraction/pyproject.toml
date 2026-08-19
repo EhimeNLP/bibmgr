@@ -4,6 +4,7 @@ version = "0.1.0"
 description = "Metadata and reference-list extraction for PDF papers."
 readme = "README.md"
 requires-python = ">=3.11,<3.14"
+license = "MIT"
 dependencies = []
 
 [project.optional-dependencies]

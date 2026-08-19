@@ -257,4 +257,4 @@ The production backend requires `BIBMGR_ENV=production`, a secret file, SMTP con
 
 ## License
 
-The BibMgR application and libraries are distributed under the terms of either the [Apache License, Version 2.0](LICENSE-APACHE) or the [MIT License](LICENSE-MIT), at your option.
+The BibMgR application and libraries are distributed under the [MIT License](LICENSE).
