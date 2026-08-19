@@ -5,8 +5,20 @@ import json
 import sys
 from pathlib import Path
 
-from .extractors import ExtractionConfig, ExtractionError, extract_paper
+from .extractors import (
+    DEFAULT_EXTRACTION_JOBS,
+    ExtractionConfig,
+    ExtractionError,
+    extract_papers,
+)
 from .summary import summarize_extraction
+
+
+def _positive_int(value: str) -> int:
+    parsed = int(value)
+    if parsed < 1:
+        raise argparse.ArgumentTypeError("must be at least 1")
+    return parsed
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -17,11 +29,11 @@ def build_parser() -> argparse.ArgumentParser:
         epilog=(
             "Examples:\n"
             "  bibmgr-paper-extract paper.pdf --paddleocr-vl-device gpu --output paper.json\n"
-            "  bibmgr-paper-extract paper.pdf --save-dir extracted --pretty\n"
+            "  bibmgr-paper-extract papers/*.pdf --save-dir extracted --jobs 4 --pretty\n"
             "  bibmgr-paper-parse extracted/paper.paper_extraction.json --format markdown"
         ),
     )
-    parser.add_argument("pdf", type=Path, help="Input PDF path.")
+    parser.add_argument("pdf", type=Path, nargs="+", help="Input PDF path(s).")
     parser.add_argument(
         "--paddleocr-vl-json",
         type=Path,
@@ -45,12 +57,23 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--pretty", action="store_true", help="Pretty-print JSON output.")
     parser.add_argument("--summary", action="store_true", help="Print a compact human-readable summary to stderr.")
+    parser.add_argument(
+        "-j",
+        "--jobs",
+        type=_positive_int,
+        default=DEFAULT_EXTRACTION_JOBS,
+        help=f"PDFs to process concurrently (default: {DEFAULT_EXTRACTION_JOBS}).",
+    )
     return parser
 
 
 def main(argv: list[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
+    if len(args.pdf) > 1 and args.output:
+        parser.error("--output can only be used with one PDF; use --save-dir for batch output")
+    if len(args.pdf) > 1 and args.paddleocr_vl_json:
+        parser.error("--paddleocr-vl-json can only be used with one PDF")
     config = ExtractionConfig(
         paddleocr_vl_json=args.paddleocr_vl_json,
         paddleocr_vl_command=args.paddleocr_vl_command,
@@ -63,19 +86,29 @@ def main(argv: list[str] | None = None) -> int:
         save_dir=args.save_dir,
     )
     try:
-        result = extract_paper(args.pdf, config=config)
+        results = extract_papers(args.pdf, config=config, jobs=args.jobs)
     except ExtractionError as exc:
         parser.exit(2, f"error: {exc}\n")
 
-    payload = json.dumps(result.to_dict(), ensure_ascii=False, indent=2 if args.pretty else None)
+    documents = [result.to_dict() for result in results]
+    output_value = documents[0] if len(documents) == 1 else documents
+    payload = json.dumps(output_value, ensure_ascii=False, indent=2 if args.pretty else None)
     if args.output:
-        args.output.parent.mkdir(parents=True, exist_ok=True)
-        args.output.write_text(payload + "\n", encoding="utf-8")
+        try:
+            args.output.parent.mkdir(parents=True, exist_ok=True)
+            args.output.write_text(payload + "\n", encoding="utf-8")
+        except OSError as exc:
+            parser.exit(2, f"error: Could not write output {args.output}: {exc}\n")
     else:
         sys.stdout.write(payload + "\n")
 
     if args.summary:
-        sys.stderr.write(summarize_extraction(result.to_dict(), fmt="text") + "\n")
+        for index, (pdf, document) in enumerate(zip(args.pdf, documents, strict=True)):
+            if len(documents) > 1:
+                if index:
+                    sys.stderr.write("\n")
+                sys.stderr.write(f"== {pdf} ==\n")
+            sys.stderr.write(summarize_extraction(document, fmt="text") + "\n")
     if args.save_dir:
         sys.stderr.write(f"saved files: {args.save_dir}\n")
     return 0
