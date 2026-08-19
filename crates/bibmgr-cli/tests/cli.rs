@@ -30,7 +30,7 @@ fn safe_bulk_fix_converges_across_overlapping_plans_without_writing_in_dry_run()
     let payload: Value = serde_json::from_slice(&output.stdout).unwrap();
     let fixed = payload["source"].as_str().unwrap();
     assert!(fixed.contains("title = {T}"));
-    assert!(fixed.find("title =").unwrap() < fixed.find("author =").unwrap());
+    assert!(fixed.find("author =").unwrap() < fixed.find("title =").unwrap());
     assert_eq!(fs::read_to_string(file.path()).unwrap(), source);
 }
 
@@ -129,4 +129,23 @@ fn export_json_emits_the_versioned_result_for_the_selected_profile() {
     assert!(source.contains("eprint"));
     assert!(source.contains("archivePrefix = {arXiv}"));
     assert!(source.contains("url = {https://arxiv.org/abs/2401.00001}"));
+}
+
+#[test]
+fn export_uses_the_modern_profile_by_default() {
+    let file = NamedTempFile::new().unwrap();
+    fs::write(
+        file.path(),
+        "@misc{paper, title = {A Study}, year = {2024},}\n",
+    )
+    .unwrap();
+
+    let output = bibmgr()
+        .args(["export", file.path().to_str().unwrap(), "--format", "json"])
+        .output()
+        .unwrap();
+
+    assert_eq!(output.status.code(), Some(0));
+    let payload: Value = serde_json::from_slice(&output.stdout).unwrap();
+    assert_eq!(payload["profile"], "modern");
 }

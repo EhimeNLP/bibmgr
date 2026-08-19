@@ -29,7 +29,7 @@ BIBMGR_ENV=development bibmgr-db reset --yes
 postgresql+psycopg://bibmgr:bibmgr@127.0.0.1:5432/bibmgr
 ```
 
-`BIBMGR_REGISTRATION_POLICY` selects the server-owned registration policy and defaults to `archive`. That policy uses strict parsing but does not reject profile conventions, missing profile-required metadata, or unresolved semantic values. API clients cannot override the policy during persistence.
+`BIBMGR_REGISTRATION_POLICY` selects the server-owned registration policy and defaults to `archive`. That policy uses strict parsing, disables `LAB-*` conventions, and does not reject incomplete metadata or unresolved semantic values. API clients cannot override the policy during persistence. Standalone analyze, fix, and export requests default to the general-purpose `modern` profile.
 
 Production startup must run `bibmgr-db upgrade` before starting the application. Migrations are packaged in the backend wheel; the service intentionally does not create or migrate tables at import time.
 

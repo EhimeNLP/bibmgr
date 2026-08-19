@@ -14,6 +14,13 @@ vi.mock("../src/api/bibtex", () => apiMocks);
 
 const profiles = [
   {
+    id: "modern",
+    display_name: "Modern",
+    description: "General-purpose modern BibTeX.",
+    validation_profile: "modern",
+    preprint_representation: "misc-eprint",
+  },
+  {
     id: "laboratory",
     display_name: "Laboratory",
     description: "Laboratory-standard optimized BibTeX.",
@@ -70,7 +77,7 @@ describe("BibtexExportPanel", () => {
   year = 2026,
 }`;
     apiMocks.exportBibtex.mockResolvedValue(
-      exportResult("laboratory", generated),
+      exportResult("modern", generated),
     );
     const wrapper = mount(BibtexExportPanel, {
       props: { source: "@article{paper2026, title={Raw}}" },
@@ -96,7 +103,7 @@ describe("BibtexExportPanel", () => {
     wrapper.unmount();
   });
 
-  it("uses the laboratory profile by default and regenerates the preview on selection", async () => {
+  it("uses the modern profile by default and regenerates the preview on selection", async () => {
     const source = "@misc{paper, title = {Paper}, eprint = {1706.03762}}";
     apiMocks.exportBibtex.mockImplementation(
       ({ profile }: { profile: string }) =>
@@ -106,7 +113,7 @@ describe("BibtexExportPanel", () => {
             profile === "classical-bst"
               ? "@misc{paper, howpublished = {arXiv:1706.03762}}\n"
               : "@misc{paper, eprint = {1706.03762}}\n",
-            profile === "laboratory"
+            profile === "modern"
               ? [{ record_index: 0, message: "Only the first URL was exported." }]
               : [],
           ),
@@ -118,10 +125,10 @@ describe("BibtexExportPanel", () => {
 
     await flushPromises();
 
-    expect(wrapper.get("select").element.value).toBe("laboratory");
+    expect(wrapper.get("select").element.value).toBe("modern");
     expect(apiMocks.exportBibtex).toHaveBeenNthCalledWith(
       1,
-      { source, profile: "laboratory", venue_name_style: "full" },
+      { source, profile: "modern", venue_name_style: "full" },
       expect.objectContaining({ signal: expect.any(AbortSignal) }),
     );
     expect(wrapper.get('[data-testid="bibtex-export-preview"]').text()).toContain(
@@ -155,10 +162,10 @@ describe("BibtexExportPanel", () => {
   });
 
   it("ignores a stale export response after the profile changes", async () => {
-    const laboratory = deferred<BibtexExportResult>();
+    const modern = deferred<BibtexExportResult>();
     const classical = deferred<BibtexExportResult>();
     apiMocks.exportBibtex
-      .mockReturnValueOnce(laboratory.promise)
+      .mockReturnValueOnce(modern.promise)
       .mockReturnValueOnce(classical.promise);
     const wrapper = mount(BibtexExportPanel, {
       props: { source: "@misc{paper, title = {Paper}}" },
@@ -176,7 +183,7 @@ describe("BibtexExportPanel", () => {
       "CLASSICAL OUTPUT",
     );
 
-    laboratory.resolve(exportResult("laboratory", "STALE OUTPUT"));
+    modern.resolve(exportResult("modern", "STALE OUTPUT"));
     await flushPromises();
     expect(wrapper.get('[data-testid="bibtex-export-preview"]').text()).toBe(
       "CLASSICAL OUTPUT",
@@ -188,7 +195,7 @@ describe("BibtexExportPanel", () => {
   it("identifies warning entries only for multi-entry exports", async () => {
     apiMocks.exportBibtex.mockResolvedValue(
       exportResult(
-        "laboratory",
+        "modern",
         "@misc{first}\n\n@misc{second}\n",
         [{ record_index: 1, message: "Used the full venue name." }],
         "full",
@@ -213,7 +220,7 @@ describe("BibtexExportPanel", () => {
       ({ venue_name_style }: { venue_name_style: "full" | "abbreviated" }) =>
         Promise.resolve(
           exportResult(
-            "laboratory",
+            "modern",
             venue_name_style === "full"
               ? "booktitle = {Annual Meeting of the Association for Computational Linguistics}"
               : "booktitle = {ACL}",
@@ -238,7 +245,7 @@ describe("BibtexExportPanel", () => {
     expect(apiMocks.exportBibtex).toHaveBeenLastCalledWith(
       {
         source,
-        profile: "laboratory",
+        profile: "modern",
         venue_name_style: "abbreviated",
       },
       expect.objectContaining({ signal: expect.any(AbortSignal) }),
@@ -265,9 +272,9 @@ describe("BibtexExportPanel", () => {
     await wrapper.setProps({ source: "@misc{second, title = {Second}}" });
     expect(firstSignal.aborted).toBe(true);
 
-    secondReference.resolve(exportResult("laboratory", "SECOND OUTPUT"));
+    secondReference.resolve(exportResult("modern", "SECOND OUTPUT"));
     await flushPromises();
-    firstReference.resolve(exportResult("laboratory", "STALE FIRST OUTPUT"));
+    firstReference.resolve(exportResult("modern", "STALE FIRST OUTPUT"));
     await flushPromises();
 
     expect(wrapper.get('[data-testid="bibtex-export-preview"]').text()).toBe(
@@ -280,7 +287,7 @@ describe("BibtexExportPanel", () => {
   it("copies and downloads only the generated result", async () => {
     const generated = "@article{paper,\n  title = {Optimized},\n}\n";
     apiMocks.exportBibtex.mockResolvedValue(
-      exportResult("laboratory", generated),
+      exportResult("modern", generated),
     );
     const writeText = vi.fn<(text: string) => Promise<void>>().mockResolvedValue();
     Object.defineProperty(Navigator.prototype, "clipboard", {
@@ -311,7 +318,7 @@ describe("BibtexExportPanel", () => {
     await wrapper.get("button.bibtex-export__download").trigger("click");
     expect(createObjectURL).toHaveBeenCalledWith(expect.any(Blob));
     expect(revokeObjectURL).toHaveBeenCalledWith("blob:bibtex-export");
-    expect(downloadedAs).toBe("paper-key-laboratory.bib");
+    expect(downloadedAs).toBe("paper-key-modern.bib");
 
     wrapper.unmount();
   });
@@ -319,7 +326,7 @@ describe("BibtexExportPanel", () => {
   it("restores keyboard focus after using the clipboard fallback", async () => {
     const generated = "@article{paper, title = {Optimized}}\n";
     apiMocks.exportBibtex.mockResolvedValue(
-      exportResult("laboratory", generated),
+      exportResult("modern", generated),
     );
     const writeText = vi.fn().mockRejectedValue(new Error("Permission denied."));
     Object.defineProperty(Navigator.prototype, "clipboard", {
@@ -359,7 +366,7 @@ describe("BibtexExportPanel", () => {
 
     expect(wrapper.get('[role="alert"]').text()).toContain("Export is blocked.");
     apiMocks.exportBibtex.mockResolvedValueOnce(
-      exportResult("laboratory", "@misc{paper,}\n"),
+      exportResult("modern", "@misc{paper,}\n"),
     );
     await wrapper.get('[role="alert"] button').trigger("click");
     await flushPromises();

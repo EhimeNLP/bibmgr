@@ -21,7 +21,7 @@ class StrictRequest(BaseModel):
 class AnalyzeRequest(StrictRequest):
     source: str = Field(max_length=MAX_BIBTEX_SOURCE_CHARACTERS)
     profile: str = Field(
-        default="laboratory", max_length=MAX_PROFILE_NAME_CHARACTERS
+        default="modern", max_length=MAX_PROFILE_NAME_CHARACTERS
     )
     mode: Literal["strict", "tolerant"] = "tolerant"
 
@@ -33,7 +33,7 @@ class ApplyFixesRequest(StrictRequest):
         Annotated[str, Field(max_length=MAX_FIX_ID_CHARACTERS)]
     ] = Field(min_length=1, max_length=MAX_FIX_IDS)
     profile: str = Field(
-        default="laboratory", max_length=MAX_PROFILE_NAME_CHARACTERS
+        default="modern", max_length=MAX_PROFILE_NAME_CHARACTERS
     )
 
 
@@ -45,7 +45,7 @@ class RegistrationRequest(StrictRequest):
 class ExportRequest(StrictRequest):
     source: str = Field(max_length=MAX_BIBTEX_SOURCE_CHARACTERS)
     profile: str = Field(
-        default="laboratory", max_length=MAX_PROFILE_NAME_CHARACTERS
+        default="modern", max_length=MAX_PROFILE_NAME_CHARACTERS
     )
     venue_name_style: Literal["full", "abbreviated"] = "full"
 

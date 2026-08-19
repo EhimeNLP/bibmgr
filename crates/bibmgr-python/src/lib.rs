@@ -606,7 +606,7 @@ pub struct PyDocumentSession {
 #[pymethods]
 impl PyDocumentSession {
     #[new]
-    #[pyo3(signature = (source, profile="laboratory", tolerant=true))]
+    #[pyo3(signature = (source, profile="modern", tolerant=true))]
     fn new(py: Python<'_>, source: String, profile: &str, tolerant: bool) -> PyResult<Self> {
         let options = options_for(profile, tolerant, None)?;
         let inner = py.detach(move || CoreDocumentSession::open(source, options));
@@ -640,7 +640,7 @@ impl PyDocumentSession {
     }
 }
 
-#[pyfunction(name = "analyze", signature = (source, profile="laboratory", tolerant=true, *, mode=None, venue_registry_json=None))]
+#[pyfunction(name = "analyze", signature = (source, profile="modern", tolerant=true, *, mode=None, venue_registry_json=None))]
 fn py_analyze(
     py: Python<'_>,
     source: String,
@@ -661,7 +661,7 @@ fn py_analyze(
     PyAnalysisResult::from_serializable(&result)
 }
 
-#[pyfunction(signature = (source, fix_ids=None, profile="laboratory", *, source_revision=None, venue_registry_json=None))]
+#[pyfunction(signature = (source, fix_ids=None, profile="modern", *, source_revision=None, venue_registry_json=None))]
 fn apply_fixes(
     py: Python<'_>,
     source: String,
@@ -743,7 +743,7 @@ fn py_canonicalize_for_storage(
     PyRegistrationValidation::from_serializable(&result)
 }
 
-#[pyfunction(name = "export", signature = (source, profile="laboratory", *, venue_name_style="full", profile_json=None, venue_registry_json=None))]
+#[pyfunction(name = "export", signature = (source, profile="modern", *, venue_name_style="full", profile_json=None, venue_registry_json=None))]
 fn py_export(
     py: Python<'_>,
     source: String,
@@ -770,7 +770,7 @@ fn py_export(
     PyExportResult::from_serializable(&result)
 }
 
-#[pyfunction(signature = (source, profile="laboratory", *, venue_name_style="full", profile_json=None, venue_registry_json=None))]
+#[pyfunction(signature = (source, profile="modern", *, venue_name_style="full", profile_json=None, venue_registry_json=None))]
 fn export_source(
     py: Python<'_>,
     source: String,
@@ -789,7 +789,7 @@ fn export_source(
     )
 }
 
-#[pyfunction(signature = (source, profile="laboratory", *, venue_name_style="full", profile_json=None, venue_registry_json=None))]
+#[pyfunction(signature = (source, profile="modern", *, venue_name_style="full", profile_json=None, venue_registry_json=None))]
 fn export_source_workflow(
     py: Python<'_>,
     source: String,

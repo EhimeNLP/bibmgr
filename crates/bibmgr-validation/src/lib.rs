@@ -5544,6 +5544,22 @@ exclude = []
     }
 
     #[test]
+    fn modern_omits_laboratory_diagnostics() {
+        let policy = ValidationPolicy::modern();
+        let source = "@article{Unconventional_Key, title={T}, url={https://example.test},}\n";
+        let result = run(source, &policy);
+
+        assert!(result
+            .diagnostics
+            .iter()
+            .all(|diagnostic| !diagnostic.code.as_str().starts_with("LAB-")));
+        assert!(result
+            .fixes
+            .iter()
+            .all(|fix| !fix.id.as_str().starts_with("LAB-")));
+    }
+
+    #[test]
     fn laboratory_style_diagnostics_do_not_block_registration() {
         let source = "@article{smith2024, YEAR={2024}, journal=\"J\", author={Doe, Jane}, title={T}, url={https://example.test}}\n";
         let syntax = parse(source, ParseOptions::tolerant());
@@ -5595,6 +5611,14 @@ exclude = []
         for url_policy in [UrlPolicy::Discourage, UrlPolicy::Forbid] {
             let mut policy = ValidationPolicy::modern();
             policy.url_policy = url_policy;
+            policy.rules.insert(
+                RuleCode::new(RULE_URL_POLICY),
+                RuleSetting {
+                    enabled: true,
+                    severity: Severity::Information,
+                    blocking: false,
+                },
+            );
             let result = run(source, &policy);
             let diagnostic = result
                 .diagnostics

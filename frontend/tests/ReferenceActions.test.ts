@@ -170,14 +170,14 @@ describe("ReferenceActions", () => {
     expect(bibtexApiMocks.exportBibtex).toHaveBeenCalledWith(
       {
         source: storedSource,
-        profile: "laboratory",
+        profile: "modern",
         venue_name_style: "full",
       },
       expect.objectContaining({ signal: expect.any(AbortSignal) }),
     );
     expect(
       wrapper.get('[data-testid="bibtex-export-preview"]').text(),
-    ).toBe(`${storedSource}\n% laboratory`);
+    ).toBe(`${storedSource}\n% modern`);
 
     await wrapper
       .get<HTMLTextAreaElement>("#reference-edit-bibtex")
@@ -187,7 +187,7 @@ describe("ReferenceActions", () => {
     expect(bibtexApiMocks.exportBibtex).toHaveBeenLastCalledWith(
       {
         source: submitted,
-        profile: "laboratory",
+        profile: "modern",
         venue_name_style: "full",
       },
       expect.objectContaining({ signal: expect.any(AbortSignal) }),

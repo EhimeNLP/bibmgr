@@ -306,28 +306,28 @@ describe("RegistrationPanel", () => {
     await flushPromises();
 
     expect(bibtexApiMocks.exportBibtex).toHaveBeenCalledWith(
-      { source, profile: "laboratory", venue_name_style: "full" },
-      expect.objectContaining({ signal: expect.any(AbortSignal) }),
-    );
-    expect(
-      wrapper.get(".registration-output-preview select").element.value,
-    ).toBe("laboratory");
-    expect(
-      wrapper.get('[data-testid="bibtex-export-preview"]').text(),
-    ).toBe(`${source}\n% laboratory`);
-
-    await wrapper
-      .get(".registration-output-preview select")
-      .setValue("modern");
-    await flushPromises();
-
-    expect(bibtexApiMocks.exportBibtex).toHaveBeenLastCalledWith(
       { source, profile: "modern", venue_name_style: "full" },
       expect.objectContaining({ signal: expect.any(AbortSignal) }),
     );
     expect(
+      wrapper.get(".registration-output-preview select").element.value,
+    ).toBe("modern");
+    expect(
       wrapper.get('[data-testid="bibtex-export-preview"]').text(),
     ).toBe(`${source}\n% modern`);
+
+    await wrapper
+      .get(".registration-output-preview select")
+      .setValue("laboratory");
+    await flushPromises();
+
+    expect(bibtexApiMocks.exportBibtex).toHaveBeenLastCalledWith(
+      { source, profile: "laboratory", venue_name_style: "full" },
+      expect.objectContaining({ signal: expect.any(AbortSignal) }),
+    );
+    expect(
+      wrapper.get('[data-testid="bibtex-export-preview"]').text(),
+    ).toBe(`${source}\n% laboratory`);
     expect(apiMocks.registerBibtexToDatabase).not.toHaveBeenCalled();
   });
 

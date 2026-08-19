@@ -328,6 +328,37 @@ def test_export_is_a_separate_native_operation() -> None:
     assert engine.calls == [("export", ("@misc{key}", "classical-bst"))]
 
 
+def test_bibtex_operation_defaults_use_the_modern_profile() -> None:
+    client, engine = client_and_engine()
+    source = "@misc{key}"
+    revision = "sha256:" + "0" * 64
+
+    assert client.post("/bibtex/analyze", json={"source": source}).status_code == 200
+    assert (
+        client.post(
+            "/bibtex/fixes/apply",
+            json={
+                "source": source,
+                "source_revision": revision,
+                "fix_ids": ["BIB-SYNTAX-004:0"],
+            },
+        ).status_code
+        == 200
+    )
+    export_response = client.post("/bibtex/export", json={"source": source})
+
+    assert export_response.status_code == 200
+    assert export_response.json()["profile"] == "modern"
+    assert engine.calls == [
+        ("analyze", (source, "modern", "tolerant")),
+        (
+            "apply_fixes",
+            (source, revision, ["BIB-SYNTAX-004:0"], "modern"),
+        ),
+        ("export", (source, "modern")),
+    ]
+
+
 def test_export_profile_catalog_uses_effective_application_configuration() -> None:
     client, engine = client_and_engine()
 
