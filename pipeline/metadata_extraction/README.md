@@ -7,7 +7,7 @@ This stage extracts paper metadata and bibliography references from one or more 
 The default environment contains the package and its test dependencies. It can parse an existing PaddleOCR-VL artifact or call an external runner, but it does not include a local Paddle inference runtime:
 
 ```bash
-uv sync --project pipeline/metadata_extraction --frozen
+uv sync --project pipeline/metadata_extraction --frozen --group dev
 ```
 
 Install the locked GPU runtime without test dependencies:
@@ -190,6 +190,6 @@ Each local worker initializes an independent PaddleOCR-VL runtime, and each exte
 ## Testing
 
 ```bash
-uv run --project pipeline/metadata_extraction --frozen \
+uv run --project pipeline/metadata_extraction --frozen --group dev \
   pytest -q pipeline/metadata_extraction/tests
 ```

@@ -223,7 +223,7 @@ jobs:
           enable-cache: true
           python-version: "3.12"
       - run: >-
-          uv run --project pipeline/metadata_extraction --frozen
+          uv run --project pipeline/metadata_extraction --frozen --group dev
           pytest -q pipeline/metadata_extraction/tests
 
   browser-e2e:
