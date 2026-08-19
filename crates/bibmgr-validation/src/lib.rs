@@ -3682,7 +3682,7 @@ fn default_rule_setting(code: &str) -> RuleSetting {
         _ => Severity::Warning,
     };
     RuleSetting {
-        enabled: true,
+        enabled: !code.starts_with("LAB-"),
         severity,
         blocking: is_parser_rule(code),
     }
@@ -5528,37 +5528,19 @@ exclude = []
     }
 
     #[test]
-    fn archive_citation_key_fixes_are_only_offered_when_the_result_is_valid() {
+    fn archive_omits_laboratory_diagnostics() {
         let policy = ValidationPolicy::archive();
-
-        for citation_key in ["asada-2026any", "asada2026any", "asada-2026"] {
-            let source = format!("@misc{{{citation_key}, title={{T}},}}\n");
-            let result = run(&source, &policy);
-            let diagnostic = result
-                .diagnostics
-                .iter()
-                .find(|diagnostic| diagnostic.code.as_str() == RULE_CITATION_KEY)
-                .unwrap();
-            assert!(diagnostic.blocking);
-            assert!(
-                diagnostic.fixes.is_empty(),
-                "`{citation_key}` received an invalid automatic fix"
-            );
-        }
-
-        let source = "@misc{Asada-2026-Principled, title={T},}\n";
+        let source = "@misc{Unconventional_Key, url={https://example.test},}\n";
         let result = run(source, &policy);
-        let diagnostic = result
+
+        assert!(result
             .diagnostics
             .iter()
-            .find(|diagnostic| diagnostic.code.as_str() == RULE_CITATION_KEY)
-            .unwrap();
-        let fix = result
+            .all(|diagnostic| !diagnostic.code.as_str().starts_with("LAB-")));
+        assert!(result
             .fixes
             .iter()
-            .find(|fix| diagnostic.fixes.contains(&fix.id))
-            .unwrap();
-        assert_eq!(fix.edits[0].replacement, "asada-2026-principled");
+            .all(|fix| !fix.id.as_str().starts_with("LAB-")));
     }
 
     #[test]

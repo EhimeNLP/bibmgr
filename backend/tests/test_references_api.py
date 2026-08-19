@@ -1007,29 +1007,29 @@ def test_real_native_registration_enforces_policy_and_maps_to_storage() -> None:
     assert reference["doi"] == "10.1000/native-example"
     assert reference["bibtex"] == source
 
-    rejected = client.post(
+    unconventional_key = client.post(
         "/references",
         json={
             "bibtex": (
                 "@article{asada-2026any, author = {浅田, 太郎}, "
-                "title = {不正な引用キー}, journal = {TACL}, "
+                "title = {慣例外の引用キー}, journal = {TACL}, "
                 "year = {2026},}\n"
             ),
             "source": "manual",
         },
     )
 
-    assert rejected.status_code == 422
-    error = rejected.json()["error"]
-    assert error["code"] == "registration_rejected"
-    assert any(
-        diagnostic["code"] == "LAB-KEY-002" and diagnostic["blocking"]
-        for diagnostic in error["details"]["diagnostics"]
-    )
+    assert unconventional_key.status_code == 201
+    assert unconventional_key.json()["reference"]["bibtexKey"] == "asada-2026any"
 
     with sessions() as session:
-        assert session.scalar(select(func.count(ReferenceRecord.id))) == 1
-        event_record = session.scalar(select(ReferenceAuditEvent))
+        assert session.scalar(select(func.count(ReferenceRecord.id))) == 2
+        event_record = session.scalar(
+            select(ReferenceAuditEvent).where(
+                ReferenceAuditEvent.after_data["submitted_bibtex"].as_string()
+                == source
+            )
+        )
         assert event_record is not None
         assert event_record.after_data is not None
         assert event_record.after_data["submitted_bibtex"] == source

@@ -1416,43 +1416,28 @@ kind = "conference"
     }
 
     #[test]
-    fn archive_registration_requires_author_year_and_suffix_citation_keys() {
+    fn archive_registration_accepts_citation_keys_without_laboratory_conventions() {
         let policy = RegistrationPolicy::archive();
         let validation_policy = ValidationPolicy::archive();
-        assert_eq!(
-            validation_policy.citation_key_pattern,
-            r"^[a-z][a-z0-9]*(?:-[a-z0-9]+)*-[0-9]{4}-[a-z0-9]+(?:-[a-z0-9]+)*$"
-        );
-
-        for citation_key in ["asada-2026-principled", "gong-etal-2023-diffuseq-v2"] {
-            let source = format!("@misc{{{citation_key}, title={{T}},}}\n");
-            let result = validate_for_registration(&source, &policy);
-            assert!(
-                result.accepted,
-                "valid citation key `{citation_key}` was rejected: {:?}",
-                result.diagnostics
-            );
-        }
+        assert_eq!(validation_policy.citation_key_pattern, r"^.*$");
 
         for citation_key in [
-            "asada-2026any",
+            "asada-2026-principled",
             "asada2026any",
-            "asada-2026",
-            "Gong-2023-diffuseq",
-            "gong_2023_diffuseq",
+            "Gong_2023_DiffuSeq",
             "2023-gong-diffuseq",
-            "gong-2023-",
         ] {
             let source = format!("@misc{{{citation_key}, title={{T}},}}\n");
             let result = validate_for_registration(&source, &policy);
             assert!(
-                !result.accepted,
-                "invalid citation key `{citation_key}` was accepted"
+                result.accepted,
+                "citation key `{citation_key}` was rejected: {:?}",
+                result.diagnostics
             );
-            assert!(result.diagnostics.iter().any(|diagnostic| {
-                diagnostic.code.as_str() == bibmgr_validation::RULE_CITATION_KEY
-                    && diagnostic.blocking
-            }));
+            assert!(result
+                .diagnostics
+                .iter()
+                .all(|diagnostic| !diagnostic.code.as_str().starts_with("LAB-")));
         }
     }
 
