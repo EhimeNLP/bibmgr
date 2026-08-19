@@ -1043,15 +1043,14 @@ mod tests {
     fn bulk_safe_fixes_reanalyze_between_overlapping_batches() {
         let source = "@article{k, year={2024}, TITLE=\"T\", author={Doe, Jane}, journal={J},}\n";
         let options = AnalysisOptions {
-            validation_policy: ValidationPolicy::for_profile(&ProfileId::new("laboratory"))
-                .unwrap(),
+            validation_policy: ValidationPolicy::modern(),
             ..AnalysisOptions::default()
         };
 
         let applied = apply_safe_fixes(source, &options).unwrap();
 
         assert!(applied.source.contains("title = {T}"));
-        assert!(applied.source.find("title =").unwrap() < applied.source.find("author =").unwrap());
+        assert!(applied.source.find("author =").unwrap() < applied.source.find("title =").unwrap());
         assert!(applied
             .analysis
             .available_fixes
@@ -1077,7 +1076,7 @@ mod tests {
             Some(bibmgr_semantics::VenueKind::Conference)
         );
 
-        let full = export_source(source, &ExportProfile::laboratory())
+        let full = export_source(source, &ExportProfile::modern())
             .unwrap()
             .source;
         assert!(full.contains(
@@ -1286,7 +1285,7 @@ kind = "conference"
     fn export_validates_the_generated_document_against_the_target_profile() {
         let incomplete = "@article{k, title={T}, journal={J}, year={2024},}\n";
         assert!(matches!(
-            export_source(incomplete, &ExportProfile::laboratory()),
+            export_source(incomplete, &ExportProfile::acl()),
             Err(ExportError::BlockingDiagnostics(ref codes))
                 if codes.iter().any(|code| code.as_str() == "LAB-ENTRY-003")
         ));
@@ -1313,13 +1312,13 @@ kind = "conference"
     fn advisory_export_applies_safe_fixes_and_reports_remaining_diagnostics() {
         let source = "@article{k,\n  TITLE={T},\n  journal={J},\n  year={2024}\n}\n";
         assert!(matches!(
-            export_source(source, &ExportProfile::laboratory()),
+            export_source(source, &ExportProfile::acl()),
             Err(ExportError::BlockingDiagnostics(_))
         ));
 
         let result = export_source_workflow(
             source,
-            &ExportProfile::laboratory(),
+            &ExportProfile::acl(),
             &ExportSourceOptions::default(),
         )
         .unwrap();
@@ -1416,7 +1415,7 @@ kind = "conference"
     }
 
     #[test]
-    fn archive_registration_accepts_citation_keys_without_laboratory_conventions() {
+    fn archive_registration_accepts_citation_keys_without_profile_conventions() {
         let policy = RegistrationPolicy::archive();
         let validation_policy = ValidationPolicy::archive();
         assert_eq!(validation_policy.citation_key_pattern, r"^.*$");
@@ -1483,20 +1482,21 @@ kind = "conference"
     }
 
     #[test]
-    fn storage_canonicalization_applies_safe_laboratory_style_without_losing_url() {
+    fn storage_canonicalization_applies_safe_modern_style_without_losing_url() {
         let source = "@misc{smith-2024, author={Smith, Jane}, Title={T}, year={2024}, eprint={2401.01234}, archiveprefix={arXiv}, primaryclass={cs.CL}, URL={https://example.test/paper}}\n";
+        let policy = RegistrationPolicy::for_profile(&ProfileId::new("modern")).unwrap();
 
-        let result = canonicalize_for_storage(source, &RegistrationPolicy::laboratory());
+        let result = canonicalize_for_storage(source, &policy);
 
         assert!(result.accepted);
         assert_ne!(result.source, source);
         assert!(result.source.contains("title = {T}"));
-        assert!(result.source.contains("archivePrefix = {arXiv}"));
-        assert!(result.source.contains("primaryClass = {cs.CL}"));
+        assert!(result.source.contains("archiveprefix = {arXiv}"));
+        assert!(result.source.contains("primaryclass = {cs.CL}"));
         assert!(result.source.contains("url = {https://example.test/paper}"));
         assert!(!result.applied_fix_ids.is_empty());
 
-        let repeated = canonicalize_for_storage(&result.source, &RegistrationPolicy::laboratory());
+        let repeated = canonicalize_for_storage(&result.source, &policy);
         assert!(repeated.accepted);
         assert_eq!(repeated.source, result.source);
         assert!(repeated.applied_fix_ids.is_empty());
@@ -1516,7 +1516,8 @@ kind = "conference"
             "}\n",
         );
 
-        let result = canonicalize_for_storage(source, &RegistrationPolicy::laboratory());
+        let policy = RegistrationPolicy::for_profile(&ProfileId::new("modern")).unwrap();
+        let result = canonicalize_for_storage(source, &policy);
 
         assert!(
             result.accepted,

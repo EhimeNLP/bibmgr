@@ -114,7 +114,7 @@ fn export_json_emits_the_versioned_result_for_the_selected_profile() {
             "export",
             file.path().to_str().unwrap(),
             "--profile",
-            "laboratory",
+            "acl",
             "--format",
             "json",
         ])
@@ -124,10 +124,10 @@ fn export_json_emits_the_versioned_result_for_the_selected_profile() {
     assert_eq!(output.status.code(), Some(0));
     let payload: Value = serde_json::from_slice(&output.stdout).unwrap();
     assert_eq!(payload["schema_version"], "1");
-    assert_eq!(payload["profile"], "laboratory");
+    assert_eq!(payload["profile"], "acl");
     let source = payload["source"].as_str().unwrap();
     assert!(source.contains("eprint"));
-    assert!(source.contains("archivePrefix = {arXiv}"));
+    assert!(source.contains("archiveprefix = {arXiv}"));
     assert!(source.contains("url = {https://arxiv.org/abs/2401.00001}"));
 }
 

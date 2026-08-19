@@ -86,10 +86,10 @@ async function chooseFile(wrapper: ReturnType<typeof mount>, file: File) {
 const sourceRevision = `sha256:${"0".repeat(64)}`;
 const exportProfiles = [
   {
-    id: "laboratory",
-    display_name: "Laboratory",
-    description: "Laboratory-standard optimized BibTeX.",
-    validation_profile: "laboratory",
+    id: "acl",
+    display_name: "ACL Publications",
+    description: "ACL-compatible BibTeX.",
+    validation_profile: "acl",
     preprint_representation: "misc-eprint",
   },
   {
@@ -318,16 +318,16 @@ describe("RegistrationPanel", () => {
 
     await wrapper
       .get(".registration-output-preview select")
-      .setValue("laboratory");
+      .setValue("acl");
     await flushPromises();
 
     expect(bibtexApiMocks.exportBibtex).toHaveBeenLastCalledWith(
-      { source, profile: "laboratory", venue_name_style: "full" },
+      { source, profile: "acl", venue_name_style: "full" },
       expect.objectContaining({ signal: expect.any(AbortSignal) }),
     );
     expect(
       wrapper.get('[data-testid="bibtex-export-preview"]').text(),
-    ).toBe(`${source}\n% laboratory`);
+    ).toBe(`${source}\n% acl`);
     expect(apiMocks.registerBibtexToDatabase).not.toHaveBeenCalled();
   });
 

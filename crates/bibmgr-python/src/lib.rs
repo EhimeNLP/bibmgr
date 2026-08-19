@@ -1035,7 +1035,7 @@ mod tests {
             bibmgr_core::ExportProfile::builtins().unwrap().len()
         );
         assert_eq!(profiles[0]["id"], "modern");
-        assert_eq!(profiles[1]["id"], "laboratory");
+        assert_eq!(profiles[1]["id"], "acl");
         assert!(profiles.iter().all(|profile| {
             profile["display_name"]
                 .as_str()

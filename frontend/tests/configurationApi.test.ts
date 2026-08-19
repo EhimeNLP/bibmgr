@@ -12,10 +12,10 @@ describe("configuration API", () => {
   it("previews an unsaved profile without write authentication headers", async () => {
     const profile: ExportProfileData = {
       schema_version: "1",
-      profile: "laboratory",
-      display_name: "Laboratory",
-      description: "Laboratory output.",
-      validation_profile: "laboratory",
+      profile: "custom-profile",
+      display_name: "Custom Profile",
+      description: "Custom output.",
+      validation_profile: "modern",
       preprint_representation: "misc-eprint",
       month_format: "numeric",
       supported_entry_types: [],
@@ -40,7 +40,7 @@ describe("configuration API", () => {
     const payload = {
       schema_version: "1",
       source: "@misc{preview, title={{Preview}}}",
-      profile: "laboratory",
+      profile: "custom-profile",
       venue_name_style: "full",
       record_count: 1,
       warnings: [],

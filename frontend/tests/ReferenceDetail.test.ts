@@ -15,10 +15,10 @@ vi.mock("../src/api/bibtex", () => apiMocks);
 
 const profiles = [
   {
-    id: "laboratory",
-    display_name: "Laboratory",
-    description: "Laboratory-standard optimized BibTeX.",
-    validation_profile: "laboratory",
+    id: "acl",
+    display_name: "ACL Publications",
+    description: "ACL-compatible BibTeX.",
+    validation_profile: "acl",
     preprint_representation: "misc-eprint",
   },
   {
@@ -94,7 +94,7 @@ describe("ReferenceDetail BibTeX views", () => {
     expect(wrapper.get("select").element.value).toBe("modern");
     expect(
       wrapper.findAll("option").map((option) => option.attributes("value")),
-    ).toEqual(["laboratory", "modern"]);
+    ).toEqual(["acl", "modern"]);
 
     wrapper.unmount();
   });
@@ -106,20 +106,20 @@ describe("ReferenceDetail BibTeX views", () => {
     });
     await flushPromises();
 
-    await wrapper.get("select").setValue("laboratory");
+    await wrapper.get("select").setValue("acl");
     await flushPromises();
 
     expect(apiMocks.exportBibtex).toHaveBeenCalledTimes(2);
     expect(apiMocks.exportBibtex).toHaveBeenLastCalledWith(
       {
         source: reference.bibtex,
-        profile: "laboratory",
+        profile: "acl",
         venue_name_style: "full",
       },
       expect.objectContaining({ signal: expect.any(AbortSignal) }),
     );
     expect(wrapper.get('[data-testid="bibtex-export-preview"]').text()).toBe(
-      `${reference.bibtex}\n% laboratory`,
+      `${reference.bibtex}\n% acl`,
     );
 
     await wrapper.get("select").setValue("modern");

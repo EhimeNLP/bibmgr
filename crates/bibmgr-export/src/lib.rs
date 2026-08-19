@@ -10,7 +10,6 @@ use std::collections::{BTreeMap, BTreeSet, HashMap};
 
 pub const BUILTIN_EXPORT_PROFILE_IDS: &[&str] = &[
     "modern",
-    "laboratory",
     "acl",
     "aaai",
     "acm-publications",
@@ -185,13 +184,6 @@ impl ExportProfile {
         )
     }
 
-    pub fn laboratory() -> Self {
-        Self::embedded(
-            include_str!("../../../config/export-profiles/laboratory.toml"),
-            "laboratory",
-        )
-    }
-
     pub fn classical_bst() -> Self {
         Self::embedded(
             include_str!("../../../config/export-profiles/classical-bst.toml"),
@@ -223,9 +215,6 @@ impl ExportProfile {
     pub fn builtin(profile: &str) -> Result<Self, ExportError> {
         let input = match profile {
             "default" | "modern" => include_str!("../../../config/export-profiles/modern.toml"),
-            "laboratory" => {
-                include_str!("../../../config/export-profiles/laboratory.toml")
-            }
             "classical-bst" => {
                 include_str!("../../../config/export-profiles/classical-bst.toml")
             }
@@ -2403,7 +2392,6 @@ mod tests {
             let output = export(&bibliography, &profile).unwrap().source;
             let expected = match profile.profile.as_str() {
                 "modern" => include_str!("../tests/fixtures/modern.bib"),
-                "laboratory" => include_str!("../tests/fixtures/laboratory.bib"),
                 "acl" => include_str!("../tests/fixtures/acl.bib"),
                 "aaai" => include_str!("../tests/fixtures/aaai.bib"),
                 "acm-publications" => {
@@ -2457,6 +2445,10 @@ mod tests {
             ExportProfile::builtin("article-journal").unwrap(),
             legacy_arxiv.clone()
         );
+        assert!(matches!(
+            ExportProfile::builtin("laboratory"),
+            Err(ExportError::UnknownProfile(profile)) if profile == "laboratory"
+        ));
     }
 
     #[test]
@@ -2891,7 +2883,7 @@ validation_profile = "modern"
         let bibliography = bibliography(
             "@misc{vaswani2017, title={Attention}, author={Vaswani, Ashish}, year={2017}, eprint={1706.03762}, archivePrefix={arXiv},}\n",
         );
-        let eprint = export(&bibliography, &ExportProfile::laboratory())
+        let eprint = export(&bibliography, &ExportProfile::modern())
             .unwrap()
             .source;
         assert!(eprint.starts_with("@misc{vaswani2017,"));
@@ -2920,7 +2912,7 @@ validation_profile = "modern"
             bibliography.records[0].work_type.value,
             WorkType::JournalArticle
         );
-        let output = export(&bibliography, &ExportProfile::laboratory())
+        let output = export(&bibliography, &ExportProfile::modern())
             .unwrap()
             .source;
         assert!(output.starts_with("@article{k,"));
@@ -3529,7 +3521,9 @@ validation_profile = "modern"
 
     #[test]
     fn profile_round_trips_through_toml() {
-        let profile = ExportProfile::laboratory();
+        let mut profile = ExportProfile::modern();
+        profile.profile = ProfileId::new("custom");
+        profile.display_name = String::from("Custom profile");
         let encoded = toml::to_string(&profile).unwrap();
         assert_eq!(ExportProfile::from_toml(&encoded).unwrap(), profile);
     }
@@ -3641,12 +3635,14 @@ validation_profile = "modern"
             "@misc{k, title={T}, abstract={Private}, file={local.pdf}, url={https://example.test},}\n",
         );
 
-        let laboratory = export(&bibliography, &ExportProfile::laboratory())
-            .unwrap()
-            .source;
-        assert!(!laboratory.contains("abstract ="));
-        assert!(!laboratory.contains("file ="));
-        assert!(laboratory.contains("url = {https://example.test/}"));
+        let mut custom = ExportProfile::modern();
+        custom.profile = ProfileId::new("custom");
+        custom.field_selection.allowed_fields =
+            Some(vec![String::from("title"), String::from("url")]);
+        let custom = export(&bibliography, &custom).unwrap().source;
+        assert!(!custom.contains("abstract ="));
+        assert!(!custom.contains("file ="));
+        assert!(custom.contains("url = {https://example.test/}"));
 
         let classical = export(&bibliography, &ExportProfile::classical_bst())
             .unwrap()

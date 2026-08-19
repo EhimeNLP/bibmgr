@@ -42,7 +42,7 @@ describe("BibTeX API", () => {
 
     await expect(
       analyzeBibtex(
-        { source, profile: "laboratory", mode: "tolerant" },
+        { source, profile: "acl", mode: "tolerant" },
         { signal: controller.signal },
       ),
     ).resolves.toEqual(payload);
@@ -55,7 +55,7 @@ describe("BibTeX API", () => {
     expect(init.signal).toBe(controller.signal);
     expect(JSON.parse(String(init.body))).toEqual({
       source,
-      profile: "laboratory",
+      profile: "acl",
       mode: "tolerant",
     });
     expect(new Headers(init.headers).get("Content-Type")).toBe("application/json");
@@ -102,12 +102,12 @@ describe("BibTeX API", () => {
     await expect(
       validateBibtexForRegistration({
         source: "@misc{key}",
-        policy: "laboratory",
+        policy: "modern",
       }),
     ).resolves.toEqual(payload);
 
     const [, init] = fetchMock.mock.calls[0] as [string, RequestInit];
-    expect(JSON.parse(String(init.body)).policy).toBe("laboratory");
+    expect(JSON.parse(String(init.body)).policy).toBe("modern");
   });
 
   it("requests storage canonicalization separately from validation and export", async () => {
@@ -126,7 +126,7 @@ describe("BibTeX API", () => {
     await expect(
       canonicalizeBibtexForStorage({
         source: "@misc{key, Title={T}}",
-        policy: "laboratory",
+        policy: "modern",
       }),
     ).resolves.toEqual(payload);
 
@@ -159,10 +159,10 @@ describe("BibTeX API", () => {
       schema_version: "1" as const,
       profiles: [
         {
-          id: "laboratory",
-          display_name: "Laboratory",
-          description: "Laboratory-standard optimized BibTeX.",
-          validation_profile: "laboratory",
+          id: "custom-profile",
+          display_name: "Custom Profile",
+          description: "Custom optimized BibTeX.",
+          validation_profile: "modern",
           preprint_representation: "misc-eprint",
         },
       ],

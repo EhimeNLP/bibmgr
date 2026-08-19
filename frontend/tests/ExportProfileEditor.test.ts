@@ -13,10 +13,10 @@ vi.mock("../src/api/configuration", () => apiMocks);
 
 const profile: ExportProfileData = {
   schema_version: "1",
-  profile: "laboratory",
-  display_name: "Laboratory",
-  description: "Laboratory output.",
-  validation_profile: "laboratory",
+  profile: "custom-profile",
+  display_name: "Custom Profile",
+  description: "Custom output.",
+  validation_profile: "modern",
   preprint_representation: "misc-eprint",
   month_format: "numeric",
   supported_entry_types: [],
@@ -45,7 +45,7 @@ beforeEach(() => {
   apiMocks.previewExportProfile.mockResolvedValue({
     schema_version: "1",
     source: "@misc{preview,\\n  title = {{Preview}},\\n}",
-    profile: "laboratory",
+    profile: "custom-profile",
     venue_name_style: "full",
     record_count: 1,
     warnings: [],
@@ -105,8 +105,8 @@ describe("ExportProfileEditor", () => {
     expect(apiMocks.previewExportProfile).toHaveBeenCalledWith(
       expect.objectContaining({
         data: expect.objectContaining({
-          profile: "laboratory",
-          display_name: "Laboratory",
+          profile: "custom-profile",
+          display_name: "Custom Profile",
         }),
       }),
       expect.any(AbortSignal),
@@ -115,13 +115,13 @@ describe("ExportProfileEditor", () => {
       "Preview",
     );
 
-    await wrapper.get('input[required]').setValue("Lab Compact");
+    await wrapper.get('input[required]').setValue("Custom Compact");
     await vi.advanceTimersByTimeAsync(301);
     await flushPromises();
 
     expect(apiMocks.previewExportProfile).toHaveBeenLastCalledWith(
       expect.objectContaining({
-        data: expect.objectContaining({ display_name: "Lab Compact" }),
+        data: expect.objectContaining({ display_name: "Custom Compact" }),
       }),
       expect.any(AbortSignal),
     );
@@ -169,7 +169,7 @@ function controlledMount(initialProfile = profile) {
   const wrapper = mount(ExportProfileEditor, {
     props: {
       modelValue: structuredClone(initialProfile),
-      profileId: "laboratory",
+      profileId: "custom-profile",
       "onUpdate:modelValue": (value: ExportProfileData) =>
         wrapper.setProps({ modelValue: value }),
     },

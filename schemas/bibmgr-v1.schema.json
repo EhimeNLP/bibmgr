@@ -396,25 +396,7 @@
     },
     "ExportProfileId": {
       "type": "string",
-      "enum": [
-        "modern",
-        "laboratory",
-        "acl",
-        "aaai",
-        "acm-publications",
-        "ieee-publications",
-        "natbib-full-author-names",
-        "springer-lncs",
-        "ml-conferences",
-        "lrec",
-        "eamt",
-        "ipsj-japanese",
-        "ipsj-english",
-        "jnlp-japanese",
-        "jsai-journal",
-        "classical-bst",
-        "legacy-arxiv-article"
-      ]
+      "minLength": 1
     },
     "PreprintRepresentation": {
       "type": "string",

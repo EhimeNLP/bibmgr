@@ -35,13 +35,6 @@ const reference: Reference = {
 };
 const exportProfiles = [
   {
-    id: "laboratory",
-    display_name: "Laboratory",
-    description: "Laboratory-standard optimized BibTeX.",
-    validation_profile: "laboratory",
-    preprint_representation: "misc-eprint",
-  },
-  {
     id: "modern",
     display_name: "Modern",
     description: "General-purpose modern BibTeX.",

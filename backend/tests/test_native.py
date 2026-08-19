@@ -110,7 +110,7 @@ def test_native_exception_is_mapped_without_document_rule_logic() -> None:
     engine = NativeEngine(SimpleNamespace(apply_fixes=fail))
 
     with pytest.raises(NativeCallError) as captured:
-        engine.apply_fixes("source", "sha256:" + "0" * 64, ["fix"], "laboratory")
+        engine.apply_fixes("source", "sha256:" + "0" * 64, ["fix"], "modern")
 
     assert captured.value.code == "edit_conflict"
     assert captured.value.status_code == 409
@@ -135,9 +135,9 @@ def test_storage_canonicalization_calls_the_native_boundary() -> None:
         )
     )
 
-    assert engine.canonicalize_for_storage("input", "laboratory") == {
+    assert engine.canonicalize_for_storage("input", "modern") == {
         "schema_version": "1",
         "accepted": True,
         "source": "input",
     }
-    assert calls == [("input", "laboratory")]
+    assert calls == [("input", "modern")]

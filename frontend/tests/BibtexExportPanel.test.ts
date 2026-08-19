@@ -21,13 +21,6 @@ const profiles = [
     preprint_representation: "misc-eprint",
   },
   {
-    id: "laboratory",
-    display_name: "Laboratory",
-    description: "Laboratory-standard optimized BibTeX.",
-    validation_profile: "laboratory",
-    preprint_representation: "misc-eprint",
-  },
-  {
     id: "classical-bst",
     display_name: "Classical BibTeX",
     description: "Output for classical bibliography styles.",
