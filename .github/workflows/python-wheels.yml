@@ -1,0 +1,47 @@
+name: Python wheels
+
+on:
+  workflow_dispatch:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: read
+
+jobs:
+  wheels:
+    name: ${{ matrix.target }} wheel
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            manylinux: "2_17"
+          - os: macos-14
+            target: aarch64-apple-darwin
+            manylinux: "off"
+          # Add a Linux aarch64 runner and target here without changing package metadata.
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Build abi3 wheel with maturin
+        uses: PyO3/maturin-action@v1
+        with:
+          command: build
+          maturin-version: v1.11.5
+          target: ${{ matrix.target }}
+          manylinux: ${{ matrix.manylinux }}
+          args: >-
+            --release
+            --compatibility pypi
+            --manifest-path crates/bibmgr-python/Cargo.toml
+            --out dist
+      - uses: actions/upload-artifact@v4
+        with:
+          name: bibmgr-native-${{ matrix.target }}
+          path: dist/*.whl
+          if-no-files-found: error

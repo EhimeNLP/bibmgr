@@ -1,0 +1,93 @@
+schema_version = "1"
+profile = "aaai"
+display_name = "AAAI Conference"
+description = "AAAI conference output with the publication, ISBN, EID, and eprint fields supported by the target bibliography style."
+validation_profile = "modern"
+preprint_representation = "misc-eprint"
+month_format = "bibtex-macro"
+supported_entry_types = [
+  "article",
+  "book",
+  "booklet",
+  "inbook",
+  "incollection",
+  "inproceedings",
+  "conference",
+  "manual",
+  "mastersthesis",
+  "misc",
+  "phdthesis",
+  "proceedings",
+  "techreport",
+  "unpublished",
+]
+field_order = [
+  "author",
+  "title",
+  "editor",
+  "booktitle",
+  "journal",
+  "edition",
+  "volume",
+  "number",
+  "series",
+  "chapter",
+  "pages",
+  "eid",
+  "year",
+  "organization",
+  "publisher",
+  "institution",
+  "school",
+  "address",
+  "isbn",
+  "eprint",
+  "archiveprefix",
+  "howpublished",
+  "type",
+  "note",
+  "key",
+  "crossref",
+]
+field_case = "lowercase"
+case_protected_fields = ["title"]
+value_delimiter = "braces"
+line_ending = "lf"
+indent = "  "
+trailing_comma = true
+include_doi = false
+include_url = false
+include_extra_fields = true
+excluded_fields = []
+allow_unknown_work_type = false
+
+[field_selection]
+allowed_fields = [
+  "author",
+  "title",
+  "editor",
+  "booktitle",
+  "journal",
+  "edition",
+  "volume",
+  "number",
+  "series",
+  "chapter",
+  "pages",
+  "eid",
+  "year",
+  "organization",
+  "publisher",
+  "institution",
+  "school",
+  "address",
+  "isbn",
+  "eprint",
+  "archiveprefix",
+  "howpublished",
+  "type",
+  "note",
+  "key",
+  "crossref",
+]
+excluded_fields = []

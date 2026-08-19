@@ -1,0 +1,17 @@
+.git
+.venv
+.env.production
+deploy/secrets
+target
+**/target
+dist
+frontend/dist
+frontend/node_modules
+frontend/playwright-report
+frontend/test-results
+backups
+artifacts
+__pycache__
+*.pyc
+.pytest_cache
+.DS_Store

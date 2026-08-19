@@ -1,0 +1,11 @@
+schema_version = "1"
+profile = "archive"
+field_case = "preserve"
+field_order = []
+citation_key_pattern = '^.*$'
+forbidden_fields = []
+url_policy = "allow"
+arxiv_representation = "any"
+prefer_braces = true
+
+[required_fields]

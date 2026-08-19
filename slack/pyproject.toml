@@ -1,0 +1,27 @@
+[build-system]
+requires = ["hatchling>=1.27"]
+build-backend = "hatchling.build"
+
+[project]
+name = "bibmgr-slack"
+version = "0.1.0"
+description = "Socket Mode Slack app for profile-driven BibTeX export"
+requires-python = ">=3.11,<3.14"
+license = "MIT"
+dependencies = [
+  "bibmgr-native",
+  "slack-bolt>=1.29,<2",
+]
+
+[project.optional-dependencies]
+test = ["pytest>=8.4,<9"]
+
+[project.scripts]
+bibmgr-slack = "bibmgr_slack.__main__:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/bibmgr_slack"]
+
+[tool.pytest.ini_options]
+addopts = "-q"
+testpaths = ["tests"]

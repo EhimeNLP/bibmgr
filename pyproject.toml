@@ -1,0 +1,269 @@
+[project]
+name = "bibmgr-development"
+version = "0.1.0"
+description = "Development environment and task definitions for bibmgr"
+requires-python = ">=3.11,<3.14"
+license = "MIT"
+dependencies = [
+  "jsonschema>=4.25,<5",
+  "poethepoet>=0.48,<0.49",
+]
+
+[dependency-groups]
+dev = [
+  "bibmgr-backend[test]",
+  "bibmgr-native",
+  "bibmgr-slack[test]",
+  "maturin>=1.9,<2",
+]
+
+[tool.uv]
+package = false
+
+[tool.uv.sources]
+bibmgr-backend = { path = "backend", editable = true }
+bibmgr-native = { path = "crates/bibmgr-python", editable = true }
+bibmgr-slack = { path = "slack", editable = true }
+
+[tool.poe]
+executor = "simple"
+
+[tool.poe.tasks.list]
+help = "List the available development tasks."
+cmd = "python -m poethepoet --help"
+
+[tool.poe.tasks.setup]
+help = "Install frontend dependencies and build the native extension for development."
+sequence = ["setup-frontend", "setup-native"]
+
+[tool.poe.tasks.setup-frontend]
+help = "Install the locked frontend dependencies."
+cmd = "npm ci"
+cwd = "frontend"
+
+[tool.poe.tasks.setup-native]
+help = "Build and install the native extension in the uv environment."
+cmd = "maturin develop --uv --manifest-path crates/bibmgr-python/Cargo.toml"
+
+[tool.poe.tasks.dev]
+help = "Run the backend and frontend development servers together."
+parallel = ["dev-backend", "dev-frontend"]
+output_mode = "stream"
+
+[tool.poe.tasks.dev-backend]
+help = "Build the native extension and run the reload-enabled backend server."
+sequence = ["setup-native", "_serve-backend-dev"]
+
+[tool.poe.tasks.dev-frontend]
+help = "Run the Vite development server."
+cmd = "npm run dev -- --host ${FRONTEND_HOST:-127.0.0.1} --port ${FRONTEND_PORT:-5173}"
+cwd = "frontend"
+
+[tool.poe.tasks.start-backend]
+help = "Run the backend without reload for production-style operation."
+cmd = "uvicorn bibmgr_backend.app:app --host ${HOST:-0.0.0.0} --port ${PORT:-8000}"
+
+[tool.poe.tasks.slack]
+help = "Build and run the Socket Mode Slack app interactively for local use."
+cmd = "docker compose -f compose.slack.yaml run --rm --build slack-bot"
+
+[tool.poe.tasks.slack-build]
+help = "Build the Slack app image for deployment."
+cmd = "docker compose -f compose.slack.yaml build slack-bot"
+
+[tool.poe.tasks.slack-up]
+help = "Start the Slack app for production without a TTY or image rebuild."
+cmd = "docker compose -f compose.slack.yaml -f compose.slack.production.yaml up --detach --wait --no-build slack-bot"
+
+[tool.poe.tasks.slack-logs]
+help = "Follow logs from the production Slack app container."
+cmd = "docker compose -f compose.slack.yaml logs --follow slack-bot"
+
+[tool.poe.tasks.slack-down]
+help = "Stop and remove the production Slack app container."
+cmd = "docker compose -f compose.slack.yaml down"
+
+[tool.poe.tasks.db-up]
+help = "Start the local PostgreSQL development database."
+cmd = "docker compose up -d --wait postgres"
+
+[tool.poe.tasks.dev-services-up]
+help = "Start the local PostgreSQL database and Mailpit email inbox."
+cmd = "docker compose up -d --wait postgres mailpit"
+
+[tool.poe.tasks.mail-up]
+help = "Start the local Mailpit email inbox."
+cmd = "docker compose up -d --wait mailpit"
+
+[tool.poe.tasks.db-migrate]
+help = "Apply all PostgreSQL schema migrations."
+cmd = "bibmgr-db upgrade"
+
+[tool.poe.tasks.db-status]
+help = "Show the current PostgreSQL migration revision."
+cmd = "bibmgr-db current"
+
+[tool.poe.tasks.db-reset]
+help = "Delete and recreate the local development database schema."
+cmd = "bibmgr-db reset"
+
+[tool.poe.tasks.auth-cleanup]
+help = "Delete expired login challenges and old expired or revoked sessions."
+cmd = "bibmgr-admin cleanup-auth"
+
+[tool.poe.tasks.users]
+help = "List BibMgR user accounts."
+cmd = "bibmgr-admin users"
+
+[tool.poe.tasks.db-backup]
+help = "Create a private PostgreSQL custom-format backup under backups/."
+cmd = "bibmgr-ops backup"
+
+[tool.poe.tasks.prod-direct-config]
+help = "Render the direct-HTTPS production Compose configuration."
+cmd = "docker compose --env-file .env.production -f compose.production.yaml -f compose.production.direct.yaml config"
+
+[tool.poe.tasks.prod-direct-up]
+help = "Deploy production with Caddy-managed public HTTPS."
+cmd = "docker compose --env-file .env.production -f compose.production.yaml -f compose.production.direct.yaml up --detach --build --wait"
+
+[tool.poe.tasks.prod-direct-down]
+help = "Stop the direct-HTTPS production deployment."
+cmd = "docker compose --env-file .env.production -f compose.production.yaml -f compose.production.direct.yaml down"
+
+[tool.poe.tasks.prod-proxy-config]
+help = "Render the external-proxy production Compose configuration."
+cmd = "docker compose --env-file .env.production -f compose.production.yaml -f compose.production.proxy.yaml config"
+
+[tool.poe.tasks.prod-proxy-up]
+help = "Deploy production behind an external reverse proxy."
+cmd = "docker compose --env-file .env.production -f compose.production.yaml -f compose.production.proxy.yaml up --detach --build --wait"
+
+[tool.poe.tasks.prod-proxy-down]
+help = "Stop the external-proxy production deployment."
+cmd = "docker compose --env-file .env.production -f compose.production.yaml -f compose.production.proxy.yaml down"
+
+[tool.poe.tasks.test]
+help = "Run all Rust, backend, frontend, and adapter parity tests."
+sequence = [
+  "setup-native",
+  "test-rust",
+  "_test-backend",
+  "_test-slack",
+  "test-frontend",
+  "_build-cli-debug",
+  "_test-parity",
+]
+
+[tool.poe.tasks.test-rust]
+help = "Run all Rust workspace tests."
+cmd = "cargo test --workspace"
+
+[tool.poe.tasks.test-backend]
+help = "Build the native extension and run the backend tests."
+sequence = ["setup-native", "_test-backend"]
+
+[tool.poe.tasks.test-frontend]
+help = "Run the frontend tests once."
+cmd = "npm test"
+cwd = "frontend"
+
+[tool.poe.tasks.test-slack]
+help = "Build the native extension and run the Slack app tests."
+sequence = ["setup-native", "_test-slack"]
+
+[tool.poe.tasks.test-parity]
+help = "Build the native extension and CLI, then check CLI/Python/backend parity."
+sequence = ["setup-native", "_build-cli-debug", "_test-parity"]
+
+[tool.poe.tasks.check]
+help = "Run lockfile, Rust, frontend, and test checks."
+sequence = [
+  "check-lock",
+  "check-schema",
+  "check-rust",
+  "check-fuzz",
+  "check-bench",
+  "check-frontend",
+  "test",
+]
+
+[tool.poe.tasks.check-lock]
+help = "Verify that uv.lock matches pyproject.toml."
+cmd = "uv lock --check"
+
+[tool.poe.tasks.check-schema]
+help = "Validate the public JSON Schema and representative DTOs."
+cmd = "python scripts/check_json_schema.py"
+
+[tool.poe.tasks.check-rust]
+help = "Run architecture, formatting, Clippy, and Rust documentation checks."
+sequence = ["_check-architecture", "_check-rust-format", "_check-rust-clippy", "_test-rust-docs"]
+
+[tool.poe.tasks.check-frontend]
+help = "Run frontend lint and type checks."
+sequence = ["_check-frontend-lint", "_check-frontend-types"]
+
+[tool.poe.tasks.check-fuzz]
+help = "Compile all fuzz targets without running them."
+cmd = "cargo check --manifest-path fuzz/Cargo.toml --bins"
+
+[tool.poe.tasks.check-bench]
+help = "Compile the benchmark harness without running it."
+cmd = "cargo bench --manifest-path benches/Cargo.toml --no-run"
+
+[tool.poe.tasks.build]
+help = "Build all production artifacts."
+sequence = ["setup-frontend", "build-cli", "build-native", "build-backend", "build-frontend"]
+
+[tool.poe.tasks.build-cli]
+help = "Build the release CLI at target/release/bibmgr."
+cmd = "cargo build --release -p bibmgr-cli"
+
+[tool.poe.tasks.build-native]
+help = "Build the release native wheel under dist/native."
+cmd = "maturin build --release --manifest-path crates/bibmgr-python/Cargo.toml --out dist/native"
+
+[tool.poe.tasks.build-backend]
+help = "Build the backend wheel under dist/backend."
+cmd = "uv build --wheel backend --out-dir dist/backend"
+
+[tool.poe.tasks.build-frontend]
+help = "Build the frontend static files under frontend/dist."
+cmd = "npm run build"
+cwd = "frontend"
+
+[tool.poe.tasks._serve-backend-dev]
+cmd = "uvicorn bibmgr_backend.app:app --reload --host ${HOST:-127.0.0.1} --port ${PORT:-8000}"
+
+[tool.poe.tasks._test-backend]
+cmd = "pytest backend/tests"
+
+[tool.poe.tasks._test-slack]
+cmd = "pytest slack/tests"
+
+[tool.poe.tasks._build-cli-debug]
+cmd = "cargo build -p bibmgr-cli"
+
+[tool.poe.tasks._test-parity]
+cmd = "python scripts/check_cli_python_parity.py --cli target/debug/bibmgr"
+
+[tool.poe.tasks._check-architecture]
+cmd = "python scripts/check_workspace_boundaries.py"
+
+[tool.poe.tasks._check-rust-format]
+cmd = "cargo fmt --all --check"
+
+[tool.poe.tasks._check-rust-clippy]
+cmd = "cargo clippy --workspace --all-targets --all-features -- -D warnings"
+
+[tool.poe.tasks._test-rust-docs]
+cmd = "cargo test --workspace --doc"
+
+[tool.poe.tasks._check-frontend-lint]
+cmd = "npm run lint"
+cwd = "frontend"
+
+[tool.poe.tasks._check-frontend-types]
+cmd = "npm run typecheck"
+cwd = "frontend"

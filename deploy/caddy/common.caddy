@@ -1,0 +1,3 @@
+encode zstd gzip
+
+import /etc/caddy/bibmgr/security-headers.caddy

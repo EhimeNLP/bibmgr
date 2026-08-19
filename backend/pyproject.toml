@@ -1,0 +1,38 @@
+[build-system]
+requires = ["hatchling>=1.27"]
+build-backend = "hatchling.build"
+
+[project]
+name = "bibmgr-backend"
+version = "0.1.0"
+description = "BibMgR FastAPI service for authentication, reference storage, configuration, and Rust-backed BibTeX operations"
+readme = "README.md"
+requires-python = ">=3.11,<3.14"
+license = "MIT"
+dependencies = [
+  "alembic>=1.16,<2",
+  "fastapi>=0.116,<1",
+  "pydantic>=2.11,<3",
+  "psycopg[binary]>=3.2,<4",
+  "sqlalchemy>=2.0,<3",
+  "uvicorn[standard]>=0.35,<1",
+]
+
+[project.optional-dependencies]
+test = [
+  "httpx>=0.28,<1",
+  "pytest>=8.4,<9",
+]
+
+[project.scripts]
+bibmgr-backend = "bibmgr_backend.__main__:main"
+bibmgr-db = "bibmgr_backend.migrate:main"
+bibmgr-admin = "bibmgr_backend.admin:main"
+bibmgr-ops = "bibmgr_backend.operations:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/bibmgr_backend"]
+
+[tool.pytest.ini_options]
+addopts = "-q"
+testpaths = ["tests"]

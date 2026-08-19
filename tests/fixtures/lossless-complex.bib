@@ -1,0 +1,15 @@
+% leading comment with CRLF-sensitive copies generated in unit tests
+@STRING(monthName = "January")
+
+Between entries, this text must remain untouched.
+
+@ArTiClE(sample-Key,
+	TITLE = "A {Mixed} Title" # monthName,
+	author = {Doe, Jane and Smith, John},
+	year = 2026,
+	year = {2025}, % deliberate duplicate
+	note = {日本語とé},
+)
+
+@preamble{"prefix" # monthName}
+@comment(Explicit comment)

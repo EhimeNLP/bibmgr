@@ -1,0 +1,512 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/EhimeNLP/bibmgr/schemas/bibmgr-v1.schema.json",
+  "title": "bibmgr public DTO schema, version 1",
+  "description": "Machine responses shared by the CLI, PyO3 adapter, Python backend, and GUI.",
+  "oneOf": [
+    { "$ref": "#/$defs/AnalysisResult" },
+    { "$ref": "#/$defs/ApplyFixResult" },
+    { "$ref": "#/$defs/RegistrationValidation" },
+    { "$ref": "#/$defs/ExportResult" },
+    { "$ref": "#/$defs/ExportWorkflowResult" },
+    { "$ref": "#/$defs/ExportProfileCatalog" },
+    { "$ref": "#/$defs/AnalysisDelta" },
+    { "$ref": "#/$defs/CstInspection" },
+    { "$ref": "#/$defs/AstInspection" },
+    { "$ref": "#/$defs/ErrorResponse" }
+  ],
+  "$defs": {
+    "SchemaVersion": {
+      "type": "string",
+      "const": "1"
+    },
+    "OpaqueId": {
+      "type": "string",
+      "minLength": 1
+    },
+    "SourceRevision": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    },
+    "TextRange": {
+      "type": "object",
+      "description": "Half-open UTF-8 byte range [start, end).",
+      "required": ["start", "end"],
+      "properties": {
+        "start": { "type": "integer", "minimum": 0, "maximum": 4294967295 },
+        "end": { "type": "integer", "minimum": 0, "maximum": 4294967295 }
+      },
+      "additionalProperties": false
+    },
+    "SourceLocation": {
+      "type": "object",
+      "required": ["source_id", "range"],
+      "properties": {
+        "source_id": { "$ref": "#/$defs/OpaqueId" },
+        "range": { "$ref": "#/$defs/TextRange" }
+      },
+      "additionalProperties": false
+    },
+    "RelatedLocation": {
+      "type": "object",
+      "required": ["message", "location"],
+      "properties": {
+        "message": { "type": "string" },
+        "location": { "$ref": "#/$defs/SourceLocation" }
+      },
+      "additionalProperties": false
+    },
+    "Severity": {
+      "type": "string",
+      "enum": ["error", "warning", "information", "hint"]
+    },
+    "FixApplicability": {
+      "type": "string",
+      "enum": ["safe", "requires_confirmation", "unsafe"]
+    },
+    "Diagnostic": {
+      "type": "object",
+      "required": [
+        "id",
+        "code",
+        "severity",
+        "blocking",
+        "message",
+        "primary_location",
+        "related_locations",
+        "notes",
+        "fixes"
+      ],
+      "properties": {
+        "id": { "$ref": "#/$defs/OpaqueId" },
+        "code": {
+          "type": "string",
+          "pattern": "^[A-Z][A-Z0-9]*(?:-[A-Z0-9]+)+$"
+        },
+        "severity": { "$ref": "#/$defs/Severity" },
+        "blocking": { "type": "boolean" },
+        "message": { "type": "string" },
+        "primary_location": {
+          "oneOf": [
+            { "$ref": "#/$defs/SourceLocation" },
+            { "type": "null" }
+          ]
+        },
+        "related_locations": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/RelatedLocation" }
+        },
+        "notes": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "fixes": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/OpaqueId" },
+          "uniqueItems": true
+        }
+      },
+      "additionalProperties": false
+    },
+    "TextEdit": {
+      "type": "object",
+      "required": ["range", "replacement"],
+      "properties": {
+        "range": { "$ref": "#/$defs/TextRange" },
+        "replacement": { "type": "string" }
+      },
+      "additionalProperties": false
+    },
+    "Fix": {
+      "type": "object",
+      "required": ["id", "title", "applicability", "source_revision", "edits"],
+      "properties": {
+        "id": { "$ref": "#/$defs/OpaqueId" },
+        "title": { "type": "string", "minLength": 1 },
+        "applicability": { "$ref": "#/$defs/FixApplicability" },
+        "source_revision": { "$ref": "#/$defs/SourceRevision" },
+        "edits": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "$ref": "#/$defs/TextEdit" }
+        }
+      },
+      "additionalProperties": false
+    },
+    "Confidence": {
+      "type": "string",
+      "enum": ["high", "medium", "low", "unknown"]
+    },
+    "SyntaxOrigin": {
+      "type": "object",
+      "required": ["source_id", "range", "kind", "field_name"],
+      "properties": {
+        "source_id": { "$ref": "#/$defs/OpaqueId" },
+        "range": { "$ref": "#/$defs/TextRange" },
+        "kind": {
+          "type": "string",
+          "enum": [
+            "entry",
+            "entry_type",
+            "citation_key",
+            "field",
+            "field_name",
+            "field_value",
+            "macro_reference",
+            "string_definition",
+            "inference"
+          ]
+        },
+        "field_name": { "type": ["string", "null"] }
+      },
+      "additionalProperties": false
+    },
+    "SourcedValue": {
+      "type": "object",
+      "required": ["value", "origins", "status", "confidence"],
+      "properties": {
+        "value": {},
+        "origins": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/SyntaxOrigin" }
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "explicit",
+            "parsed",
+            "resolved",
+            "inferred",
+            "normalized",
+            "externally_verified",
+            "unresolved",
+            "ambiguous",
+            "conflicting"
+          ]
+        },
+        "confidence": { "$ref": "#/$defs/Confidence" }
+      },
+      "additionalProperties": true
+    },
+    "BibliographicRecord": {
+      "type": "object",
+      "description": "Parser-independent semantic record. Sourced values retain provenance.",
+      "required": ["citation_key", "entry_type", "work_type"],
+      "properties": {
+        "citation_key": { "$ref": "#/$defs/SourcedValue" },
+        "entry_type": { "$ref": "#/$defs/SourcedValue" },
+        "work_type": { "$ref": "#/$defs/SourcedValue" },
+        "title": {
+          "oneOf": [{ "$ref": "#/$defs/SourcedValue" }, { "type": "null" }]
+        },
+        "authors": { "type": "array", "items": { "$ref": "#/$defs/SourcedValue" } },
+        "editors": { "type": "array", "items": { "$ref": "#/$defs/SourcedValue" } },
+        "date": {
+          "oneOf": [{ "$ref": "#/$defs/SourcedValue" }, { "type": "null" }]
+        },
+        "venue": {
+          "oneOf": [{ "$ref": "#/$defs/SourcedValue" }, { "type": "null" }]
+        },
+        "preprint": {
+          "oneOf": [{ "$ref": "#/$defs/SourcedValue" }, { "type": "null" }]
+        },
+        "identifiers": { "type": "object" },
+        "urls": { "type": "array", "items": { "$ref": "#/$defs/SourcedValue" } },
+        "extra_fields": { "type": "array", "items": { "type": "object" } }
+      },
+      "additionalProperties": true
+    },
+    "Bibliography": {
+      "type": "object",
+      "required": ["records", "diagnostics"],
+      "properties": {
+        "records": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/BibliographicRecord" }
+        },
+        "diagnostics": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/Diagnostic" }
+        }
+      },
+      "additionalProperties": true
+    },
+    "SyntaxSummary": {
+      "type": "object",
+      "properties": {
+        "mode": { "type": "string", "enum": ["strict", "tolerant"] },
+        "source_id": { "$ref": "#/$defs/OpaqueId" },
+        "entry_count": { "type": "integer", "minimum": 0 },
+        "recovered": { "type": "boolean" },
+        "diagnostic_count": { "type": "integer", "minimum": 0 }
+      },
+      "additionalProperties": true
+    },
+    "AnalysisResult": {
+      "type": "object",
+      "required": [
+        "schema_version",
+        "source_revision",
+        "syntax",
+        "bibliography",
+        "diagnostics",
+        "available_fixes"
+      ],
+      "properties": {
+        "schema_version": { "$ref": "#/$defs/SchemaVersion" },
+        "source_revision": { "$ref": "#/$defs/SourceRevision" },
+        "syntax": { "$ref": "#/$defs/SyntaxSummary" },
+        "bibliography": { "$ref": "#/$defs/Bibliography" },
+        "diagnostics": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/Diagnostic" }
+        },
+        "available_fixes": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/Fix" }
+        }
+      },
+      "additionalProperties": true
+    },
+    "ApplyFixResult": {
+      "type": "object",
+      "required": ["schema_version", "source", "source_revision", "applied_fix_ids"],
+      "properties": {
+        "schema_version": { "$ref": "#/$defs/SchemaVersion" },
+        "source": { "type": "string" },
+        "source_revision": { "$ref": "#/$defs/SourceRevision" },
+        "applied_fix_ids": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/OpaqueId" },
+          "uniqueItems": true
+        },
+        "diff": { "type": "string" },
+        "analysis": { "$ref": "#/$defs/AnalysisResult" }
+      },
+      "additionalProperties": true
+    },
+    "RegistrationValidation": {
+      "type": "object",
+      "required": [
+        "schema_version",
+        "accepted",
+        "source",
+        "source_revision",
+        "diagnostics",
+        "bibliography",
+        "applied_fix_ids",
+        "unresolved_semantics"
+      ],
+      "properties": {
+        "schema_version": { "$ref": "#/$defs/SchemaVersion" },
+        "accepted": { "type": "boolean" },
+        "source_revision": { "$ref": "#/$defs/SourceRevision" },
+        "diagnostics": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/Diagnostic" }
+        },
+        "bibliography": { "$ref": "#/$defs/Bibliography" },
+        "source": { "type": "string" },
+        "applied_fix_ids": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/OpaqueId" },
+          "uniqueItems": true
+        },
+        "unresolved_semantics": { "type": "boolean" }
+      },
+      "additionalProperties": true
+    },
+    "ExportResultBase": {
+      "type": "object",
+      "required": [
+        "schema_version",
+        "source",
+        "profile",
+        "venue_name_style",
+        "record_count",
+        "warnings"
+      ],
+      "properties": {
+        "schema_version": { "$ref": "#/$defs/SchemaVersion" },
+        "source": { "type": "string" },
+        "profile": { "$ref": "#/$defs/OpaqueId" },
+        "venue_name_style": { "$ref": "#/$defs/VenueNameStyle" },
+        "record_count": { "type": "integer", "minimum": 0 },
+        "warnings": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["record_index", "message"],
+            "properties": {
+              "record_index": { "type": "integer", "minimum": 0 },
+              "message": { "type": "string" }
+            },
+            "additionalProperties": false
+          }
+        }
+      },
+      "additionalProperties": true
+    },
+    "ExportResult": {
+      "allOf": [
+        { "$ref": "#/$defs/ExportResultBase" },
+        {
+          "not": {
+            "anyOf": [
+              { "required": ["input_applied_fix_ids"] },
+              { "required": ["output_applied_fix_ids"] },
+              { "required": ["input_diagnostics"] },
+              { "required": ["output_diagnostics"] }
+            ]
+          }
+        }
+      ]
+    },
+    "ExportWorkflowResult": {
+      "allOf": [
+        { "$ref": "#/$defs/ExportResultBase" },
+        {
+          "type": "object",
+          "required": [
+            "input_applied_fix_ids",
+            "output_applied_fix_ids",
+            "input_diagnostics",
+            "output_diagnostics"
+          ],
+          "properties": {
+            "input_applied_fix_ids": {
+              "type": "array",
+              "items": { "$ref": "#/$defs/OpaqueId" }
+            },
+            "output_applied_fix_ids": {
+              "type": "array",
+              "items": { "$ref": "#/$defs/OpaqueId" }
+            },
+            "input_diagnostics": {
+              "type": "array",
+              "items": { "$ref": "#/$defs/Diagnostic" }
+            },
+            "output_diagnostics": {
+              "type": "array",
+              "items": { "$ref": "#/$defs/Diagnostic" }
+            }
+          }
+        }
+      ]
+    },
+    "ExportProfileId": {
+      "type": "string",
+      "minLength": 1
+    },
+    "PreprintRepresentation": {
+      "type": "string",
+      "enum": ["misc-eprint", "misc-howpublished", "article-journal"]
+    },
+    "VenueNameStyle": {
+      "type": "string",
+      "enum": ["full", "abbreviated"]
+    },
+    "ExportProfileSummary": {
+      "type": "object",
+      "required": [
+        "id",
+        "display_name",
+        "description",
+        "validation_profile",
+        "preprint_representation"
+      ],
+      "properties": {
+        "id": { "$ref": "#/$defs/ExportProfileId" },
+        "display_name": { "type": "string", "minLength": 1 },
+        "description": { "type": "string", "minLength": 1 },
+        "validation_profile": { "$ref": "#/$defs/OpaqueId" },
+        "preprint_representation": {
+          "$ref": "#/$defs/PreprintRepresentation"
+        }
+      },
+      "additionalProperties": false
+    },
+    "ExportProfileCatalog": {
+      "type": "object",
+      "required": ["schema_version", "profiles"],
+      "properties": {
+        "schema_version": { "$ref": "#/$defs/SchemaVersion" },
+        "profiles": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/ExportProfileSummary" }
+        }
+      },
+      "additionalProperties": false
+    },
+    "AnalysisDelta": {
+      "type": "object",
+      "required": [
+        "schema_version",
+        "previous_revision",
+        "source_revision",
+        "added_diagnostics",
+        "removed_diagnostic_ids",
+        "analysis"
+      ],
+      "properties": {
+        "schema_version": { "$ref": "#/$defs/SchemaVersion" },
+        "previous_revision": { "$ref": "#/$defs/SourceRevision" },
+        "source_revision": { "$ref": "#/$defs/SourceRevision" },
+        "added_diagnostics": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/Diagnostic" }
+        },
+        "removed_diagnostic_ids": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/OpaqueId" },
+          "uniqueItems": true
+        },
+        "analysis": { "$ref": "#/$defs/AnalysisResult" }
+      },
+      "additionalProperties": false
+    },
+    "CstInspection": {
+      "type": "object",
+      "required": ["schema_version", "source_revision", "document"],
+      "properties": {
+        "schema_version": { "$ref": "#/$defs/SchemaVersion" },
+        "source_revision": { "$ref": "#/$defs/SourceRevision" },
+        "document": {
+          "type": "object",
+          "description": "Parser-independent lossless syntax snapshot."
+        }
+      },
+      "additionalProperties": false
+    },
+    "AstInspection": {
+      "type": "object",
+      "required": ["schema_version", "source_revision", "bibliography"],
+      "properties": {
+        "schema_version": { "$ref": "#/$defs/SchemaVersion" },
+        "source_revision": { "$ref": "#/$defs/SourceRevision" },
+        "bibliography": { "$ref": "#/$defs/Bibliography" }
+      },
+      "additionalProperties": false
+    },
+    "ErrorResponse": {
+      "type": "object",
+      "required": ["schema_version", "error"],
+      "properties": {
+        "schema_version": { "$ref": "#/$defs/SchemaVersion" },
+        "error": {
+          "type": "object",
+          "required": ["code", "message"],
+          "properties": {
+            "code": { "type": "string", "minLength": 1 },
+            "message": { "type": "string" },
+            "details": { "type": "object" }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+}

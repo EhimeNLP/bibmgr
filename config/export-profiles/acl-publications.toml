@@ -1,0 +1,108 @@
+schema_version = "1"
+profile = "acl"
+display_name = "ACL Publications"
+description = "ACL publication output with the complete publication, DOI, PubMed, eprint, and web fields supported by the target bibliography style."
+validation_profile = "acl"
+preprint_representation = "misc-eprint"
+month_format = "bibtex-macro"
+supported_entry_types = [
+  "webpage",
+  "article",
+  "book",
+  "booklet",
+  "inbook",
+  "incollection",
+  "inproceedings",
+  "conference",
+  "manual",
+  "mastersthesis",
+  "misc",
+  "phdthesis",
+  "presentation",
+  "proceedings",
+  "techreport",
+  "unpublished",
+]
+field_order = [
+  "author",
+  "title",
+  "editor",
+  "booktitle",
+  "journal",
+  "edition",
+  "volume",
+  "number",
+  "series",
+  "chapter",
+  "pages",
+  "eid",
+  "month",
+  "year",
+  "address",
+  "organization",
+  "publisher",
+  "institution",
+  "school",
+  "doi",
+  "pubmed",
+  "eprint",
+  "archiveprefix",
+  "eprinttype",
+  "url",
+  "lastchecked",
+  "howpublished",
+  "type",
+  "note",
+  "key",
+  "crossref",
+]
+field_case = "lowercase"
+case_protected_fields = ["title"]
+value_delimiter = "braces"
+line_ending = "lf"
+indent = "  "
+trailing_comma = true
+include_doi = true
+include_url = true
+include_extra_fields = true
+excluded_fields = []
+allow_unknown_work_type = false
+
+[field_renames]
+pmid = "pubmed"
+
+[field_selection]
+allowed_fields = [
+  "author",
+  "title",
+  "editor",
+  "booktitle",
+  "journal",
+  "edition",
+  "volume",
+  "number",
+  "series",
+  "chapter",
+  "pages",
+  "eid",
+  "month",
+  "year",
+  "address",
+  "organization",
+  "publisher",
+  "institution",
+  "school",
+  "doi",
+  "pubmed",
+  "eprint",
+  "archiveprefix",
+  "eprinttype",
+  "url",
+  "lastchecked",
+  "howpublished",
+  "type",
+  "note",
+  "key",
+  "crossref",
+]
+excluded_fields = []

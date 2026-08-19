@@ -1,0 +1,22 @@
+[package]
+name = "bibmgr-semantics"
+description = "Parser-independent semantic bibliography model and analyzer for bibmgr"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+publish.workspace = true
+
+[dependencies]
+bibmgr-model.workspace = true
+bibmgr-syntax.workspace = true
+serde.workspace = true
+url.workspace = true
+
+[dev-dependencies]
+proptest = "1.11"
+serde_json.workspace = true
+
+[lints]
+workspace = true

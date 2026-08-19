@@ -1,0 +1,53 @@
+[build-system]
+requires = ["hatchling>=1.27"]
+build-backend = "hatchling.build"
+
+[project]
+name = "bibtex-reconstruction"
+version = "0.1.0"
+description = "Evidence-grounded, high-accuracy BibTeX reconstruction pipeline"
+readme = "README.md"
+requires-python = ">=3.12,<3.13"
+license = "MIT"
+dependencies = [
+    "bibmgr-native",
+    "bibtexparser>=2.0.0b9",
+    "lxml>=6.1.0",
+    "pydantic>=2.13.2",
+    "pydantic-settings>=2.14.0",
+    "python-dotenv>=1.2.2",
+    "requests>=2.33.1",
+    "torch==2.11.0+cu129; sys_platform == 'linux' and platform_machine == 'x86_64'",
+    "torchaudio==2.11.0+cu129; sys_platform == 'linux' and platform_machine == 'x86_64'",
+    "torchvision==0.26.0+cu129; sys_platform == 'linux' and platform_machine == 'x86_64'",
+    "vllm==0.24.0+cu129; sys_platform == 'linux' and platform_machine == 'x86_64'",
+]
+
+[project.scripts]
+bibtex-reconstruction = "bibtex_reconstruction.cli:main"
+bibtex-vllm-check = "bibtex_reconstruction.vllm_health:main"
+
+[project.optional-dependencies]
+remote-llm = [
+    "google-genai>=1.75.0",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=8.4.0",
+]
+
+[tool.uv.sources]
+bibmgr-native = { path = "../../crates/bibmgr-python", editable = true }
+torch = { index = "pytorch-cu129" }
+torchaudio = { index = "pytorch-cu129" }
+torchvision = { index = "pytorch-cu129" }
+vllm = { url = "https://github.com/vllm-project/vllm/releases/download/v0.24.0/vllm-0.24.0%2Bcu129-cp38-abi3-manylinux_2_28_x86_64.whl" }
+
+[[tool.uv.index]]
+name = "pytorch-cu129"
+url = "https://download.pytorch.org/whl/cu129"
+explicit = true
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/bibtex_reconstruction"]

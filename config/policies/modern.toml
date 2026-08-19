@@ -1,0 +1,145 @@
+schema_version = "1"
+profile = "modern"
+field_case = "lowercase"
+field_order = [
+  "author",
+  "title",
+  "journal",
+  "booktitle",
+  "editor",
+  "series",
+  "volume",
+  "number",
+  "pages",
+  "publisher",
+  "institution",
+  "school",
+  "address",
+  "year",
+  "month",
+  "doi",
+  "eprint",
+  "archiveprefix",
+  "primaryclass",
+  "url",
+  "note",
+]
+citation_key_pattern = '^[A-Za-z][A-Za-z0-9._:+-]*$'
+forbidden_fields = []
+url_policy = "allow"
+arxiv_representation = "eprint"
+prefer_braces = true
+
+[required_fields]
+article = ["author", "title", "journal", "year"]
+inproceedings = ["author", "title", "booktitle", "year"]
+book = ["author", "title", "publisher", "year"]
+incollection = ["author", "title", "booktitle", "publisher", "year"]
+phdthesis = ["author", "title", "school", "year"]
+mastersthesis = ["author", "title", "school", "year"]
+techreport = ["author", "title", "institution", "year"]
+
+[rules."BIB-SYNTAX-001"]
+enabled = true
+severity = "error"
+blocking = true
+
+[rules."BIB-SYNTAX-002"]
+enabled = true
+severity = "warning"
+blocking = false
+
+[rules."BIB-SYNTAX-003"]
+enabled = true
+severity = "information"
+blocking = false
+
+[rules."BIB-SYNTAX-004"]
+enabled = true
+severity = "information"
+blocking = false
+
+[rules."BIB-SYNTAX-005"]
+enabled = true
+severity = "information"
+blocking = false
+
+[rules."BIB-SYNTAX-006"]
+enabled = true
+severity = "information"
+blocking = false
+
+[rules."BIB-SYNTAX-007"]
+enabled = true
+severity = "warning"
+blocking = false
+
+[rules."BIB-SYNTAX-008"]
+enabled = true
+severity = "warning"
+blocking = false
+
+[rules."BIB-SYNTAX-009"]
+enabled = true
+severity = "information"
+blocking = false
+
+[rules."BIB-SEMANTIC-001"]
+enabled = true
+severity = "error"
+blocking = true
+
+[rules."BIB-SEMANTIC-002"]
+enabled = true
+severity = "error"
+blocking = true
+
+[rules."BIB-SEMANTIC-003"]
+enabled = true
+severity = "warning"
+blocking = false
+
+[rules."BIB-SEMANTIC-004"]
+enabled = true
+severity = "warning"
+blocking = false
+
+[rules."BIB-SEMANTIC-005"]
+enabled = true
+severity = "error"
+blocking = true
+
+[rules."BIB-SEMANTIC-006"]
+enabled = true
+severity = "warning"
+blocking = false
+
+[rules."BIB-SEMANTIC-007"]
+enabled = true
+severity = "warning"
+blocking = false
+
+[rules."BIB-SEMANTIC-008"]
+enabled = true
+severity = "warning"
+blocking = false
+
+[rules."BIB-SEMANTIC-009"]
+enabled = true
+severity = "error"
+blocking = true
+
+[rules."BIB-SEMANTIC-010"]
+enabled = true
+severity = "error"
+blocking = true
+
+[rules."BIB-SEMANTIC-011"]
+enabled = true
+severity = "error"
+blocking = true
+
+[rules."BIB-SEMANTIC-012"]
+enabled = true
+severity = "warning"
+blocking = false

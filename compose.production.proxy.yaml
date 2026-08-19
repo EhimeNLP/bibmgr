@@ -1,0 +1,23 @@
+services:
+  backend:
+    environment:
+      BIBMGR_COOKIE_PATH: ${BIBMGR_BASE_PATH:-/bibmgr}
+
+  web:
+    build:
+      args:
+        BIBMGR_BASE_PATH: ${BIBMGR_BASE_PATH:-/bibmgr}
+    command:
+      [
+        "caddy",
+        "run",
+        "--config",
+        "/etc/caddy/bibmgr/proxy.Caddyfile",
+        "--adapter",
+        "caddyfile",
+      ]
+    environment:
+      BIBMGR_BASE_PATH: ${BIBMGR_BASE_PATH:-/bibmgr}
+      BIBMGR_TRUSTED_PROXY_CIDRS: ${BIBMGR_TRUSTED_PROXY_CIDRS:?Set BIBMGR_TRUSTED_PROXY_CIDRS to the exact upstream proxy CIDRs}
+    ports:
+      - "${BIBMGR_WEB_BIND_ADDRESS:-127.0.0.1}:${BIBMGR_WEB_PORT:-8080}:80"

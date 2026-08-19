@@ -1,0 +1,25 @@
+[package]
+name = "bibmgr-validation"
+description = "Deterministic syntax, semantic, and profile validation for bibmgr"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+publish.workspace = true
+
+[dependencies]
+bibmgr-model.workspace = true
+bibmgr-semantics.workspace = true
+bibmgr-syntax.workspace = true
+regex.workspace = true
+serde.workspace = true
+thiserror.workspace = true
+toml.workspace = true
+
+[dev-dependencies]
+bibmgr-edit.workspace = true
+serde_json.workspace = true
+
+[lints]
+workspace = true

@@ -1,0 +1,241 @@
+schema_version = "1"
+
+[[venues]]
+id = "acl-annual-meeting"
+full_name = "Annual Meeting of the Association for Computational Linguistics"
+short_name = "ACL"
+aliases = [
+  "Proceedings of ACL",
+  "Annual Meeting of ACL",
+  "Association for Computational Linguistics Annual Meeting",
+]
+kind = "conference"
+
+[[venues]]
+id = "emnlp"
+full_name = "Conference on Empirical Methods in Natural Language Processing"
+short_name = "EMNLP"
+aliases = [
+  "Empirical Methods in Natural Language Processing",
+  "Proceedings of EMNLP",
+]
+kind = "conference"
+
+[[venues]]
+id = "naacl"
+full_name = "Annual Conference of the Nations of the Americas Chapter of the Association for Computational Linguistics"
+short_name = "NAACL"
+aliases = [
+  "NAACL-HLT",
+  "North American Chapter of the Association for Computational Linguistics",
+]
+kind = "conference"
+
+[[venues]]
+id = "coling"
+full_name = "International Conference on Computational Linguistics"
+short_name = "COLING"
+aliases = ["Proceedings of COLING"]
+kind = "conference"
+
+[[venues]]
+id = "lrec"
+full_name = "International Conference on Language Resources and Evaluation"
+short_name = "LREC"
+aliases = ["Language Resources and Evaluation Conference"]
+kind = "conference"
+
+[[venues]]
+id = "aaai-conference"
+full_name = "AAAI Conference on Artificial Intelligence"
+short_name = "AAAI"
+aliases = ["Proceedings of the AAAI Conference on Artificial Intelligence"]
+kind = "conference"
+
+[[venues]]
+id = "tacl"
+full_name = "Transactions of the Association for Computational Linguistics"
+short_name = "TACL"
+aliases = ["Transactions of ACL"]
+kind = "journal"
+
+[[venues]]
+id = "cl-journal"
+full_name = "Computational Linguistics"
+short_name = "CL"
+aliases = ["Computational Linguistics Journal"]
+kind = "journal"
+
+[[venues]]
+id = "natural-language-engineering"
+full_name = "Natural Language Engineering"
+short_name = "NLE"
+aliases = []
+kind = "journal"
+
+[[venues]]
+id = "jair"
+full_name = "Journal of Artificial Intelligence Research"
+short_name = "JAIR"
+aliases = []
+kind = "journal"
+
+[[venues]]
+id = "eacl"
+full_name = "Conference of the European Chapter of the Association for Computational Linguistics"
+short_name = "EACL"
+aliases = [
+  "European Chapter of the Association for Computational Linguistics",
+  "Proceedings of EACL",
+]
+kind = "conference"
+
+[[venues]]
+id = "aacl"
+full_name = "Conference of the Asia-Pacific Chapter of the Association for Computational Linguistics"
+short_name = "AACL"
+aliases = [
+  "Asia-Pacific Chapter of the Association for Computational Linguistics",
+  "Proceedings of AACL",
+]
+kind = "conference"
+
+[[venues]]
+id = "conll"
+full_name = "Conference on Computational Natural Language Learning"
+short_name = "CoNLL"
+aliases = [
+  "Proceedings of the Conference on Computational Natural Language Learning",
+  "Proceedings of CoNLL",
+]
+kind = "conference"
+
+[[venues]]
+id = "ijcnlp"
+full_name = "International Joint Conference on Natural Language Processing"
+short_name = "IJCNLP"
+aliases = ["Proceedings of IJCNLP"]
+kind = "conference"
+
+[[venues]]
+id = "findings-acl"
+full_name = "Findings of the Association for Computational Linguistics: ACL"
+short_name = "Findings of ACL"
+aliases = []
+kind = "conference"
+
+[[venues]]
+id = "findings-emnlp"
+full_name = "Findings of the Association for Computational Linguistics: EMNLP"
+short_name = "Findings of EMNLP"
+aliases = []
+kind = "conference"
+
+[[venues]]
+id = "findings-naacl"
+full_name = "Findings of the Association for Computational Linguistics: NAACL"
+short_name = "Findings of NAACL"
+aliases = []
+kind = "conference"
+
+[[venues]]
+id = "findings-eacl"
+full_name = "Findings of the Association for Computational Linguistics: EACL"
+short_name = "Findings of EACL"
+aliases = []
+kind = "conference"
+
+[[venues]]
+id = "findings-aacl"
+full_name = "Findings of the Association for Computational Linguistics: AACL"
+short_name = "Findings of AACL"
+aliases = []
+kind = "conference"
+
+[[venues]]
+id = "ijcai"
+full_name = "International Joint Conference on Artificial Intelligence"
+short_name = "IJCAI"
+aliases = ["Proceedings of the International Joint Conference on Artificial Intelligence"]
+kind = "conference"
+
+[[venues]]
+id = "neurips"
+full_name = "Conference on Neural Information Processing Systems"
+short_name = "NeurIPS"
+aliases = [
+  "Advances in Neural Information Processing Systems",
+  "Neural Information Processing Systems",
+  "NIPS",
+]
+kind = "conference"
+
+[[venues]]
+id = "icml"
+full_name = "International Conference on Machine Learning"
+short_name = "ICML"
+aliases = ["Proceedings of the International Conference on Machine Learning"]
+kind = "conference"
+
+[[venues]]
+id = "iclr"
+full_name = "International Conference on Learning Representations"
+short_name = "ICLR"
+aliases = ["Proceedings of the International Conference on Learning Representations"]
+kind = "conference"
+
+[[venues]]
+id = "aistats"
+full_name = "International Conference on Artificial Intelligence and Statistics"
+short_name = "AISTATS"
+aliases = ["Artificial Intelligence and Statistics"]
+kind = "conference"
+
+[[venues]]
+id = "uai"
+full_name = "Conference on Uncertainty in Artificial Intelligence"
+short_name = "UAI"
+aliases = ["Uncertainty in Artificial Intelligence"]
+kind = "conference"
+
+[[venues]]
+id = "jmlr"
+full_name = "Journal of Machine Learning Research"
+short_name = "JMLR"
+aliases = []
+kind = "journal"
+
+[[venues]]
+id = "machine-learning-journal"
+full_name = "Machine Learning"
+short_name = "ML"
+aliases = ["Machine Learning Journal"]
+kind = "journal"
+
+[[venues]]
+id = "artificial-intelligence-journal"
+full_name = "Artificial Intelligence"
+short_name = "AIJ"
+aliases = ["Artificial Intelligence Journal"]
+kind = "journal"
+
+[[venues]]
+id = "language-resources-and-evaluation"
+full_name = "Language Resources and Evaluation"
+short_name = "LRE"
+aliases = ["Language Resources & Evaluation"]
+kind = "journal"
+
+[[venues]]
+id = "computer-speech-and-language"
+full_name = "Computer Speech & Language"
+short_name = "CSL"
+aliases = ["Computer Speech and Language"]
+kind = "journal"
+
+[[venues]]
+id = "journal-of-natural-language-processing"
+full_name = "Journal of Natural Language Processing"
+short_name = "JNLP"
+aliases = ["自然言語処理"]
+kind = "journal"

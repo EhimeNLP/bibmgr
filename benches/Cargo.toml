@@ -1,0 +1,19 @@
+[package]
+name = "bibmgr-benchmarks"
+version = "0.0.0"
+publish = false
+edition = "2021"
+
+[dependencies]
+bibmgr-core = { path = "../crates/bibmgr-core" }
+bibmgr-edit = { path = "../crates/bibmgr-edit" }
+bibmgr-model = { path = "../crates/bibmgr-model" }
+criterion = { version = "0.5", default-features = false, features = ["cargo_bench_support"] }
+
+[[bench]]
+name = "analysis"
+path = "analysis.rs"
+harness = false
+
+[workspace]
+members = ["."]

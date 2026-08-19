@@ -1,0 +1,51 @@
+{
+  "schema_version": "1",
+  "profile": "team-canonical",
+  "display_name": "Team Canonical",
+  "description": "Team-wide BibTeX with protected titles and a compact field projection.",
+  "validation_profile": "modern",
+  "preprint_representation": "misc-eprint",
+  "month_format": "numeric",
+  "supported_entry_types": [],
+  "field_order": [
+    "author",
+    "title",
+    "journal",
+    "booktitle",
+    "year",
+    "doi",
+    "eprint",
+    "archivePrefix",
+    "primaryClass",
+    "url",
+    "note"
+  ],
+  "field_case": "canonical",
+  "case_protected_fields": ["title"],
+  "value_delimiter": "braces",
+  "line_ending": "lf",
+  "indent": "  ",
+  "trailing_comma": true,
+  "include_doi": true,
+  "include_url": true,
+  "include_extra_fields": true,
+  "field_renames": {},
+  "field_selection": {
+    "allowed_fields": [
+      "author",
+      "title",
+      "journal",
+      "booktitle",
+      "year",
+      "doi",
+      "eprint",
+      "archivePrefix",
+      "primaryClass",
+      "url",
+      "note"
+    ],
+    "excluded_fields": []
+  },
+  "excluded_fields": [],
+  "allow_unknown_work_type": true
+}
