@@ -63,7 +63,6 @@ EXPORT_SOURCE = """@misc{smith-2024,
 
 EXPORT_PROFILES = (
     "modern",
-    "laboratory",
     "acl",
     "aaai",
     "acm-publications",
@@ -185,7 +184,7 @@ def main() -> None:
         default=Path("target/debug/bibmgr"),
         help="path to the built bibmgr executable",
     )
-    parser.add_argument("--profile", default="laboratory")
+    parser.add_argument("--profile", default="modern")
     arguments = parser.parse_args()
 
     if not arguments.cli.is_file():

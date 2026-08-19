@@ -7,7 +7,7 @@ name = "bibmgr-slack"
 version = "0.1.0"
 description = "Socket Mode Slack app for profile-driven BibTeX export"
 requires-python = ">=3.11,<3.14"
-license = "MIT OR Apache-2.0"
+license = "MIT"
 dependencies = [
   "bibmgr-native",
   "slack-bolt>=1.29,<2",

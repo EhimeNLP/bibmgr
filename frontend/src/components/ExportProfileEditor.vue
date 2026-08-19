@@ -45,7 +45,6 @@ const DEFAULT_PREVIEW_SOURCE = `@inproceedings{smith-2026-example,
 }`;
 
 const validationPolicies = [
-  { value: "laboratory", label: "Laboratory" },
   { value: "modern", label: "Modern" },
   { value: "classical-bst", label: "Classical BST" },
   { value: "acl", label: "ACL" },

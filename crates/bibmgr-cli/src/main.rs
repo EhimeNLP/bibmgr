@@ -35,7 +35,7 @@ enum Command {
         files: Vec<PathBuf>,
         #[arg(long, value_enum, default_value_t = OutputFormat::Human)]
         format: OutputFormat,
-        #[arg(long, default_value = "laboratory")]
+        #[arg(long, default_value = "modern")]
         profile: String,
         /// Recover partial entries instead of using strict parsing.
         #[arg(long)]
@@ -56,7 +56,7 @@ enum Command {
         /// Revision returned by the analysis that produced explicit fix IDs.
         #[arg(long, requires = "fix_ids")]
         source_revision: Option<String>,
-        #[arg(long, default_value = "laboratory")]
+        #[arg(long, default_value = "modern")]
         profile: String,
         #[arg(long, value_enum, default_value_t = OutputFormat::Human)]
         format: OutputFormat,
@@ -64,7 +64,7 @@ enum Command {
     /// Generate fresh BibTeX from the semantic bibliography.
     Export {
         file: PathBuf,
-        #[arg(long, default_value = "laboratory")]
+        #[arg(long, default_value = "modern")]
         profile: String,
         /// Choose full or abbreviated venue names.
         #[arg(long, value_enum, default_value_t = VenueName::Full)]

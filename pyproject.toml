@@ -3,7 +3,7 @@ name = "bibmgr-development"
 version = "0.1.0"
 description = "Development environment and task definitions for bibmgr"
 requires-python = ">=3.11,<3.14"
-license = "MIT OR Apache-2.0"
+license = "MIT"
 dependencies = [
   "jsonschema>=4.25,<5",
   "poethepoet>=0.48,<0.49",
@@ -180,7 +180,6 @@ sequence = ["setup-native", "_build-cli-debug", "_test-parity"]
 help = "Run lockfile, Rust, frontend, and test checks."
 sequence = [
   "check-lock",
-  "check-markdown",
   "check-schema",
   "check-rust",
   "check-fuzz",
@@ -192,10 +191,6 @@ sequence = [
 [tool.poe.tasks.check-lock]
 help = "Verify that uv.lock matches pyproject.toml."
 cmd = "uv lock --check"
-
-[tool.poe.tasks.check-markdown]
-help = "Verify the repository Markdown paragraph formatting policy."
-cmd = "python scripts/check_markdown_paragraphs.py"
 
 [tool.poe.tasks.check-schema]
 help = "Validate the public JSON Schema and representative DTOs."

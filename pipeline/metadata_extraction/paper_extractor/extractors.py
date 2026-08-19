@@ -6,8 +6,11 @@ import shlex
 import shutil
 import subprocess
 import tempfile
-from dataclasses import dataclass
+from collections import Counter
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from dataclasses import dataclass, replace
 from pathlib import Path
+from typing import Iterable
 
 from .models import ExtractionResult, PaperMetadata, Reference
 from .paddleocr_vl import (
@@ -17,6 +20,7 @@ from .paddleocr_vl import (
 )
 
 PADDLEOCR_VL_COMMAND_ENV = "PADDLEOCR_VL_COMMAND"
+DEFAULT_EXTRACTION_JOBS = 2
 
 
 class ExtractionError(RuntimeError):
@@ -59,8 +63,84 @@ def extract_paper(
         saved_files=saved_files,
     )
     if cfg.save_dir:
-        result.saved_files.append(_write_normalized_output(cfg.save_dir, result))
+        try:
+            result.saved_files.append(_write_normalized_output(cfg.save_dir, result))
+        except OSError as exc:
+            raise ExtractionError(f"Could not save extraction files for {pdf}: {exc}") from exc
     return result
+
+
+def extract_papers(
+    pdf_paths: Iterable[str | Path],
+    config: ExtractionConfig | None = None,
+    *,
+    jobs: int = DEFAULT_EXTRACTION_JOBS,
+) -> list[ExtractionResult]:
+    """Extract multiple PDFs concurrently while preserving input order.
+
+    Batch runs isolate saved artifacts below one subdirectory per PDF. A
+    normalized artifact supplied with ``paddleocr_vl_json`` is inherently tied
+    to one PDF and therefore cannot be reused for a batch.
+    """
+
+    if jobs < 1:
+        raise ValueError("jobs must be at least 1")
+
+    pdfs = [Path(path) for path in pdf_paths]
+    if not pdfs:
+        return []
+
+    cfg = config or ExtractionConfig()
+    if len(pdfs) == 1:
+        return [extract_paper(pdfs[0], config=cfg)]
+    if cfg.paddleocr_vl_json is not None:
+        raise ExtractionError("--paddleocr-vl-json can only be used with one PDF.")
+
+    _validate_batch_save_paths(pdfs, cfg.save_dir)
+    results: list[ExtractionResult | None] = [None] * len(pdfs)
+    failures: list[tuple[int, ExtractionError]] = []
+    max_workers = min(jobs, len(pdfs))
+
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        future_to_index = {
+            executor.submit(
+                extract_paper,
+                pdf,
+                config=_config_for_batch_pdf(cfg, pdf),
+            ): index
+            for index, pdf in enumerate(pdfs)
+        }
+        for future in as_completed(future_to_index):
+            index = future_to_index[future]
+            try:
+                results[index] = future.result()
+            except ExtractionError as exc:
+                failures.append((index, exc))
+
+    if failures:
+        failures.sort(key=lambda item: item[0])
+        details = "\n".join(f"- {pdfs[index]}: {error}" for index, error in failures)
+        raise ExtractionError(f"Extraction failed for {len(failures)} PDF(s):\n{details}")
+
+    return [result for result in results if result is not None]
+
+
+def _validate_batch_save_paths(pdfs: list[Path], save_dir: Path | None) -> None:
+    if save_dir is None:
+        return
+    stems = [pdf.stem for pdf in pdfs]
+    duplicates = sorted(stem for stem, count in Counter(stems).items() if count > 1)
+    if duplicates:
+        names = ", ".join(duplicates)
+        raise ExtractionError(
+            "Batch inputs must have unique file stems when --save-dir is used; "
+            f"duplicates: {names}."
+        )
+
+
+def _config_for_batch_pdf(config: ExtractionConfig, pdf: Path) -> ExtractionConfig:
+    save_dir = config.save_dir / pdf.stem if config.save_dir is not None else None
+    return replace(config, save_dir=save_dir)
 
 
 def _extract_paddleocr_vl(

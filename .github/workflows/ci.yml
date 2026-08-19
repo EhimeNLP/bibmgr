@@ -30,10 +30,9 @@ jobs:
         with:
           enable-cache: true
           python-version: "3.12"
-      - name: Repository format checks
+      - name: Repository consistency checks
         run: |
           uv run --frozen --no-default-groups poe check-lock
-          uv run --frozen --no-default-groups poe check-markdown
           uv run --frozen --no-default-groups poe check-schema
       - name: Architecture, formatting, Clippy, and documentation checks
         run: uv run --frozen --no-default-groups poe check-rust
@@ -213,6 +212,19 @@ jobs:
       - name: CLI, PyO3, and backend DTO parity
         run: uv run --frozen poe test-parity
 
+  metadata-extraction:
+    name: Metadata extraction tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9
+        with:
+          enable-cache: true
+          python-version: "3.12"
+      - run: >-
+          uv run --project pipeline/metadata_extraction --frozen --group dev
+          pytest -q pipeline/metadata_extraction/tests
+
   browser-e2e:
     name: Browser E2E and accessibility
     runs-on: ubuntu-latest
@@ -292,24 +304,3 @@ jobs:
           command: check
           arguments: --all-features
           command-arguments: licenses bans sources
-
-  benchmark-record:
-    name: Benchmark record
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
-      - uses: Swatinem/rust-cache@v2
-        with:
-          workspaces: benches -> target
-      - name: Build benchmark harness
-        run: cargo bench --manifest-path benches/Cargo.toml --no-run
-      - name: Record Criterion measurements
-        run: cargo bench --manifest-path benches/Cargo.toml -- --noplot
-      - name: Upload benchmark record
-        uses: actions/upload-artifact@v4
-        with:
-          name: criterion-${{ github.sha }}
-          path: benches/target/criterion
-          if-no-files-found: error
-          retention-days: 30

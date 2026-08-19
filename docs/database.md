@@ -2,7 +2,7 @@
 
 ## Storage model
 
-PostgreSQL is the source of truth. Stable query and identity fields are relational, the accepted BibTeX entry is stored without profile-driven rewriting as `TEXT`, and the complete semantic record returned by `bibmgr-core` is stored as `JSONB`. The JSONB snapshot retains provenance, confidence, unresolved values, and additive fields without making them the only query representation. The physical text column retains the legacy name `raw_bibtex`, while application code and history DTOs retain the legacy name `canonical_bibtex`; both names now refer to the lossless stored source rather than laboratory-formatted output.
+PostgreSQL is the source of truth. Stable query and identity fields are relational, the accepted BibTeX entry is stored without profile-driven rewriting as `TEXT`, and the complete semantic record returned by `bibmgr-core` is stored as `JSONB`. The JSONB snapshot retains provenance, confidence, unresolved values, and additive fields without making them the only query representation. The physical text column retains the legacy name `raw_bibtex`, while application code and history DTOs retain the legacy name `canonical_bibtex`; both names now refer to the lossless stored source rather than profile-formatted output.
 
 ```mermaid
 erDiagram
@@ -92,7 +92,7 @@ The compatibility list endpoint searches title, citation key, venue, stored BibT
 
 ## Registration transaction
 
-`POST /references` opens a transaction before invoking authoritative strict registration validation with the `archive` policy. Parser failures and a source without bibliographic records are rejected; profile conventions, incomplete metadata, and unresolved semantics remain non-blocking so the database can retain as much supplied information as possible. The backend never invokes `canonicalize_for_storage` during persistence. It stores the submitted entry bytes and uses the semantic result only for searchable relational projections. For a multi-entry document, UTF-8 byte ranges from the semantic records select the corresponding exact entries. Any invalid native result, duplicate strong identifier, or database failure rolls back every entry in the request.
+`POST /references` opens a transaction before invoking authoritative strict registration validation with the `archive` policy. Parser failures and a source without bibliographic records are rejected; `LAB-*` conventions are disabled, while incomplete metadata and unresolved semantics remain non-blocking so the database can retain as much supplied information as possible. The backend never invokes `canonicalize_for_storage` during persistence. It stores the submitted entry bytes and uses the semantic result only for searchable relational projections. For a multi-entry document, UTF-8 byte ranges from the semantic records select the corresponding exact entries. Any invalid native result, duplicate strong identifier, or database failure rolls back every entry in the request.
 
 The active registration policy comes from `BIBMGR_REGISTRATION_POLICY`. The persistence request cannot choose a weaker policy.
 

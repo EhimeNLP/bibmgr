@@ -143,28 +143,3 @@ blocking = true
 enabled = true
 severity = "warning"
 blocking = false
-
-[rules."LAB-KEY-002"]
-enabled = false
-severity = "warning"
-blocking = false
-
-[rules."LAB-ENTRY-003"]
-enabled = true
-severity = "warning"
-blocking = false
-
-[rules."LAB-ENTRY-004"]
-enabled = false
-severity = "warning"
-blocking = false
-
-[rules."LAB-ARXIV-001"]
-enabled = true
-severity = "warning"
-blocking = false
-
-[rules."LAB-URL-001"]
-enabled = true
-severity = "information"
-blocking = false

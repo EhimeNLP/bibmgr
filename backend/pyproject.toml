@@ -8,7 +8,7 @@ version = "0.1.0"
 description = "BibMgR FastAPI service for authentication, reference storage, configuration, and Rust-backed BibTeX operations"
 readme = "README.md"
 requires-python = ">=3.11,<3.14"
-license = "MIT OR Apache-2.0"
+license = "MIT"
 dependencies = [
   "alembic>=1.16,<2",
   "fastapi>=0.116,<1",

@@ -12,10 +12,10 @@ bibmgr fix FILE --safe
 bibmgr fix FILE --fix-id BIB-SYNTAX-004:0 --source-revision sha256:...
 bibmgr fix FILE --safe --fix-id BIB-SYNTAX-004:0 --source-revision sha256:...
 bibmgr fix FILE --dry-run
-bibmgr export FILE --profile laboratory
-bibmgr export FILE --profile laboratory --venue-name abbreviated
+bibmgr export FILE
+bibmgr export FILE --venue-name abbreviated
 bibmgr export FILE --profile classical-bst
-bibmgr export FILE --profile laboratory --format json
+bibmgr export FILE --format json
 bibmgr inspect FILE --ast
 bibmgr inspect FILE --cst
 ```
@@ -41,16 +41,16 @@ Warnings alone do not determine the exit status; the resolved policy's `blocking
 
 ## Profiles and configuration
 
-The default profile is `laboratory`. Use `--profile ID` to select another embedded profile. `--venue-name full|abbreviated` selects venue rendering independently of the profile and defaults to `full`; it affects conference, journal, and other venue-derived fields. An invalid profile or venue-name value is an exit-code-2 configuration error. See [Configuration](configuration.md).
+The default profile is `modern` for lint, fix, and export. It excludes optional profile-convention rules. Use `--profile ID` to select another embedded profile. The standalone CLI accepts embedded profiles only; deployment-specific profiles are added and applied through the web application or supplied directly through the Python API as described in [Configuration](configuration.md). `--venue-name full|abbreviated` selects venue rendering independently of the profile and defaults to `full`; it affects conference, journal, and other venue-derived fields. An invalid profile or venue-name value is an exit-code-2 configuration error.
 
 ## Automation examples
 
 ```console
 # Human-readable check
-bibmgr lint bibliography.bib --profile laboratory
+bibmgr lint bibliography.bib
 
 # Stable CI payload
-bibmgr lint bibliography.bib --profile laboratory --format json > lint.json
+bibmgr lint bibliography.bib --format json > lint.json
 
 # Preview byte-preserving safe edits
 bibmgr fix bibliography.bib --safe --dry-run
@@ -59,7 +59,7 @@ bibmgr fix bibliography.bib --safe --dry-run
 bibmgr export bibliography.bib --profile classical-bst > submission.bib
 
 # Capture the generated source and export metadata as one stable DTO
-bibmgr export bibliography.bib --profile laboratory --format json > export.json
+bibmgr export bibliography.bib --format json > export.json
 ```
 
 Export writes a newly optimized document for the selected output profile; it is not an in-place lint fix. With `--output`, the generated BibTeX is written to that file, while `--format json` still writes the result DTO to stdout when requested.

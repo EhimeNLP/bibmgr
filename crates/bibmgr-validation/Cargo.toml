@@ -1,6 +1,6 @@
 [package]
 name = "bibmgr-validation"
-description = "Deterministic syntax, semantic, and laboratory validation for bibmgr"
+description = "Deterministic syntax, semantic, and profile validation for bibmgr"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true

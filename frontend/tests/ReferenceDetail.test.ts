@@ -15,10 +15,10 @@ vi.mock("../src/api/bibtex", () => apiMocks);
 
 const profiles = [
   {
-    id: "laboratory",
-    display_name: "Laboratory",
-    description: "Laboratory-standard optimized BibTeX.",
-    validation_profile: "laboratory",
+    id: "acl",
+    display_name: "ACL Publications",
+    description: "ACL-compatible BibTeX.",
+    validation_profile: "acl",
     preprint_representation: "misc-eprint",
   },
   {
@@ -51,7 +51,7 @@ beforeEach(() => {
 });
 
 describe("ReferenceDetail BibTeX views", () => {
-  it("exports the stored source with the laboratory profile by default", async () => {
+  it("exports the stored source with the modern profile by default", async () => {
     const reference: Reference = {
       id: "demo",
       title: "A useful paper",
@@ -69,16 +69,16 @@ describe("ReferenceDetail BibTeX views", () => {
       source: reference.bibtex,
       citationKey: reference.bibtexKey,
     });
-    const laboratorySource = wrapper.get('[data-testid="bibtex-export-preview"]');
-    expect(laboratorySource.element.textContent).toBe(
-      `${reference.bibtex}\n% laboratory`,
+    const modernSource = wrapper.get('[data-testid="bibtex-export-preview"]');
+    expect(modernSource.element.textContent).toBe(
+      `${reference.bibtex}\n% modern`,
     );
-    expect(laboratorySource.get(".bibtex-token--entry").text()).toBe("@article");
-    expect(laboratorySource.get(".bibtex-token--key").text()).toBe(
+    expect(modernSource.get(".bibtex-token--entry").text()).toBe("@article");
+    expect(modernSource.get(".bibtex-token--key").text()).toBe(
       "lovelace-demo",
     );
-    expect(laboratorySource.get(".bibtex-token--field").text()).toBe("title");
-    expect(laboratorySource.get(".bibtex-token--value").text()).toBe(
+    expect(modernSource.get(".bibtex-token--field").text()).toBe("title");
+    expect(modernSource.get(".bibtex-token--value").text()).toBe(
       "{A useful paper}",
     );
 
@@ -86,15 +86,15 @@ describe("ReferenceDetail BibTeX views", () => {
     expect(apiMocks.exportBibtex).toHaveBeenCalledWith(
       {
         source: reference.bibtex,
-        profile: "laboratory",
+        profile: "modern",
         venue_name_style: "full",
       },
       expect.objectContaining({ signal: expect.any(AbortSignal) }),
     );
-    expect(wrapper.get("select").element.value).toBe("laboratory");
+    expect(wrapper.get("select").element.value).toBe("modern");
     expect(
       wrapper.findAll("option").map((option) => option.attributes("value")),
-    ).toEqual(["laboratory", "modern"]);
+    ).toEqual(["acl", "modern"]);
 
     wrapper.unmount();
   });
@@ -106,11 +106,27 @@ describe("ReferenceDetail BibTeX views", () => {
     });
     await flushPromises();
 
-    await wrapper.get("select").setValue("modern");
+    await wrapper.get("select").setValue("acl");
     await flushPromises();
 
     expect(apiMocks.exportBibtex).toHaveBeenCalledTimes(2);
-    expect(apiMocks.exportBibtex).toHaveBeenCalledWith(
+    expect(apiMocks.exportBibtex).toHaveBeenLastCalledWith(
+      {
+        source: reference.bibtex,
+        profile: "acl",
+        venue_name_style: "full",
+      },
+      expect.objectContaining({ signal: expect.any(AbortSignal) }),
+    );
+    expect(wrapper.get('[data-testid="bibtex-export-preview"]').text()).toBe(
+      `${reference.bibtex}\n% acl`,
+    );
+
+    await wrapper.get("select").setValue("modern");
+    await flushPromises();
+
+    expect(apiMocks.exportBibtex).toHaveBeenCalledTimes(3);
+    expect(apiMocks.exportBibtex).toHaveBeenLastCalledWith(
       {
         source: reference.bibtex,
         profile: "modern",
@@ -121,26 +137,10 @@ describe("ReferenceDetail BibTeX views", () => {
     expect(wrapper.get('[data-testid="bibtex-export-preview"]').text()).toBe(
       `${reference.bibtex}\n% modern`,
     );
-
-    await wrapper.get("select").setValue("laboratory");
-    await flushPromises();
-
-    expect(apiMocks.exportBibtex).toHaveBeenCalledTimes(3);
-    expect(apiMocks.exportBibtex).toHaveBeenLastCalledWith(
-      {
-        source: reference.bibtex,
-        profile: "laboratory",
-        venue_name_style: "full",
-      },
-      expect.objectContaining({ signal: expect.any(AbortSignal) }),
-    );
-    expect(wrapper.get('[data-testid="bibtex-export-preview"]').text()).toBe(
-      `${reference.bibtex}\n% laboratory`,
-    );
     wrapper.unmount();
   });
 
-  it("re-exports the laboratory preview when the selected reference changes", async () => {
+  it("re-exports the modern preview when the selected reference changes", async () => {
     const wrapper = mount(ReferenceDetail, {
       props: {
         reference: makeReference("first", "First paper"),
@@ -154,14 +154,14 @@ describe("ReferenceDetail BibTeX views", () => {
     await flushPromises();
 
     expect(wrapper.get('[data-testid="bibtex-export-preview"]').text()).toBe(
-      `${second.bibtex}\n% laboratory`,
+      `${second.bibtex}\n% modern`,
     );
     expect(apiMocks.listBibtexExportProfiles).toHaveBeenCalledTimes(1);
     expect(apiMocks.exportBibtex).toHaveBeenCalledTimes(2);
     expect(apiMocks.exportBibtex).toHaveBeenLastCalledWith(
       {
         source: second.bibtex,
-        profile: "laboratory",
+        profile: "modern",
         venue_name_style: "full",
       },
       expect.objectContaining({ signal: expect.any(AbortSignal) }),

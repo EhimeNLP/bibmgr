@@ -501,7 +501,7 @@ class CitationKeyGenerator:
 
         authors = record.get("authors") or record.get("editors") or []
         if not authors:
-            raise ValueError("author or editor is required for a laboratory key")
+            raise ValueError("author or editor is required for a generated citation key")
         person = authors[0]["value"]
         family = person.get("family") or person.get("literal") or []
         if isinstance(family, str):
@@ -516,7 +516,7 @@ class CitationKeyGenerator:
         date = record.get("date", {}).get("value", {})
         year_value = date.get("year")
         if not isinstance(year_value, int):
-            raise ValueError("year is required for a laboratory key")
+            raise ValueError("year is required for a generated citation key")
         year = str(year_value)
 
         title = str(record.get("title", {}).get("value") or "").strip()

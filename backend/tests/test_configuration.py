@@ -82,7 +82,7 @@ def configuration_context() -> Iterator[
 
 
 def test_configuration_lock_targets_only_the_override_record() -> None:
-    statement = _locked_configuration_statement(EXPORT_PROFILE, "laboratory")
+    statement = _locked_configuration_statement(EXPORT_PROFILE, "modern")
     sql = str(statement.compile(dialect=postgresql.dialect()))
 
     assert "LEFT OUTER JOIN users" in sql

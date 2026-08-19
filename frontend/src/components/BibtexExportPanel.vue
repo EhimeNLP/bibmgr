@@ -22,7 +22,7 @@ const props = defineProps<{
 }>();
 
 const profiles = ref<BibtexExportProfile[]>([]);
-const selectedProfile = ref("laboratory");
+const selectedProfile = ref("modern");
 const venueNameStyle = ref<VenueNameStyle>("full");
 const profileSelectId = useId();
 const profileDescriptionId = useId();
@@ -115,9 +115,9 @@ function preferredProfileId(availableProfiles: BibtexExportProfile[]) {
     return selectedProfile.value;
   }
   return (
-    availableProfiles.find((profile) => profile.id === "laboratory")?.id ??
+    availableProfiles.find((profile) => profile.id === "modern")?.id ??
     availableProfiles[0]?.id ??
-    "laboratory"
+    "modern"
   );
 }
 

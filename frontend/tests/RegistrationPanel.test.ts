@@ -86,10 +86,10 @@ async function chooseFile(wrapper: ReturnType<typeof mount>, file: File) {
 const sourceRevision = `sha256:${"0".repeat(64)}`;
 const exportProfiles = [
   {
-    id: "laboratory",
-    display_name: "Laboratory",
-    description: "Laboratory-standard optimized BibTeX.",
-    validation_profile: "laboratory",
+    id: "acl",
+    display_name: "ACL Publications",
+    description: "ACL-compatible BibTeX.",
+    validation_profile: "acl",
     preprint_representation: "misc-eprint",
   },
   {
@@ -306,28 +306,28 @@ describe("RegistrationPanel", () => {
     await flushPromises();
 
     expect(bibtexApiMocks.exportBibtex).toHaveBeenCalledWith(
-      { source, profile: "laboratory", venue_name_style: "full" },
-      expect.objectContaining({ signal: expect.any(AbortSignal) }),
-    );
-    expect(
-      wrapper.get(".registration-output-preview select").element.value,
-    ).toBe("laboratory");
-    expect(
-      wrapper.get('[data-testid="bibtex-export-preview"]').text(),
-    ).toBe(`${source}\n% laboratory`);
-
-    await wrapper
-      .get(".registration-output-preview select")
-      .setValue("modern");
-    await flushPromises();
-
-    expect(bibtexApiMocks.exportBibtex).toHaveBeenLastCalledWith(
       { source, profile: "modern", venue_name_style: "full" },
       expect.objectContaining({ signal: expect.any(AbortSignal) }),
     );
     expect(
+      wrapper.get(".registration-output-preview select").element.value,
+    ).toBe("modern");
+    expect(
       wrapper.get('[data-testid="bibtex-export-preview"]').text(),
     ).toBe(`${source}\n% modern`);
+
+    await wrapper
+      .get(".registration-output-preview select")
+      .setValue("acl");
+    await flushPromises();
+
+    expect(bibtexApiMocks.exportBibtex).toHaveBeenLastCalledWith(
+      { source, profile: "acl", venue_name_style: "full" },
+      expect.objectContaining({ signal: expect.any(AbortSignal) }),
+    );
+    expect(
+      wrapper.get('[data-testid="bibtex-export-preview"]').text(),
+    ).toBe(`${source}\n% acl`);
     expect(apiMocks.registerBibtexToDatabase).not.toHaveBeenCalled();
   });
 

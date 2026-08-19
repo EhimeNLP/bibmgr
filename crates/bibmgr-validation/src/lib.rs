@@ -187,6 +187,77 @@ impl ValidationPolicy {
         Self::builtin("modern").unwrap_or_else(|_| Self::baseline())
     }
 
+    #[cfg(test)]
+    fn custom() -> Self {
+        let mut policy = Self::acl();
+        policy.profile = ProfileId::new("test-custom");
+        policy.field_case = FieldCase::Canonical;
+        policy.field_order = [
+            "title",
+            "author",
+            "editor",
+            "journal",
+            "booktitle",
+            "series",
+            "volume",
+            "number",
+            "pages",
+            "publisher",
+            "institution",
+            "school",
+            "address",
+            "year",
+            "doi",
+            "eprint",
+            "archivePrefix",
+            "primaryClass",
+            "url",
+            "note",
+        ]
+        .into_iter()
+        .map(str::to_owned)
+        .collect();
+        policy.citation_key_pattern = String::from(r"^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$");
+        policy.forbidden_fields = ["file", "timestamp"]
+            .into_iter()
+            .map(str::to_owned)
+            .collect();
+
+        for (code, severity, blocking) in [
+            (RULE_FIELD_CASE, Severity::Hint, false),
+            (RULE_FIELD_ORDER, Severity::Information, false),
+            (RULE_TRAILING_COMMA, Severity::Hint, false),
+            (RULE_INLINE_PERCENT_COMMENT, Severity::Warning, true),
+            (RULE_UNESCAPED_TEX_SPECIAL, Severity::Error, true),
+            (RULE_TYPE_MISMATCH, Severity::Error, true),
+            (RULE_AUTHOR, Severity::Warning, true),
+            (RULE_DATE, Severity::Warning, true),
+            (RULE_UNRESOLVED_SEMANTICS, Severity::Error, true),
+            (RULE_REPOSITORY_IDENTIFIER, Severity::Error, true),
+            ("BIB-SEMANTIC-106", Severity::Error, true),
+            (RULE_CITATION_KEY, Severity::Warning, true),
+            (RULE_ARXIV_REPRESENTATION, Severity::Warning, true),
+        ] {
+            policy.rules.insert(
+                RuleCode::new(code),
+                RuleSetting {
+                    enabled: true,
+                    severity,
+                    blocking,
+                },
+            );
+        }
+        policy.rules.insert(
+            RuleCode::new(RULE_URL_POLICY),
+            RuleSetting {
+                enabled: false,
+                severity: Severity::Information,
+                blocking: false,
+            },
+        );
+        policy
+    }
+
     fn baseline() -> Self {
         Self {
             schema_version: String::from(bibmgr_model::SCHEMA_VERSION),
@@ -202,14 +273,6 @@ impl ValidationPolicy {
             prefer_braces: true,
             rules: default_rule_settings(),
         }
-    }
-
-    pub fn laboratory() -> Self {
-        Self::builtin("laboratory").unwrap_or_else(|_| {
-            let mut policy = Self::baseline();
-            policy.profile = ProfileId::new("laboratory");
-            policy
-        })
     }
 
     pub fn acl() -> Self {
@@ -233,9 +296,6 @@ impl ValidationPolicy {
             "archive" => Self::from_toml(include_str!("../../../config/policies/archive.toml")),
             "default" | "modern" => {
                 Self::from_toml(include_str!("../../../config/policies/modern.toml"))
-            }
-            "laboratory" => {
-                Self::from_toml(include_str!("../../../config/policies/laboratory.toml"))
             }
             "acl" => Self::from_toml(include_str!("../../../config/policies/acl.toml")),
             "classical-bst" => {
@@ -759,10 +819,11 @@ impl RegistrationPolicy {
         }
     }
 
-    pub fn laboratory() -> Self {
+    #[cfg(test)]
+    fn custom() -> Self {
         Self {
             schema_version: String::from(bibmgr_model::SCHEMA_VERSION),
-            validation_profile: ProfileId::new("laboratory"),
+            validation_profile: ProfileId::new("test-custom"),
             minimum_severity: Some(Severity::Error),
             blocking_rules: RuleSelector::default(),
             allow_unresolved_semantics: false,
@@ -777,7 +838,6 @@ impl RegistrationPolicy {
                 validation_profile: profile.clone(),
                 ..Self::default()
             }),
-            "laboratory" => Ok(Self::laboratory()),
             other => Err(ConfigurationError::UnknownProfile(other.to_owned())),
         }
     }
@@ -848,7 +908,7 @@ pub fn validate(
     for (entry_index, entry) in syntax.entries().iter().enumerate() {
         engine.validate_entry_syntax(entry);
         engine.validate_identifiers(entry);
-        engine.validate_laboratory(entry);
+        engine.validate_profile_conventions(entry);
         if let Some(record) = semantics.records.get(entry_index) {
             engine.validate_semantics(entry, record);
         }
@@ -1453,7 +1513,7 @@ impl<'a> Engine<'a> {
     }
 
     #[allow(clippy::too_many_lines)]
-    fn validate_laboratory(&mut self, entry: &EntryNode) {
+    fn validate_profile_conventions(&mut self, entry: &EntryNode) {
         if let Some(pattern) = Regex::new(&self.policy.citation_key_pattern)
             .ok()
             .filter(|pattern| !pattern.is_match(&entry.citation_key.text))
@@ -3682,7 +3742,7 @@ fn default_rule_setting(code: &str) -> RuleSetting {
         _ => Severity::Warning,
     };
     RuleSetting {
-        enabled: true,
+        enabled: !code.starts_with("LAB-"),
         severity,
         blocking: is_parser_rule(code),
     }
@@ -3722,7 +3782,7 @@ mod tests {
 
     #[test]
     fn policy_round_trips_through_toml() {
-        let policy = ValidationPolicy::laboratory();
+        let policy = ValidationPolicy::custom();
         let encoded = toml::to_string(&policy).unwrap();
         let decoded = ValidationPolicy::from_toml(&encoded).unwrap();
         assert_eq!(decoded, policy);
@@ -3733,7 +3793,6 @@ mod tests {
         for source in [
             include_str!("../../../config/policies/archive.toml"),
             include_str!("../../../config/policies/modern.toml"),
-            include_str!("../../../config/policies/laboratory.toml"),
             include_str!("../../../config/policies/acl.toml"),
             include_str!("../../../config/policies/classical-bst.toml"),
         ] {
@@ -3746,7 +3805,6 @@ mod tests {
         for (profile, convenience) in [
             ("archive", ValidationPolicy::archive()),
             ("modern", ValidationPolicy::modern()),
-            ("laboratory", ValidationPolicy::laboratory()),
             ("acl", ValidationPolicy::acl()),
             ("classical-bst", ValidationPolicy::classical_bst()),
         ] {
@@ -4121,7 +4179,7 @@ exclude = []
     #[test]
     fn unescaped_percent_in_text_value_has_a_precise_safe_fix() {
         let source = "@misc{k,\n  title = {日本語 100% ready and 50\\% done},\n}\n";
-        let result = run(source, &ValidationPolicy::laboratory());
+        let result = run(source, &ValidationPolicy::custom());
         let diagnostics = result
             .diagnostics
             .iter()
@@ -4154,7 +4212,7 @@ exclude = []
             applied.source,
             "@misc{k,\n  title = {日本語 100\\% ready and 50\\% done},\n}\n"
         );
-        assert!(!run(&applied.source, &ValidationPolicy::laboratory())
+        assert!(!run(&applied.source, &ValidationPolicy::custom())
             .diagnostics
             .iter()
             .any(|diagnostic| diagnostic.code.as_str() == RULE_UNESCAPED_PERCENT));
@@ -4163,7 +4221,7 @@ exclude = []
     #[test]
     fn tex_special_rule_splits_safe_and_review_fixes_for_mixed_plain_text() {
         let source = "@misc{k, title={100% A&B #1 value_1 caret^ and cost$5},}\n";
-        let result = run(source, &ValidationPolicy::laboratory());
+        let result = run(source, &ValidationPolicy::custom());
         let diagnostics = result
             .diagnostics
             .iter()
@@ -4214,7 +4272,7 @@ exclude = []
     fn tex_special_scanner_observes_escaped_backslash_parity() {
         let source = r"@misc{k, title={escaped \% \& \# \_ \^ \$ raw \\% \\& \\# \\_ \\^ \\$},}
 ";
-        let result = run(source, &ValidationPolicy::laboratory());
+        let result = run(source, &ValidationPolicy::custom());
         let edits = result
             .fixes
             .iter()
@@ -4234,7 +4292,7 @@ exclude = []
     #[test]
     fn tex_special_rule_preserves_math_but_reviews_percent_and_hash_in_math() {
         let source = "@misc{k, title={text #1 and $x_1 & y^2 # 20%$ plus $$a_1 & b^2$$ plus \\(c_1 & d^2\\) plus \\[e_1 & f^2\\] plus \\ensuremath{g_1 & h^2}},}\n";
-        let result = run(source, &ValidationPolicy::laboratory());
+        let result = run(source, &ValidationPolicy::custom());
         let diagnostics = result
             .diagnostics
             .iter()
@@ -4275,7 +4333,7 @@ exclude = []
     fn tex_math_dollar_scanner_handles_adjacent_and_malformed_boundaries() {
         for value in ["$x$$y$", "$$x$$$y$", "$x\\$y$"] {
             let source = format!("@misc{{k, title={{{value}}},}}\n");
-            assert!(run(&source, &ValidationPolicy::laboratory())
+            assert!(run(&source, &ValidationPolicy::custom())
                 .diagnostics
                 .iter()
                 .all(|diagnostic| diagnostic.code.as_str() != RULE_UNESCAPED_TEX_SPECIAL));
@@ -4288,7 +4346,7 @@ exclude = []
             ("$$a_1 $b_2$", 6),
         ] {
             let source = format!("@misc{{k, title={{{value}}},}}\n");
-            let result = run(&source, &ValidationPolicy::laboratory());
+            let result = run(&source, &ValidationPolicy::custom());
             let fixes = result
                 .fixes
                 .iter()
@@ -4305,7 +4363,7 @@ exclude = []
 
         for value in ["\\(\\(x\\) y_1\\)", "\\[\\[x\\] y_1\\]"] {
             let source = format!("@misc{{k, title={{{value}}},}}\n");
-            let result = run(&source, &ValidationPolicy::laboratory());
+            let result = run(&source, &ValidationPolicy::custom());
             let fixes = result
                 .fixes
                 .iter()
@@ -4327,7 +4385,7 @@ exclude = []
             ("{\\[x_1} prose \\]", vec!["_"]),
         ] {
             let source = format!("@misc{{k, title=\"{value}\",}}\n");
-            let result = run(&source, &ValidationPolicy::laboratory());
+            let result = run(&source, &ValidationPolicy::custom());
             let diagnostic = result
                 .diagnostics
                 .iter()
@@ -4360,14 +4418,14 @@ exclude = []
             "\\( {x \\) } y_1 \\)",
         ] {
             let source = format!("@misc{{k, title={{{value}}},}}\n");
-            assert!(run(&source, &ValidationPolicy::laboratory())
+            assert!(run(&source, &ValidationPolicy::custom())
                 .diagnostics
                 .iter()
                 .all(|diagnostic| diagnostic.code.as_str() != RULE_UNESCAPED_TEX_SPECIAL));
         }
 
         let source = "@misc{k, title={$ {x $ } y $},}\n";
-        let result = run(source, &ValidationPolicy::laboratory());
+        let result = run(source, &ValidationPolicy::custom());
         let diagnostic = result
             .diagnostics
             .iter()
@@ -4389,7 +4447,7 @@ exclude = []
     #[test]
     fn ensuremath_closes_after_reviewing_nested_unmatched_math() {
         let source = "@misc{k, title={\\ensuremath{{x_1 $} y_2}},}\n";
-        let result = run(source, &ValidationPolicy::laboratory());
+        let result = run(source, &ValidationPolicy::custom());
         let diagnostic = result
             .diagnostics
             .iter()
@@ -4411,7 +4469,7 @@ exclude = []
     #[test]
     fn url_and_math_commands_require_an_immediate_unmodified_argument_form() {
         let source = "@misc{k, title={\\url {raw_%&#^$} \\url*{star_1} \\url[x]{option_1} \\ensuremath{math_1 & y^2} \\ensuremath*{star_math_1} \\ensuremath[x]{option_math_1}},}\n";
-        let result = run(source, &ValidationPolicy::laboratory());
+        let result = run(source, &ValidationPolicy::custom());
         let edits = result
             .fixes
             .iter()
@@ -4429,13 +4487,13 @@ exclude = []
     #[test]
     fn only_complete_url_arguments_exclude_tex_special_validation() {
         let complete = "@misc{k, title=\"\\url{a_b%20&c#d^e$f}\",}\n";
-        assert!(run(complete, &ValidationPolicy::laboratory())
+        assert!(run(complete, &ValidationPolicy::custom())
             .diagnostics
             .iter()
             .all(|diagnostic| diagnostic.code.as_str() != RULE_UNESCAPED_TEX_SPECIAL));
 
         let incomplete = "@misc{k, title=\"\\url{a_b%20\",}\n";
-        let result = run(incomplete, &ValidationPolicy::laboratory());
+        let result = run(incomplete, &ValidationPolicy::custom());
         let diagnostics = result
             .diagnostics
             .iter()
@@ -4460,13 +4518,13 @@ exclude = []
     #[test]
     fn nested_url_specials_remain_deferred_until_the_outer_argument_closes() {
         let complete = "@misc{k, title=\"\\url{pre \\url{inner_} post%20}\",}\n";
-        assert!(run(complete, &ValidationPolicy::laboratory())
+        assert!(run(complete, &ValidationPolicy::custom())
             .diagnostics
             .iter()
             .all(|diagnostic| diagnostic.code.as_str() != RULE_UNESCAPED_TEX_SPECIAL));
 
         let incomplete = "@misc{k, title=\"\\url{pre \\url{inner_} post%20\",}\n";
-        let result = run(incomplete, &ValidationPolicy::laboratory());
+        let result = run(incomplete, &ValidationPolicy::custom());
         let diagnostic = result
             .diagnostics
             .iter()
@@ -4491,14 +4549,14 @@ exclude = []
     fn outer_url_arguments_are_opaque_to_nested_command_syntax() {
         let complete =
             "@misc{k, title=\"\\url{\\foo[x_y] \\unknown|a_b| \\verb|inner_| post%20}\",}\n";
-        assert!(run(complete, &ValidationPolicy::laboratory())
+        assert!(run(complete, &ValidationPolicy::custom())
             .diagnostics
             .iter()
             .all(|diagnostic| diagnostic.code.as_str() != RULE_UNESCAPED_TEX_SPECIAL));
 
         let incomplete =
             "@misc{k, title=\"\\url{\\foo[x_y] \\unknown|a_b| \\verb|inner_| post%20\",}\n";
-        let result = run(incomplete, &ValidationPolicy::laboratory());
+        let result = run(incomplete, &ValidationPolicy::custom());
         let diagnostic = result
             .diagnostics
             .iter()
@@ -4522,7 +4580,7 @@ exclude = []
     #[test]
     fn closing_math_delimiters_clear_pending_command_context() {
         let source = "@misc{k, title={$\\url$ {outside_1} $\\verb|x|$|outside_2|},}\n";
-        let result = run(source, &ValidationPolicy::laboratory());
+        let result = run(source, &ValidationPolicy::custom());
         let fixes = result
             .fixes
             .iter()
@@ -4574,7 +4632,7 @@ exclude = []
         let source = format!(
             "@string{{rawidentifier={{raw%&#_^$}}}}\n@misc{{direct,\n{direct_fields}}}\n@misc{{macro,\n{macro_fields}}}\n"
         );
-        assert!(run(&source, &ValidationPolicy::laboratory())
+        assert!(run(&source, &ValidationPolicy::custom())
             .diagnostics
             .iter()
             .all(|diagnostic| diagnostic.code.as_str() != RULE_UNESCAPED_TEX_SPECIAL));
@@ -4583,7 +4641,7 @@ exclude = []
     #[test]
     fn shared_tex_special_macro_uses_all_consumer_policies_and_withholds_fixes() {
         let source = "@string{shared={100% A&B #1 value_1 caret^ cost$5}}\n@misc{k, title=shared, url=shared,}\n";
-        let result = run(source, &ValidationPolicy::laboratory());
+        let result = run(source, &ValidationPolicy::custom());
         let diagnostics = result
             .diagnostics
             .iter()
@@ -4601,7 +4659,7 @@ exclude = []
             "@string{percenttitle={100% Effective}}\n@misc{k, title=percenttitle,}\n",
             "@string{percenttitle={100% Effective}}\n@string{nested=percenttitle}\n@misc{k, title=nested,}\n",
         ] {
-            let result = run(source, &ValidationPolicy::laboratory());
+            let result = run(source, &ValidationPolicy::custom());
             let diagnostics = result
                 .diagnostics
                 .iter()
@@ -4626,7 +4684,7 @@ exclude = []
             )
             .unwrap();
             let applied = apply_fix_plan(source, &plan).unwrap();
-            assert!(!run(&applied.source, &ValidationPolicy::laboratory())
+            assert!(!run(&applied.source, &ValidationPolicy::custom())
                 .diagnostics
                 .iter()
                 .any(|diagnostic| diagnostic.code.as_str() == RULE_UNESCAPED_PERCENT));
@@ -4636,7 +4694,7 @@ exclude = []
     #[test]
     fn referenced_string_percent_uses_every_consumer_field_context() {
         let source = "@string{urlonly={https://example.test/a%20b}}\n@string{shared={https://example.test/b%20c}}\n@string{urlcommand={See \\url{https://example.test/c%20d}}}\n@string{jan={100% shadowed definition}}\n@misc{k, title=shared, url=urlonly, note=urlcommand, month=jan,}\n@misc{k2, title={T}, url=shared,}\n";
-        let result = run(source, &ValidationPolicy::laboratory());
+        let result = run(source, &ValidationPolicy::custom());
         let diagnostics = result
             .diagnostics
             .iter()
@@ -4656,7 +4714,7 @@ exclude = []
     #[test]
     fn percent_fix_applicability_uses_tex_command_context() {
         let source = "@misc{k, title={Plain 100% \\url{https://example.test/a%20b} \\nolinkurl{https://example.test/b%20c} \\path{paper%20draft.pdf} \\textbf{50% complete}},}\n";
-        let result = run(source, &ValidationPolicy::laboratory());
+        let result = run(source, &ValidationPolicy::custom());
         let diagnostics = result
             .diagnostics
             .iter()
@@ -4687,7 +4745,7 @@ exclude = []
     #[test]
     fn percent_scanner_skips_known_verbatim_commands_and_reviews_ambiguous_delimiters() {
         let source = "@misc{k, title={Code \\verb|100% ready| \\verb*+50%+ \\verb1digit 8%1 \\Verb!25%! \\lstinline[language=C]!10%! outside 5% \\unknown|2%|},}\n";
-        let result = run(source, &ValidationPolicy::laboratory());
+        let result = run(source, &ValidationPolicy::custom());
         let diagnostics = result
             .diagnostics
             .iter()
@@ -4721,7 +4779,7 @@ exclude = []
             ("$\\unknown|x_1 & y^2|$", vec!["_", "&", "^"]),
         ] {
             let source = format!("@misc{{k, title={{{value}}},}}\n");
-            let result = run(&source, &ValidationPolicy::laboratory());
+            let result = run(&source, &ValidationPolicy::custom());
             let diagnostic = result
                 .diagnostics
                 .iter()
@@ -4747,7 +4805,7 @@ exclude = []
     #[test]
     fn tex_special_scanner_skips_every_target_inside_complete_verbatim_commands() {
         let source = "@misc{k, title={\\verb|%&#_^$| \\verb*+%&#_^$+ \\Verb[formatcom=small]!%&#_^$! \\lstinline*[language=TeX]/%&#_^$/},}\n";
-        assert!(run(source, &ValidationPolicy::laboratory())
+        assert!(run(source, &ValidationPolicy::custom())
             .diagnostics
             .iter()
             .all(|diagnostic| diagnostic.code.as_str() != RULE_UNESCAPED_TEX_SPECIAL));
@@ -4756,7 +4814,7 @@ exclude = []
     #[test]
     fn incomplete_verbatim_arguments_require_confirmation() {
         let source = "@misc{k, title=\"\\verb|%&#_^$\",}\n";
-        let result = run(source, &ValidationPolicy::laboratory());
+        let result = run(source, &ValidationPolicy::custom());
         let diagnostics = result
             .diagnostics
             .iter()
@@ -4775,13 +4833,13 @@ exclude = []
     #[test]
     fn unicode_verbatim_delimiters_are_matched_as_characters() {
         let complete = "@misc{k, title=\"\\verbあい_うあ\",}\n";
-        assert!(run(complete, &ValidationPolicy::laboratory())
+        assert!(run(complete, &ValidationPolicy::custom())
             .diagnostics
             .iter()
             .all(|diagnostic| diagnostic.code.as_str() != RULE_UNESCAPED_TEX_SPECIAL));
 
         let incomplete = "@misc{k, title=\"\\verbあい_う\",}\n";
-        let result = run(incomplete, &ValidationPolicy::laboratory());
+        let result = run(incomplete, &ValidationPolicy::custom());
         let diagnostic = result
             .diagnostics
             .iter()
@@ -4803,13 +4861,13 @@ exclude = []
     #[test]
     fn at_sign_is_recognized_as_a_verbatim_delimiter() {
         let complete = "@misc{k, title=\"\\verb@a_b%@\",}\n";
-        assert!(run(complete, &ValidationPolicy::laboratory())
+        assert!(run(complete, &ValidationPolicy::custom())
             .diagnostics
             .iter()
             .all(|diagnostic| diagnostic.code.as_str() != RULE_UNESCAPED_TEX_SPECIAL));
 
         let incomplete = "@misc{k, title=\"\\verb@a_b%\",}\n";
-        let result = run(incomplete, &ValidationPolicy::laboratory());
+        let result = run(incomplete, &ValidationPolicy::custom());
         let diagnostic = result
             .diagnostics
             .iter()
@@ -4828,13 +4886,13 @@ exclude = []
     fn incomplete_special_verbatim_delimiters_require_confirmation() {
         for delimiter in ['%', '$'] {
             let complete = format!("@misc{{k, title=\"\\verb{delimiter}abc{delimiter}\",}}\n");
-            assert!(run(&complete, &ValidationPolicy::laboratory())
+            assert!(run(&complete, &ValidationPolicy::custom())
                 .diagnostics
                 .iter()
                 .all(|diagnostic| diagnostic.code.as_str() != RULE_UNESCAPED_TEX_SPECIAL));
 
             let incomplete = format!("@misc{{k, title=\"\\verb{delimiter}abc\",}}\n");
-            let result = run(&incomplete, &ValidationPolicy::laboratory());
+            let result = run(&incomplete, &ValidationPolicy::custom());
             let diagnostic = result
                 .diagnostics
                 .iter()
@@ -4857,7 +4915,7 @@ exclude = []
     #[test]
     fn verbatim_options_use_the_normal_literal_and_math_scanner() {
         let source = "@misc{k, title={\\Verb[format=$x_1$ # 20%, url=\\url{a_b%20}, code=\\verb|x_y%|, raw=z_1]|ok|},}\n";
-        let result = run(source, &ValidationPolicy::laboratory());
+        let result = run(source, &ValidationPolicy::custom());
         let diagnostic = result
             .diagnostics
             .iter()
@@ -4881,7 +4939,7 @@ exclude = []
     #[test]
     fn incomplete_verbatim_options_suppress_nested_math_recognition() {
         let source = "@misc{k, title=\"\\Verb[format=$x_1^2 & y # 20%$\",}\n";
-        let result = run(source, &ValidationPolicy::laboratory());
+        let result = run(source, &ValidationPolicy::custom());
         let diagnostic = result
             .diagnostics
             .iter()
@@ -4905,7 +4963,7 @@ exclude = []
     #[test]
     fn optional_argument_math_is_scoped_to_the_argument() {
         let source = "@misc{k, title={\\Verb[$x_1]|body| $y_2},}\n";
-        let result = run(source, &ValidationPolicy::laboratory());
+        let result = run(source, &ValidationPolicy::custom());
         let diagnostic = result
             .diagnostics
             .iter()
@@ -4942,7 +5000,7 @@ exclude = []
                 FixApplicability::RequiresConfirmation,
             ),
         ] {
-            let result = run(source, &ValidationPolicy::laboratory());
+            let result = run(source, &ValidationPolicy::custom());
             let diagnostics = result
                 .diagnostics
                 .iter()
@@ -4961,7 +5019,7 @@ exclude = []
     #[test]
     fn tex_special_macro_math_split_never_offers_a_safe_fix() {
         let source = "@string{open={$}}\n@string{body={x_1^2}}\n@string{close={$}}\n@string{full=open # body # close}\n@misc{k, title=full,}\n";
-        let result = run(source, &ValidationPolicy::laboratory());
+        let result = run(source, &ValidationPolicy::custom());
         let diagnostics = result
             .diagnostics
             .iter()
@@ -4983,7 +5041,7 @@ exclude = []
     #[test]
     fn archived_percent_values_are_url_like_and_shared_macros_have_no_fix() {
         let source = "@string{shared={https://example.test/shared%20copy}}\n@misc{k, archived={https://example.test/direct%20copy}, title=shared,}\n@misc{k2, archived=shared,}\n";
-        let result = run(source, &ValidationPolicy::laboratory());
+        let result = run(source, &ValidationPolicy::custom());
         let diagnostics = result
             .diagnostics
             .iter()
@@ -5003,7 +5061,7 @@ exclude = []
     #[test]
     fn percent_diagnostics_aggregate_edits_and_bound_large_values() {
         let source = "@misc{k, title={10% ready and 20% complete},}\n";
-        let result = run(source, &ValidationPolicy::laboratory());
+        let result = run(source, &ValidationPolicy::custom());
         let diagnostics = result
             .diagnostics
             .iter()
@@ -5022,7 +5080,7 @@ exclude = []
             format!("@misc{{k, title={{{many_percents}}},}}\n"),
             format!("@string{{many={{{many_percents}}}}}\n@misc{{k, title=many,}}\n"),
         ] {
-            let result = run(&source, &ValidationPolicy::laboratory());
+            let result = run(&source, &ValidationPolicy::custom());
             let diagnostics = result
                 .diagnostics
                 .iter()
@@ -5174,8 +5232,8 @@ exclude = []
         let registration = validate_for_registration(
             &syntax,
             &semantics,
-            &ValidationPolicy::laboratory(),
-            &RegistrationPolicy::laboratory(),
+            &ValidationPolicy::custom(),
+            &RegistrationPolicy::custom(),
         );
         assert!(!registration.accepted);
         let percent_diagnostics = registration
@@ -5214,7 +5272,7 @@ exclude = []
         let incomplete_range = analysis.incomplete_range.unwrap();
         assert_eq!(syntax.slice(incomplete_range), Some("child"));
 
-        let policy = ValidationPolicy::laboratory();
+        let policy = ValidationPolicy::custom();
         let mut engine = Engine::new(&syntax, &policy);
         engine.validate_referenced_string_tex_specials_with_limit(1);
         let result = engine.finish();
@@ -5246,7 +5304,7 @@ exclude = []
         let incomplete_range = analysis.incomplete_range.unwrap();
         assert_eq!(syntax.slice(incomplete_range), Some("x"));
 
-        let policy = ValidationPolicy::laboratory();
+        let policy = ValidationPolicy::custom();
         let mut engine = Engine::new(&syntax, &policy);
         engine.validate_referenced_string_tex_specials_with_limit(4);
         let result = engine.finish();
@@ -5472,8 +5530,8 @@ exclude = []
     #[test]
     fn citation_key_fix_is_accepted_by_every_style_profile() {
         let source = "@misc{Bad_Key:2024, title={T},}\n";
-        let laboratory = ValidationPolicy::builtin("laboratory").unwrap();
-        let result = run(source, &laboratory);
+        let custom = ValidationPolicy::custom();
+        let result = run(source, &custom);
         let diagnostic = result
             .diagnostics
             .iter()
@@ -5488,7 +5546,7 @@ exclude = []
 
         assert_eq!(replacement, "bad-key-2024");
         assert_ne!(replacement, "Bad_Key:2024");
-        for profile in ["default", "modern", "laboratory", "acl", "classical-bst"] {
+        for profile in ["default", "modern", "acl", "classical-bst"] {
             let policy = ValidationPolicy::builtin(profile).unwrap();
             assert!(Regex::new(&policy.citation_key_pattern)
                 .unwrap()
@@ -5502,7 +5560,7 @@ exclude = []
         )
         .unwrap();
         let applied = apply_fix_plan(source, &plan).unwrap();
-        assert!(!run(&applied.source, &laboratory)
+        assert!(!run(&applied.source, &custom)
             .diagnostics
             .iter()
             .any(|diagnostic| diagnostic.code.as_str() == RULE_CITATION_KEY));
@@ -5518,7 +5576,7 @@ exclude = []
         ] {
             let normalized = normalize_citation_key(source);
             assert_eq!(normalized, expected);
-            for profile in ["default", "modern", "laboratory", "acl", "classical-bst"] {
+            for profile in ["default", "modern", "acl", "classical-bst"] {
                 let policy = ValidationPolicy::builtin(profile).unwrap();
                 assert!(Regex::new(&policy.citation_key_pattern)
                     .unwrap()
@@ -5528,46 +5586,44 @@ exclude = []
     }
 
     #[test]
-    fn archive_citation_key_fixes_are_only_offered_when_the_result_is_valid() {
+    fn archive_omits_custom_diagnostics() {
         let policy = ValidationPolicy::archive();
-
-        for citation_key in ["asada-2026any", "asada2026any", "asada-2026"] {
-            let source = format!("@misc{{{citation_key}, title={{T}},}}\n");
-            let result = run(&source, &policy);
-            let diagnostic = result
-                .diagnostics
-                .iter()
-                .find(|diagnostic| diagnostic.code.as_str() == RULE_CITATION_KEY)
-                .unwrap();
-            assert!(diagnostic.blocking);
-            assert!(
-                diagnostic.fixes.is_empty(),
-                "`{citation_key}` received an invalid automatic fix"
-            );
-        }
-
-        let source = "@misc{Asada-2026-Principled, title={T},}\n";
+        let source = "@misc{Unconventional_Key, url={https://example.test},}\n";
         let result = run(source, &policy);
-        let diagnostic = result
+
+        assert!(result
             .diagnostics
             .iter()
-            .find(|diagnostic| diagnostic.code.as_str() == RULE_CITATION_KEY)
-            .unwrap();
-        let fix = result
+            .all(|diagnostic| !diagnostic.code.as_str().starts_with("LAB-")));
+        assert!(result
             .fixes
             .iter()
-            .find(|fix| diagnostic.fixes.contains(&fix.id))
-            .unwrap();
-        assert_eq!(fix.edits[0].replacement, "asada-2026-principled");
+            .all(|fix| !fix.id.as_str().starts_with("LAB-")));
     }
 
     #[test]
-    fn laboratory_style_diagnostics_do_not_block_registration() {
+    fn modern_omits_custom_diagnostics() {
+        let policy = ValidationPolicy::modern();
+        let source = "@article{Unconventional_Key, title={T}, url={https://example.test},}\n";
+        let result = run(source, &policy);
+
+        assert!(result
+            .diagnostics
+            .iter()
+            .all(|diagnostic| !diagnostic.code.as_str().starts_with("LAB-")));
+        assert!(result
+            .fixes
+            .iter()
+            .all(|fix| !fix.id.as_str().starts_with("LAB-")));
+    }
+
+    #[test]
+    fn custom_style_diagnostics_do_not_block_registration() {
         let source = "@article{smith2024, YEAR={2024}, journal=\"J\", author={Doe, Jane}, title={T}, url={https://example.test}}\n";
         let syntax = parse(source, ParseOptions::tolerant());
         let semantics = analyze(&syntax);
-        let validation_policy = ValidationPolicy::laboratory();
-        let registration_policy = RegistrationPolicy::laboratory();
+        let validation_policy = ValidationPolicy::custom();
+        let registration_policy = RegistrationPolicy::custom();
         let result = validate_for_registration(
             &syntax,
             &semantics,
@@ -5613,6 +5669,14 @@ exclude = []
         for url_policy in [UrlPolicy::Discourage, UrlPolicy::Forbid] {
             let mut policy = ValidationPolicy::modern();
             policy.url_policy = url_policy;
+            policy.rules.insert(
+                RuleCode::new(RULE_URL_POLICY),
+                RuleSetting {
+                    enabled: true,
+                    severity: Severity::Information,
+                    blocking: false,
+                },
+            );
             let result = run(source, &policy);
             let diagnostic = result
                 .diagnostics
@@ -5629,15 +5693,15 @@ exclude = []
     }
 
     #[test]
-    fn laboratory_keeps_entry_internal_percent_comments_blocking() {
+    fn custom_keeps_entry_internal_percent_comments_blocking() {
         let source = "@misc{key, title = {T}, % move this comment\n}\n";
         let syntax = parse(source, ParseOptions::tolerant());
         let semantics = analyze(&syntax);
         let result = validate_for_registration(
             &syntax,
             &semantics,
-            &ValidationPolicy::laboratory(),
-            &RegistrationPolicy::laboratory(),
+            &ValidationPolicy::custom(),
+            &RegistrationPolicy::custom(),
         );
 
         assert!(!result.accepted);
@@ -5651,15 +5715,15 @@ exclude = []
     }
 
     #[test]
-    fn laboratory_registration_rejects_an_unescaped_percent_value() {
+    fn custom_registration_rejects_an_unescaped_percent_value() {
         let source = "@article{smith2024,\n  title = {100% Effective},\n  author = {Doe, Jane},\n  journal = {J},\n  year = {2024},\n}\n";
         let syntax = parse(source, ParseOptions::tolerant());
         let semantics = analyze(&syntax);
         let result = validate_for_registration(
             &syntax,
             &semantics,
-            &ValidationPolicy::laboratory(),
-            &RegistrationPolicy::laboratory(),
+            &ValidationPolicy::custom(),
+            &RegistrationPolicy::custom(),
         );
 
         assert!(!result.accepted);
@@ -5675,15 +5739,15 @@ exclude = []
     }
 
     #[test]
-    fn laboratory_registration_rejects_an_unescaped_percent_from_a_string_macro() {
+    fn custom_registration_rejects_an_unescaped_percent_from_a_string_macro() {
         let source = "@string{percenttitle={100% Effective}}\n@article{smith2024,\n  title = percenttitle,\n  author = {Doe, Jane},\n  journal = {J},\n  year = {2024},\n}\n";
         let syntax = parse(source, ParseOptions::tolerant());
         let semantics = analyze(&syntax);
         let result = validate_for_registration(
             &syntax,
             &semantics,
-            &ValidationPolicy::laboratory(),
-            &RegistrationPolicy::laboratory(),
+            &ValidationPolicy::custom(),
+            &RegistrationPolicy::custom(),
         );
 
         assert!(!result.accepted);
@@ -5699,15 +5763,15 @@ exclude = []
     }
 
     #[test]
-    fn laboratory_rejects_a_malformed_url_without_retention_guidance() {
+    fn custom_rejects_a_malformed_url_without_retention_guidance() {
         let source = "@article{smith2024, title = {T}, author = {Doe, Jane}, journal = {J}, year = {2024}, url = {not a URL},}\n";
         let syntax = parse(source, ParseOptions::tolerant());
         let semantics = analyze(&syntax);
         let result = validate_for_registration(
             &syntax,
             &semantics,
-            &ValidationPolicy::laboratory(),
-            &RegistrationPolicy::laboratory(),
+            &ValidationPolicy::custom(),
+            &RegistrationPolicy::custom(),
         );
 
         assert!(!result.accepted);
@@ -5726,7 +5790,7 @@ exclude = []
 
     #[test]
     fn canonical_validation_rules_replace_duplicate_semantic_diagnostics() {
-        let policy = ValidationPolicy::laboratory();
+        let policy = ValidationPolicy::custom();
         for (source, canonical, retired) in [
             (
                 "@misc{key, title = {T}, doi = {not-a-doi},}\n",

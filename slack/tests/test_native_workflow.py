@@ -10,7 +10,7 @@ def test_native_workflow_fixes_lint_and_keeps_unresolved_policy_findings() -> No
 
     result = bibmgr_native.export_source_workflow(
         source,
-        profile="laboratory",
+        profile="acl",
     )
 
     assert result.input_applied_fix_ids

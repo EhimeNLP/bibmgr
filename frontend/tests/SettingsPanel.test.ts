@@ -20,13 +20,13 @@ const configuration = {
   schema_version: "1" as const,
   export_profiles: [
     {
-      key: "laboratory",
+      key: "modern",
       data: {
         schema_version: "1" as const,
-        profile: "laboratory",
-        display_name: "Laboratory",
-        description: "Laboratory output.",
-        validation_profile: "laboratory",
+        profile: "modern",
+        display_name: "Modern BibTeX",
+        description: "Modern output.",
+        validation_profile: "modern",
         preprint_representation: "misc-eprint" as const,
         month_format: "numeric" as const,
         supported_entry_types: [],
@@ -101,7 +101,7 @@ beforeEach(() => {
   apiMocks.previewExportProfile.mockResolvedValue({
     schema_version: "1",
     source: "@misc{preview,\\n  title = {{Preview}},\\n}",
-    profile: "laboratory",
+    profile: "modern",
     venue_name_style: "full",
     record_count: 1,
     warnings: [],
@@ -140,15 +140,15 @@ describe("SettingsPanel", () => {
     await wrapper.get('[aria-label="Add export profile"]').trigger("click");
     await wrapper
       .get(".settings-field--identifier input")
-      .setValue("lab-compact");
+      .setValue("team-compact");
     await wrapper.get("form.settings-editor").trigger("submit");
     await flushPromises();
 
     expect(apiMocks.updateExportProfile).toHaveBeenCalledWith(
-      { key: "lab-compact", revision: 0 },
+      { key: "team-compact", revision: 0 },
       expect.objectContaining({
-        profile: "lab-compact",
-        display_name: "Laboratory Copy",
+        profile: "team-compact",
+        display_name: "Modern BibTeX Copy",
       }),
     );
     expect(wrapper.emitted("changed")).toHaveLength(1);
@@ -195,18 +195,18 @@ describe("SettingsPanel", () => {
     await flushPromises();
     await wrapper
       .get('textarea[required]')
-      .setValue("Updated laboratory output.");
+      .setValue("Updated modern output.");
     await wrapper.get("form.settings-editor").trigger("submit");
     await flushPromises();
 
     expect(apiMocks.updateExportProfile).toHaveBeenCalledWith(
       expect.objectContaining({
-        key: "laboratory",
+        key: "modern",
         revision: 0,
       }),
       expect.objectContaining({
-        profile: "laboratory",
-        description: "Updated laboratory output.",
+        profile: "modern",
+        description: "Updated modern output.",
       }),
     );
     expect(wrapper.emitted("changed")).toHaveLength(1);
@@ -359,7 +359,7 @@ describe("SettingsPanel", () => {
       .mockResolvedValueOnce(structuredClone(configuration));
     apiMocks.deleteExportProfile.mockResolvedValueOnce({
       schema_version: "1",
-      key: "laboratory",
+      key: "modern",
       revision: 2,
       reset: true,
     });
@@ -384,7 +384,7 @@ describe("SettingsPanel", () => {
 
     expect(apiMocks.deleteExportProfile).toHaveBeenCalledWith(
       expect.objectContaining({
-        key: "laboratory",
+        key: "modern",
         revision: 1,
       }),
     );
@@ -392,7 +392,7 @@ describe("SettingsPanel", () => {
       "Built-in profile · Default",
     );
     expect(wrapper.text()).toContain(
-      "laboratory was restored to its built-in definition.",
+      "modern was restored to its built-in definition.",
     );
 
     wrapper.unmount();
@@ -481,15 +481,15 @@ describe("SettingsPanel", () => {
       items: [
         {
           id: "profile-update",
-          key: "laboratory",
+          key: "modern",
           revision: 2,
           action: "update",
           before_data: {
-            profile: "laboratory",
+            profile: "modern",
             description: "Revision one.",
           },
           after_data: {
-            profile: "laboratory",
+            profile: "modern",
             description: "Revision two.",
           },
           occurred_at: "2026-07-30T10:15:00Z",
@@ -528,16 +528,16 @@ describe("SettingsPanel", () => {
       section: "export profile",
       kind: "export_profile",
       historyLabel: "View export profile history",
-      key: "laboratory",
+      key: "modern",
       before: {
-        profile: "laboratory",
-        display_name: "Laboratory",
+        profile: "modern",
+        display_name: "Modern BibTeX",
         description: "Original profile description.",
       },
       after: {
         description: "Updated profile description.",
-        display_name: "Laboratory",
-        profile: "laboratory",
+        display_name: "Modern BibTeX",
+        profile: "modern",
       },
       removed: '"description": "Original profile description."',
       added: '"description": "Updated profile description."',
@@ -635,7 +635,7 @@ describe("SettingsPanel", () => {
       items: [
         {
           id: "legacy-override",
-          key: "laboratory",
+          key: "modern",
           revision: 1,
           action: "override",
           before_data: null,

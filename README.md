@@ -10,16 +10,6 @@ Developing, testing, or building this repository from source requires the follow
 - Rust 1.86 or later (`rustc` and `cargo`): builds the CLI and Python native extension
 - Node.js 22.12 or later in the Node.js 22 release line, with npm 10 or later: manages frontend dependencies, the development server, tests, and production builds
 
-Before setup, verify that each command is available:
-
-```bash
-uv --version
-rustc --version
-cargo --version
-node --version
-npm --version
-```
-
 ## Setup
 
 Install the locked dependencies:
@@ -53,9 +43,7 @@ cargo install --git https://github.com/EhimeNLP/bibmgr.git --locked --force bibm
 Alternatively, Linux and macOS users can install a prebuilt binary without requiring Rust:
 
 ```bash
-curl --proto '=https' --tlsv1.2 -LsSf \
-  https://github.com/EhimeNLP/bibmgr/releases/latest/download/bibmgr-installer.sh |
-  sh
+curl -LsSf https://github.com/EhimeNLP/bibmgr/releases/latest/download/bibmgr-installer.sh | sh
 ```
 
 The installer verifies the release archive with SHA-256 and writes the `bibmgr` executable to `~/.local/bin` by default. If that directory is not already on `PATH`, add it in your shell configuration:
@@ -67,8 +55,7 @@ export PATH="$HOME/.local/bin:$PATH"
 Set `BIBMGR_INSTALL_DIR` to select another destination, or `BIBMGR_VERSION` to install a specific release. A version may be written with or without the leading `v`.
 
 ```bash
-curl --proto '=https' --tlsv1.2 -LsSf \
-  https://github.com/EhimeNLP/bibmgr/releases/latest/download/bibmgr-installer.sh |
+curl -LsSf https://github.com/EhimeNLP/bibmgr/releases/latest/download/bibmgr-installer.sh |
   BIBMGR_INSTALL_DIR="$HOME/bin" BIBMGR_VERSION=v0.1.0 sh
 ```
 
@@ -102,16 +89,16 @@ The following examples cover the basic commands. Use `bibmgr COMMAND --help` for
 
 ```bash
 # Lint
-bibmgr lint references.bib --profile laboratory
+bibmgr lint references.bib
 
 # Emit JSON for CI
-bibmgr lint references.bib --profile laboratory --format json
+bibmgr lint references.bib --format json
 
 # Preview safe, source-preserving fixes
 bibmgr fix references.bib --safe --dry-run
 
-# Export a separate file using the laboratory profile
-bibmgr export references.bib --profile laboratory --output references.exported.bib
+# Export a separate file using the default modern profile
+bibmgr export references.bib --output references.exported.bib
 
 # Return the export result as a JSON DTO
 bibmgr export references.bib --profile classical-bst --format json
@@ -145,6 +132,10 @@ uv run poe slack-up
 
 See [`docs/slack.md`](docs/slack.md) for the Slack website setup, token options, usage, and deployment-only profiles.
 
+## Initialization pipelines
+
+The optional out-of-band initialization pipeline is separate from the application dependency graph. See the [pipeline overview](pipeline/README.md) for the two-stage workflow, shared contracts, and boundaries; the stage-specific guides cover [metadata extraction](pipeline/metadata_extraction/README.md) and [BibTeX reconstruction](pipeline/bibtex_reconstruction/README.md). Neither stage registers records in the shared BibMgR library automatically.
+
 ## Development
 
 The reference library API uses PostgreSQL 18. Mailpit provides the development inbox for email authentication. If Docker is available, start both services and apply the database migrations:
@@ -164,7 +155,7 @@ To reset the development database to an empty current schema, run the following 
 uv run poe db-reset
 ```
 
-Set `BIBMGR_DATABASE_URL` to change the database connection. It defaults to `postgresql+psycopg://bibmgr:bibmgr@127.0.0.1:5432/bibmgr`. The server-owned `BIBMGR_REGISTRATION_POLICY` selects the registration policy and defaults to the source-preserving `archive` policy. Laboratory rules apply during export rather than registration. `BIBMGR_AUTH_EMAIL_DOMAIN` selects the exact permitted login domain; local development defaults to the reserved domain `example.test`, while production requires an explicit value.
+Set `BIBMGR_DATABASE_URL` to change the database connection. It defaults to `postgresql+psycopg://bibmgr:bibmgr@127.0.0.1:5432/bibmgr`. The server-owned `BIBMGR_REGISTRATION_POLICY` selects the registration policy and defaults to the source-preserving `archive` policy. Default analysis and export use `modern`; deployment-specific output conventions belong in a custom export profile. `BIBMGR_AUTH_EMAIL_DOMAIN` selects the exact permitted login domain; local development defaults to the reserved domain `example.test`, while production requires an explicit value.
 
 ```bash
 BIBMGR_DATABASE_URL=postgresql+psycopg://user:password@db.example/bibmgr \
@@ -266,4 +257,4 @@ The production backend requires `BIBMGR_ENV=production`, a secret file, SMTP con
 
 ## License
 
-The BibMgR application and libraries are distributed under the terms of either the [Apache License, Version 2.0](LICENSE-APACHE) or the [MIT License](LICENSE-MIT), at your option.
+The BibMgR application and libraries are distributed under the [MIT License](LICENSE).

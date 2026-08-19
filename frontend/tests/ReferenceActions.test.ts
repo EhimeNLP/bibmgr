@@ -35,13 +35,6 @@ const reference: Reference = {
 };
 const exportProfiles = [
   {
-    id: "laboratory",
-    display_name: "Laboratory",
-    description: "Laboratory-standard optimized BibTeX.",
-    validation_profile: "laboratory",
-    preprint_representation: "misc-eprint",
-  },
-  {
     id: "modern",
     display_name: "Modern",
     description: "General-purpose modern BibTeX.",
@@ -170,14 +163,14 @@ describe("ReferenceActions", () => {
     expect(bibtexApiMocks.exportBibtex).toHaveBeenCalledWith(
       {
         source: storedSource,
-        profile: "laboratory",
+        profile: "modern",
         venue_name_style: "full",
       },
       expect.objectContaining({ signal: expect.any(AbortSignal) }),
     );
     expect(
       wrapper.get('[data-testid="bibtex-export-preview"]').text(),
-    ).toBe(`${storedSource}\n% laboratory`);
+    ).toBe(`${storedSource}\n% modern`);
 
     await wrapper
       .get<HTMLTextAreaElement>("#reference-edit-bibtex")
@@ -187,7 +180,7 @@ describe("ReferenceActions", () => {
     expect(bibtexApiMocks.exportBibtex).toHaveBeenLastCalledWith(
       {
         source: submitted,
-        profile: "laboratory",
+        profile: "modern",
         venue_name_style: "full",
       },
       expect.objectContaining({ signal: expect.any(AbortSignal) }),

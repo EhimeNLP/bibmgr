@@ -96,13 +96,6 @@ class RecordingEngine:
                     "preprint_representation": "misc-eprint",
                 },
                 {
-                    "id": "laboratory",
-                    "display_name": "Laboratory",
-                    "description": "Laboratory repository output.",
-                    "validation_profile": "laboratory",
-                    "preprint_representation": "misc-eprint",
-                },
-                {
                     "id": "classical-bst",
                     "display_name": "Classical BibTeX",
                     "description": "Classical BibTeX output.",
@@ -247,7 +240,7 @@ def test_apply_fix_ids_are_forwarded_without_interpretation() -> None:
             "source": "@misc{key}",
             "source_revision": "sha256:" + "0" * 64,
             "fix_ids": ["LAB-ENTRY-003:0", "BIB-SYNTAX-004:0"],
-            "profile": "laboratory",
+            "profile": "acl",
         },
     )
 
@@ -263,7 +256,7 @@ def test_apply_fix_ids_are_forwarded_without_interpretation() -> None:
                 "@misc{key}",
                 "sha256:" + "0" * 64,
                 ["LAB-ENTRY-003:0", "BIB-SYNTAX-004:0"],
-                "laboratory",
+                "acl",
             ),
         )
     ]
@@ -307,12 +300,12 @@ def test_storage_canonicalization_uses_the_native_decision() -> None:
 
     response = client.post(
         "/bibtex/registration/canonicalize",
-        json={"source": source, "policy": "laboratory"},
+        json={"source": source, "policy": "modern"},
     )
 
     assert response.status_code == 200
     assert response.json()["source"] == source
-    assert engine.calls == [("canonicalize", (source, "laboratory"))]
+    assert engine.calls == [("canonicalize", (source, "modern"))]
 
 
 def test_export_is_a_separate_native_operation() -> None:
@@ -326,6 +319,37 @@ def test_export_is_a_separate_native_operation() -> None:
     assert response.status_code == 200
     assert response.json()["profile"] == "classical-bst"
     assert engine.calls == [("export", ("@misc{key}", "classical-bst"))]
+
+
+def test_bibtex_operation_defaults_use_the_modern_profile() -> None:
+    client, engine = client_and_engine()
+    source = "@misc{key}"
+    revision = "sha256:" + "0" * 64
+
+    assert client.post("/bibtex/analyze", json={"source": source}).status_code == 200
+    assert (
+        client.post(
+            "/bibtex/fixes/apply",
+            json={
+                "source": source,
+                "source_revision": revision,
+                "fix_ids": ["BIB-SYNTAX-004:0"],
+            },
+        ).status_code
+        == 200
+    )
+    export_response = client.post("/bibtex/export", json={"source": source})
+
+    assert export_response.status_code == 200
+    assert export_response.json()["profile"] == "modern"
+    assert engine.calls == [
+        ("analyze", (source, "modern", "tolerant")),
+        (
+            "apply_fixes",
+            (source, revision, ["BIB-SYNTAX-004:0"], "modern"),
+        ),
+        ("export", (source, "modern")),
+    ]
 
 
 def test_export_profile_catalog_uses_effective_application_configuration() -> None:
@@ -345,13 +369,6 @@ def test_export_profile_catalog_uses_effective_application_configuration() -> No
                 "preprint_representation": "misc-eprint",
             },
             {
-                "id": "laboratory",
-                "display_name": "Laboratory",
-                "description": "Laboratory repository output.",
-                "validation_profile": "laboratory",
-                "preprint_representation": "misc-eprint",
-            },
-            {
                 "id": "classical-bst",
                 "display_name": "Classical BibTeX",
                 "description": "Classical BibTeX output.",
@@ -366,13 +383,13 @@ def test_export_profile_catalog_uses_effective_application_configuration() -> No
 def test_export_profile_preview_uses_unsaved_data_without_writing_history() -> None:
     client, engine = client_and_engine()
     catalog = client.get("/settings/configuration").json()
-    laboratory = next(
+    modern = next(
         entry
         for entry in catalog["export_profiles"]
-        if entry["key"] == "laboratory"
+        if entry["key"] == "modern"
     )
     draft = {
-        **laboratory["data"],
+        **modern["data"],
         "description": "Unsaved preview configuration.",
     }
 
@@ -387,10 +404,10 @@ def test_export_profile_preview_uses_unsaved_data_without_writing_history() -> N
     )
 
     assert response.status_code == 200
-    assert response.json()["profile"] == "laboratory"
+    assert response.json()["profile"] == "modern"
     assert response.json()["venue_name_style"] == "abbreviated"
     assert engine.calls == [
-        ("export", ("@misc{preview, title={Preview}}", "laboratory"))
+        ("export", ("@misc{preview, title={Preview}}", "modern"))
     ]
     assert engine.export_profile_data == [draft]
     history = client.get(
@@ -406,24 +423,24 @@ def test_application_configuration_is_editable_with_revision_checks() -> None:
     catalog = client.get("/settings/configuration")
 
     assert catalog.status_code == 200
-    laboratory = next(
+    modern = next(
         entry
         for entry in catalog.json()["export_profiles"]
-        if entry["key"] == "laboratory"
+        if entry["key"] == "modern"
     )
     unchanged_builtin = client.put(
-        "/settings/export-profiles/laboratory",
-        json={"data": laboratory["data"], "expected_revision": 0},
+        "/settings/export-profiles/modern",
+        json={"data": modern["data"], "expected_revision": 0},
     )
     assert unchanged_builtin.status_code == 200
     assert unchanged_builtin.json()["setting"]["revision"] == 0
 
     updated_profile = {
-        **laboratory["data"],
-        "description": "Updated laboratory output.",
+        **modern["data"],
+        "description": "Updated modern output.",
     }
     saved = client.put(
-        "/settings/export-profiles/laboratory",
+        "/settings/export-profiles/modern",
         json={"data": updated_profile, "expected_revision": 0},
     )
     assert saved.status_code == 200
@@ -433,14 +450,14 @@ def test_application_configuration_is_editable_with_revision_checks() -> None:
     )
 
     unchanged_override = client.put(
-        "/settings/export-profiles/laboratory",
+        "/settings/export-profiles/modern",
         json={"data": updated_profile, "expected_revision": 1},
     )
     assert unchanged_override.status_code == 200
     assert unchanged_override.json()["setting"]["revision"] == 1
 
     stale = client.put(
-        "/settings/export-profiles/laboratory",
+        "/settings/export-profiles/modern",
         json={"data": updated_profile, "expected_revision": 0},
     )
     assert stale.status_code == 409
@@ -461,7 +478,7 @@ def test_application_configuration_is_editable_with_revision_checks() -> None:
     assert saved_venue.json()["setting"]["data"] == venue
 
     custom_profile = {
-        **laboratory["data"],
+        **modern["data"],
         "profile": "custom-profile",
         "display_name": "Custom Profile",
     }
@@ -486,21 +503,21 @@ def test_application_configuration_is_editable_with_revision_checks() -> None:
     )
 
     reset_profile = client.delete(
-        "/settings/export-profiles/laboratory",
+        "/settings/export-profiles/modern",
         params={"expected_revision": 1},
     )
     assert reset_profile.status_code == 200
     assert reset_profile.json()["reset"] is True
     reset_catalog = client.get("/settings/configuration").json()
-    reset_laboratory = next(
+    reset_modern = next(
         entry
         for entry in reset_catalog["export_profiles"]
-        if entry["key"] == "laboratory"
+        if entry["key"] == "modern"
     )
-    assert reset_laboratory["revision"] == 0
+    assert reset_modern["revision"] == 0
     assert (
-        reset_laboratory["data"]["description"]
-        == "Laboratory repository output."
+        reset_modern["data"]["description"]
+        == "Modern BibTeX output."
     )
 
     deleted_venue = client.delete(
@@ -531,8 +548,8 @@ def test_application_configuration_is_editable_with_revision_checks() -> None:
         (event["key"], event["revision"], event["action"])
         for event in profile_history.json()["items"]
     } == {
-        ("laboratory", 1, "override"),
-        ("laboratory", 2, "restore_default"),
+        ("modern", 1, "override"),
+        ("modern", 2, "restore_default"),
         ("custom-profile", 1, "create"),
         ("custom-profile", 2, "delete"),
     }
@@ -541,7 +558,7 @@ def test_application_configuration_is_editable_with_revision_checks() -> None:
         for event in profile_history.json()["items"]
         if event["action"] == "override"
     )
-    assert override_event["before_data"] == laboratory["data"]
+    assert override_event["before_data"] == modern["data"]
     assert override_event["after_data"] == updated_profile
     assert {
         field
@@ -636,7 +653,7 @@ def test_bibtex_operations_require_authentication() -> None:
             "/settings/export-profiles/preview",
             json={
                 "source": "@misc{key}",
-                "data": {"profile": "laboratory"},
+                "data": {"profile": "custom-profile"},
             },
         ).status_code
         == 401

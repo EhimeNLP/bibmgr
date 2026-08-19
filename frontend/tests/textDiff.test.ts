@@ -62,8 +62,8 @@ describe("createTextDiff", () => {
 describe("createJsonDiff", () => {
   it("does not treat object property order as a change", () => {
     const diff = createJsonDiff(
-      { profile: "laboratory", description: "Laboratory output." },
-      { description: "Laboratory output.", profile: "laboratory" },
+      { profile: "custom-profile", description: "Custom output." },
+      { description: "Custom output.", profile: "custom-profile" },
     );
 
     expect(diff.additions).toBe(0);
@@ -75,14 +75,14 @@ describe("createJsonDiff", () => {
     {
       label: "export profile",
       before: {
-        profile: "laboratory",
-        display_name: "Laboratory",
+        profile: "custom-profile",
+        display_name: "Custom Profile",
         description: "Original profile description.",
       },
       after: {
         description: "Updated profile description.",
-        display_name: "Laboratory",
-        profile: "laboratory",
+        display_name: "Custom Profile",
+        profile: "custom-profile",
       },
       removed: '"description": "Original profile description."',
       added: '"description": "Updated profile description."',

@@ -15,7 +15,6 @@ config/
 |  |- information-processing-society-of-japan-japanese.toml
 |  |- japanese-society-for-artificial-intelligence-journal.toml
 |  |- journal-of-natural-language-processing-japanese.toml
-|  |- laboratory.toml
 |  |- legacy-arxiv-article.toml
 |  |- lrec-language-resources.toml
 |  |- machine-learning-conferences.toml
@@ -24,7 +23,6 @@ config/
 |  `- springer-lncs.toml
 |- policies/
 |  |- archive.toml
-|  |- laboratory.toml
 |  |- modern.toml
 |  |- acl.toml
 |  `- classical-bst.toml
@@ -43,7 +41,7 @@ Rust hosts can inject immutable `VenueRegistry` and `RepositoryRegistry` snapsho
 
 ```toml
 schema_version = "1"
-profile = "laboratory"
+profile = "team-strict"
 field_case = "canonical"
 field_order = ["title", "author", "booktitle", "pages", "year", "doi", "url"]
 citation_key_pattern = '^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$'
@@ -70,7 +68,7 @@ The syntax style catalog includes `BIB-SYNTAX-006`, which normalizes each simple
 
 The TeX-special rule excludes raw identifier fields used for URLs, repository identifiers, and publication identifiers, plus literal content only inside complete braced arguments of `\url{...}`, `\nolinkurl{...}`, and `\path{...}`. Complete delimiter forms of `\verb`, `\verb*`, `\Verb`, and `\lstinline` are treated as verbatim and are not diagnosed, while incomplete or ambiguous literal forms and ordinary TeX command arguments require confirmation. Referenced `@string` definitions are followed recursively in the context of every consuming field; simple aliases retain the leaf applicability, command or math context that crosses a macro or concatenation boundary requires confirmation, a definition used only by excluded fields is not diagnosed, and a definition shared by prose and excluded fields is diagnosed without an automatic fix. Macro traversal is bounded by global visit and expansion-depth limits; if either limit is reached before traversal completes, an incomplete-analysis diagnostic is emitted and automatic fixes for all referenced `@string` values are disabled.
 
-The `archive` profile is the database-ingest boundary. It preserves field spelling and order, has no required or forbidden fields, accepts unresolved semantics, and leaves only strict parser diagnostics blocking. It never applies fixes. The `laboratory` validation profile remains available for linting and for validating generated laboratory output; its field spelling, field order, required-data, and representation rules do not decide whether source may be archived. No URL policy offers a metadata-deleting fix.
+The `archive` profile is the database-ingest boundary. It preserves field spelling and order, has no required or forbidden fields, disables optional profile conventions, accepts unresolved semantics, and leaves only strict parser diagnostics blocking. It never applies fixes. General analysis and export default to `modern`, which also disables those optional convention rules. The remaining built-in validation profiles are target-oriented; deployment-specific output conventions should be expressed as custom export profiles. No URL policy offers a metadata-deleting fix.
 
 The duplicate semantic analyzer codes `BIB-SEMANTIC-103`, `BIB-SEMANTIC-104`, and `BIB-SEMANTIC-105` are retired in favor of the canonical DOI, arXiv, and date codes `BIB-SEMANTIC-001`, `BIB-SEMANTIC-002`, and `BIB-SEMANTIC-007`. TOML loaders migrate the retired codes to their canonical replacements and reject conflicting settings.
 
@@ -86,7 +84,7 @@ Registration resolves one validation profile and then applies independent accept
 let policy = RegistrationPolicy::archive();
 ```
 
-This selects validation profile `archive`, sets `minimum_severity` to `None`, allows unresolved semantics, applies no fixes, and adds no blocking-rule selectors. Severity alone therefore cannot block archival. Diagnostics already marked blocking by the `archive` validation profile are still honored; those are strict parser diagnostics. The core returns the final `accepted` decision, and adapters do not re-evaluate these fields. The stricter `laboratory` registration policy remains selectable for deployments that intentionally want profile-gated ingest, but it is not the application default.
+This selects validation profile `archive`, sets `minimum_severity` to `None`, allows unresolved semantics, applies no fixes, and adds no blocking-rule selectors. Severity alone therefore cannot block archival. Diagnostics already marked blocking by the `archive` validation profile are still honored; those are strict parser diagnostics. The core returns the final `accepted` decision, and adapters do not re-evaluate these fields. Deployments that intentionally require profile-gated ingest may select `modern`, `acl`, or `classical-bst`; custom export profiles never weaken the server-owned registration policy.
 
 ## Export profile
 
@@ -96,7 +94,7 @@ Export profiles are typed separately and include serialization-only fields such 
 - `misc-howpublished`: `@misc` and `howpublished`;
 - `article-journal`: legacy `@article` and `journal`.
 
-The validation catalog contains `archive`, `modern`, `laboratory`, `acl`, and `classical-bst`; `archive` is reserved for ingest and is not an export profile. Export profiles with another matching ID still resolve to a separate typed value. Artifact-derived export profiles explicitly reuse the closest validation policy: `aaai`, `acm-publications`, `ieee-publications`, `ml-conferences`, and `springer-lncs` use `modern`; `lrec` uses `acl`; `eamt`, both IPSJ profiles, `jnlp-japanese`, `jsai-journal`, and `natbib-full-author-names` use `classical-bst`. `legacy-arxiv-article` also uses `modern`.
+The validation catalog contains `archive`, `modern`, `acl`, and `classical-bst`; `archive` is reserved for ingest and is not an export profile. Export profiles with another matching ID still resolve to a separate typed value. Artifact-derived export profiles explicitly reuse the closest validation policy: `aaai`, `acm-publications`, `ieee-publications`, `ml-conferences`, and `springer-lncs` use `modern`; `lrec` uses `acl`; `eamt`, both IPSJ profiles, `jnlp-japanese`, `jsai-journal`, and `natbib-full-author-names` use `classical-bst`. `legacy-arxiv-article` also uses `modern`.
 
 These reused validation policies are general readiness baselines rather than complete validators for each referenced BST; target-specific field and entry-type compatibility is enforced by the export profile, while the selected validation policy checks the generated document's shared syntax and semantic requirements.
 
@@ -104,10 +102,10 @@ Each checked-in output profile is a complete TOML document and includes user-fac
 
 ```toml
 schema_version = "1"
-profile = "laboratory"
-display_name = "Laboratory Canonical"
-description = "Canonical laboratory output with case-protected titles, preserved URLs, and a compact field projection."
-validation_profile = "laboratory"
+profile = "team-canonical"
+display_name = "Team Canonical"
+description = "Team-wide BibTeX with protected titles and a compact field projection."
+validation_profile = "modern"
 preprint_representation = "misc-eprint"
 field_case = "canonical"
 case_protected_fields = ["title"]
@@ -121,7 +119,63 @@ excluded_fields = []
 
 `field_order` controls only serialization order and never implicitly deletes a field. `field_selection.allowed_fields` is a case-insensitive allowlist applied to every generated candidate field, including structured identifiers and extra fields; omitting it allows every candidate. `field_selection.excluded_fields` is a case-insensitive denylist applied after the allowlist. Invalid names, duplicates, and fields present in both lists are rejected while loading.
 
-`case_protected_fields` is a case-insensitive list of fields whose complete resolved value receives one additional brace group before the configured value delimiter is applied. With brace delimiters, `title = {An LLM Study}` therefore becomes `title = {{An LLM Study}}`, preventing traditional BST `change.case$` processing from lowercasing ungrouped title characters. The laboratory profile protects `title`; other profiles leave the list empty. Export recognizes an existing complete protection group, so repeated export does not add braces. Do not apply whole-value protection to `author` or `editor`, because a surrounding group changes BibTeX name-list semantics.
+`case_protected_fields` is a case-insensitive list of fields whose complete resolved value receives one additional brace group before the configured value delimiter is applied. With brace delimiters, `title = {An LLM Study}` therefore becomes `title = {{An LLM Study}}`, preventing traditional BST `change.case$` processing from lowercasing ungrouped title characters. The example profile protects `title`. Export recognizes an existing complete protection group, so repeated export does not add braces. Do not apply whole-value protection to `author` or `editor`, because a surrounding group changes BibTeX name-list semantics.
+
+## Custom export profile example
+
+The complete [team-canonical profile](examples/team-canonical-export-profile.json) demonstrates a deployment-specific field projection while reusing the built-in `modern` validation policy. The `profile` value is the stable ID used when the profile is added and applied. `validation_profile` must name an available validation policy; a custom export profile does not create a new validation policy implicitly.
+
+To validate and apply the file locally without changing shared application configuration:
+
+```python
+import json
+from pathlib import Path
+
+import bibmgr_native
+
+profile_json = Path(
+    "docs/examples/team-canonical-export-profile.json"
+).read_text()
+profile = json.loads(
+    bibmgr_native.validate_export_profile(profile_json)
+)["profile"]
+result = bibmgr_native.export_source(
+    source,
+    profile=profile["profile"],
+    profile_json=json.dumps(profile),
+)
+print(result.source)
+```
+
+To add the same definition to the shared web-application catalog, open **Application settings**, choose **Add export profile**, copy `modern`, set the ID to `team-canonical`, apply the values from the example, and save. The equivalent API sequence below assumes `session` is already authenticated and `csrf_token` came from the login response:
+
+```python
+import json
+from pathlib import Path
+
+profile = json.loads(
+    Path("docs/examples/team-canonical-export-profile.json").read_text()
+)
+saved = session.put(
+    f"{base_url}/settings/export-profiles/team-canonical",
+    headers={"X-CSRF-Token": csrf_token},
+    json={"data": profile, "expected_revision": 0},
+)
+saved.raise_for_status()
+
+exported = session.post(
+    f"{base_url}/bibtex/export",
+    json={
+        "source": source,
+        "profile": "team-canonical",
+        "venue_name_style": "full",
+    },
+)
+exported.raise_for_status()
+print(exported.json()["source"])
+```
+
+After the `PUT`, `team-canonical` appears in `GET /bibtex/export/profiles` and in every profile selector. The profile ID in the request path, the document's `profile` field, and the export request must match exactly. Creating a profile uses `expected_revision = 0`; subsequent edits use the revision returned by the previous save.
 
 ## Application overrides
 
@@ -146,7 +200,6 @@ During semantic export, prose text escapes raw `%`, `&`, `#`, and `_`, renders a
 | Export profile | Configuration file | BST reference or role | Intended optimization |
 | --- | --- | --- | --- |
 | `modern` | `modern.toml` | General-purpose built-in | Modern BibTeX with structured identifiers, `eprint` metadata, and preserved supported extras |
-| `laboratory` | `laboratory.toml` | Laboratory convention | Whole-title case protection, canonical field spelling, `misc-eprint`, preserved URL metadata, and no private local metadata |
 | `acl` | `acl-publications.toml` | `acl_natbib.bst` | ACL publication fields, including DOI, renamed `pubmed`, eprint, and web metadata |
 | `aaai` | `aaai-conference.toml` | `aaai2026.bst` | AAAI publication, ISBN, EID, and eprint fields without DOI or URL |
 | `acm-publications` | `acm-publications.toml` | `ACM-Reference-Format.bst` | ACM identifiers, eprints, and ACM-specific publication metadata |
