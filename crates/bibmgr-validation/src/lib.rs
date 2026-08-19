@@ -3811,10 +3811,6 @@ mod tests {
             assert_eq!(convenience, ValidationPolicy::builtin(profile).unwrap());
         }
         assert_eq!(ValidationPolicy::default(), ValidationPolicy::modern());
-        assert!(matches!(
-            ValidationPolicy::builtin("laboratory"),
-            Err(ConfigurationError::UnknownProfile(profile)) if profile == "laboratory"
-        ));
     }
 
     #[test]

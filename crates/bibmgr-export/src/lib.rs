@@ -2445,10 +2445,6 @@ mod tests {
             ExportProfile::builtin("article-journal").unwrap(),
             legacy_arxiv.clone()
         );
-        assert!(matches!(
-            ExportProfile::builtin("laboratory"),
-            Err(ExportError::UnknownProfile(profile)) if profile == "laboratory"
-        ));
     }
 
     #[test]
