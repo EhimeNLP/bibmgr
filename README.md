@@ -132,6 +132,10 @@ uv run poe slack-up
 
 See [`docs/slack.md`](docs/slack.md) for the Slack website setup, token options, usage, and deployment-only profiles.
 
+## Initialization pipelines
+
+The optional out-of-band initialization pipeline is separate from the application dependency graph. See the [pipeline overview](pipeline/README.md) for the two-stage workflow, shared contracts, and boundaries; the stage-specific guides cover [metadata extraction](pipeline/metadata_extraction/README.md) and [BibTeX reconstruction](pipeline/bibtex_reconstruction/README.md). Neither stage registers records in the shared BibMgR library automatically.
+
 ## Development
 
 The reference library API uses PostgreSQL 18. Mailpit provides the development inbox for email authentication. If Docker is available, start both services and apply the database migrations:
