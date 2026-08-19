@@ -7,12 +7,12 @@ The Vue 3 + TypeScript client provides authenticated reference search, BibTeX va
 The interface currently supports:
 
 - paginated free-text and structured search by year, author, venue, identifier, entry type, creator, updated range, and sort order;
-- one profile-controlled preview that exports with the laboratory profile and full venue names by default, with an independent abbreviated venue-name option;
+- one profile-controlled preview that exports with the modern profile and full venue names by default, with an independent abbreviated venue-name option;
 - citation-context display;
 - manual and `.bib` batch registration that stores accepted source without profile-driven rewriting while showing an independent profile-selectable output preview;
 - revision-checked edit and delete actions;
 - paginated append-only history and confirmation-based restore;
-- login through the laboratory domain or an exact operator-approved external address;
+- login through the configured email domain or an exact operator-approved external address;
 - explicit sign-out confirmation and automatic login recovery after session expiry;
 - shared, revision-checked export-profile and venue-mapping settings with actor-attributed history, including deleted settings;
 - Bootstrap Icons through one shared icon component instead of component-owned SVG paths;

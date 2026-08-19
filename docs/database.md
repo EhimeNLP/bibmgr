@@ -2,7 +2,7 @@
 
 ## Storage model
 
-PostgreSQL is the source of truth. Stable query and identity fields are relational, the accepted BibTeX entry is stored without profile-driven rewriting as `TEXT`, and the complete semantic record returned by `bibmgr-core` is stored as `JSONB`. The JSONB snapshot retains provenance, confidence, unresolved values, and additive fields without making them the only query representation. The physical text column retains the legacy name `raw_bibtex`, while application code and history DTOs retain the legacy name `canonical_bibtex`; both names now refer to the lossless stored source rather than laboratory-formatted output.
+PostgreSQL is the source of truth. Stable query and identity fields are relational, the accepted BibTeX entry is stored without profile-driven rewriting as `TEXT`, and the complete semantic record returned by `bibmgr-core` is stored as `JSONB`. The JSONB snapshot retains provenance, confidence, unresolved values, and additive fields without making them the only query representation. The physical text column retains the legacy name `raw_bibtex`, while application code and history DTOs retain the legacy name `canonical_bibtex`; both names now refer to the lossless stored source rather than profile-formatted output.
 
 ```mermaid
 erDiagram

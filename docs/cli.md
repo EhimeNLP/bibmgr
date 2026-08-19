@@ -41,7 +41,7 @@ Warnings alone do not determine the exit status; the resolved policy's `blocking
 
 ## Profiles and configuration
 
-The default profile is `modern` for lint, fix, and export. It excludes `LAB-*` rules. Use `--profile ID` to select another embedded profile, including `laboratory` when its repository conventions are required. `--venue-name full|abbreviated` selects venue rendering independently of the profile and defaults to `full`; it affects conference, journal, and other venue-derived fields. An invalid profile or venue-name value is an exit-code-2 configuration error. See [Configuration](configuration.md).
+The default profile is `modern` for lint, fix, and export. It excludes optional profile-convention rules. Use `--profile ID` to select another embedded profile. The standalone CLI accepts embedded profiles only; deployment-specific profiles are added and applied through the web application or supplied directly through the Python API as described in [Configuration](configuration.md). `--venue-name full|abbreviated` selects venue rendering independently of the profile and defaults to `full`; it affects conference, journal, and other venue-derived fields. An invalid profile or venue-name value is an exit-code-2 configuration error.
 
 ## Automation examples
 

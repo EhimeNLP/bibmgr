@@ -155,7 +155,7 @@ To reset the development database to an empty current schema, run the following 
 uv run poe db-reset
 ```
 
-Set `BIBMGR_DATABASE_URL` to change the database connection. It defaults to `postgresql+psycopg://bibmgr:bibmgr@127.0.0.1:5432/bibmgr`. The server-owned `BIBMGR_REGISTRATION_POLICY` selects the registration policy and defaults to the source-preserving `archive` policy. Default analysis and export use `modern`; `LAB-*` rules run only when a laboratory-oriented profile is selected explicitly. `BIBMGR_AUTH_EMAIL_DOMAIN` selects the exact permitted login domain; local development defaults to the reserved domain `example.test`, while production requires an explicit value.
+Set `BIBMGR_DATABASE_URL` to change the database connection. It defaults to `postgresql+psycopg://bibmgr:bibmgr@127.0.0.1:5432/bibmgr`. The server-owned `BIBMGR_REGISTRATION_POLICY` selects the registration policy and defaults to the source-preserving `archive` policy. Default analysis and export use `modern`; deployment-specific output conventions belong in a custom export profile. `BIBMGR_AUTH_EMAIL_DOMAIN` selects the exact permitted login domain; local development defaults to the reserved domain `example.test`, while production requires an explicit value.
 
 ```bash
 BIBMGR_DATABASE_URL=postgresql+psycopg://user:password@db.example/bibmgr \
