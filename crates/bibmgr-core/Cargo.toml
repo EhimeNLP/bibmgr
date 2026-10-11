@@ -12,6 +12,7 @@ publish.workspace = true
 bibmgr-edit.workspace = true
 bibmgr-export.workspace = true
 bibmgr-model.workspace = true
+bibmgr-search = { workspace = true, optional = true }
 bibmgr-semantics.workspace = true
 bibmgr-syntax.workspace = true
 bibmgr-validation.workspace = true
@@ -20,6 +21,9 @@ thiserror.workspace = true
 
 [dev-dependencies]
 serde_json.workspace = true
+
+[features]
+search = ["dep:bibmgr-search"]
 
 [lints]
 workspace = true

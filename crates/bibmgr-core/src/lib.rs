@@ -12,6 +12,8 @@ pub use bibmgr_model::{
     TextEdit, TextRange, SCHEMA_VERSION,
 };
 pub use bibmgr_model::{ProfileId, Severity};
+#[cfg(feature = "search")]
+pub use bibmgr_search::{SearchDocument, SearchError, SearchIndex, SearchPage, SearchRequest};
 pub use bibmgr_semantics::Bibliography;
 pub use bibmgr_syntax::{ParseMode, ParseOptions, ParseStatus, SyntaxSummary};
 pub use bibmgr_validation::{
