@@ -6,6 +6,7 @@ The FastAPI backend exposes the shared Rust BibTeX engine and a PostgreSQL-backe
 
 - Store accepted BibTeX source without profile-driven rewriting.
 - Project semantic records into searchable relational data while retaining complete snapshots in append-only history.
+- Synchronize committed reference changes into process-local Tantivy indexes for ranked, typo-tolerant Japanese and English search.
 - Provide authenticated reference, BibTeX, configuration, and history APIs.
 - Enforce session, CSRF, optimistic-revision, request-size, and rate-limit boundaries.
 - Expose liveness, readiness, structured logs, and private Prometheus metrics for operations.
@@ -39,6 +40,8 @@ BIBMGR_ENV=development bibmgr-db reset --yes
 ```
 
 Production startup must run `bibmgr-db upgrade` before starting the application. Migrations are packaged in the backend wheel; importing or starting the service never creates or migrates tables automatically.
+
+The native build downloads and embeds the IPADIC dictionary used by Lindera; serving searches requires no dictionary download or external search service. Each backend process rebuilds its in-memory search index on the first non-empty query and applies committed changes before later searches. Allow for that initial build latency and per-process index memory when sizing a deployment.
 
 ## Configuration
 
