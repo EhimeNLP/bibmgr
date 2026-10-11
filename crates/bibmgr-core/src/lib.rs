@@ -1061,8 +1061,8 @@ mod tests {
 
         let repeated = apply_safe_fixes(&applied.source, &options).unwrap();
         assert_eq!(repeated.source, applied.source);
-        assert!(repeated.applied_fix_ids.is_empty());
-        assert!(repeated.diff.is_empty());
+        assert_eq!(repeated.applied_fix_ids, [] as [bibmgr_model::FixId; 0]);
+        assert_eq!(repeated.diff, "");
     }
 
     #[test]
@@ -1325,7 +1325,7 @@ kind = "conference"
         )
         .unwrap();
 
-        assert!(!result.input_applied_fix_ids.is_empty());
+        assert_ne!(result.input_applied_fix_ids, [] as [bibmgr_model::FixId; 0]);
         assert!(result.source.contains("title ="));
         assert!(result
             .input_diagnostics
@@ -1413,7 +1413,7 @@ kind = "conference"
             .diagnostics
             .iter()
             .all(|diagnostic| !diagnostic.blocking));
-        assert!(result.applied_fix_ids.is_empty());
+        assert_eq!(result.applied_fix_ids, [] as [bibmgr_model::FixId; 0]);
     }
 
     #[test]
@@ -1496,12 +1496,12 @@ kind = "conference"
         assert!(result.source.contains("archiveprefix = {arXiv}"));
         assert!(result.source.contains("primaryclass = {cs.CL}"));
         assert!(result.source.contains("url = {https://example.test/paper}"));
-        assert!(!result.applied_fix_ids.is_empty());
+        assert_ne!(result.applied_fix_ids, [] as [bibmgr_model::FixId; 0]);
 
         let repeated = canonicalize_for_storage(&result.source, &policy);
         assert!(repeated.accepted);
         assert_eq!(repeated.source, result.source);
-        assert!(repeated.applied_fix_ids.is_empty());
+        assert_eq!(repeated.applied_fix_ids, [] as [bibmgr_model::FixId; 0]);
     }
 
     #[test]

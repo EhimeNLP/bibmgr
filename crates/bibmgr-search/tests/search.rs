@@ -187,10 +187,13 @@ fn filters_before_counting_and_paginating_and_updates_incrementally() {
     assert_eq!(page.total, 9);
     assert_eq!(page.ids, ["17", "15"]);
     search.offset = 100;
-    assert!(index.search(&search).unwrap().ids.is_empty());
+    assert_eq!(
+        index.search(&search).unwrap().ids,
+        [] as [std::string::String; 0]
+    );
     search.offset = usize::MAX;
     let page = index.search(&search).unwrap();
-    assert!(page.ids.is_empty());
+    assert_eq!(page.ids, [] as [std::string::String; 0]);
     assert_eq!(page.total, 9);
 }
 

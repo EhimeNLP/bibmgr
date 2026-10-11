@@ -560,9 +560,7 @@ pub struct RepositoryEntity {
 
 impl RepositoryEntity {
     pub fn accepts_identifier(&self, identifier: &str) -> bool {
-        Regex::new(&self.identifier_pattern)
-            .ok()
-            .is_some_and(|pattern| pattern.is_match(identifier))
+        Regex::new(&self.identifier_pattern).is_ok_and(|pattern| pattern.is_match(identifier))
     }
 
     pub fn identifier_url(&self, identifier: &str) -> Option<String> {
@@ -4163,7 +4161,7 @@ exclude = []
             diagnostic.primary_location.as_ref().unwrap().range,
             TextRange::checked(start, end).unwrap()
         );
-        assert!(diagnostic.fixes.is_empty());
+        assert_eq!(diagnostic.fixes, [] as [bibmgr_model::FixId; 0]);
         assert!(!result
             .fixes
             .iter()
@@ -4650,7 +4648,7 @@ exclude = []
         assert_eq!(diagnostics.len(), 1);
         assert!(diagnostics[0].message.contains("`title`"));
         assert!(diagnostics[0].message.contains("`url`"));
-        assert!(diagnostics[0].fixes.is_empty());
+        assert_eq!(diagnostics[0].fixes, [] as [bibmgr_model::FixId; 0]);
     }
 
     #[test]
@@ -4708,7 +4706,7 @@ exclude = []
         );
         assert!(diagnostics[0].message.contains("`title`"));
         assert!(diagnostics[0].message.contains("`url`"));
-        assert!(diagnostics[0].fixes.is_empty());
+        assert_eq!(diagnostics[0].fixes, [] as [bibmgr_model::FixId; 0]);
     }
 
     #[test]
@@ -5055,7 +5053,7 @@ exclude = []
         );
         assert!(diagnostics[0].message.contains("`archived`"));
         assert!(diagnostics[0].message.contains("`title`"));
-        assert!(diagnostics[0].fixes.is_empty());
+        assert_eq!(diagnostics[0].fixes, [] as [bibmgr_model::FixId; 0]);
     }
 
     #[test]
@@ -5087,7 +5085,7 @@ exclude = []
                 .filter(|diagnostic| diagnostic.code.as_str() == RULE_UNESCAPED_PERCENT)
                 .collect::<Vec<_>>();
             assert_eq!(diagnostics.len(), 1);
-            assert!(diagnostics[0].fixes.is_empty());
+            assert_eq!(diagnostics[0].fixes, [] as [bibmgr_model::FixId; 0]);
             assert!(diagnostics[0]
                 .notes
                 .iter()
@@ -5254,7 +5252,7 @@ exclude = []
             })
             .expect("depth-limit incomplete diagnostic");
         assert!(incomplete.blocking);
-        assert!(incomplete.fixes.is_empty());
+        assert_eq!(incomplete.fixes, [] as [bibmgr_model::FixId; 0]);
         assert_eq!(
             incomplete.primary_location.as_ref().unwrap().range,
             incomplete_range
@@ -5290,7 +5288,7 @@ exclude = []
             .iter()
             .any(|diagnostic| diagnostic.message.contains("incomplete")));
         assert!(result.has_blocking_diagnostics());
-        assert!(result.fixes.is_empty());
+        assert_eq!(result.fixes, [] as [bibmgr_model::Fix; 0]);
     }
 
     #[test]
@@ -5321,7 +5319,7 @@ exclude = []
         assert!(diagnostics
             .iter()
             .any(|diagnostic| diagnostic.message.contains("incomplete")));
-        assert!(result.fixes.is_empty());
+        assert_eq!(result.fixes, [] as [bibmgr_model::Fix; 0]);
     }
 
     #[test]
@@ -5684,7 +5682,7 @@ exclude = []
                 .find(|diagnostic| diagnostic.code.as_str() == RULE_URL_POLICY)
                 .expect("missing URL projection guidance");
 
-            assert!(diagnostic.fixes.is_empty());
+            assert_eq!(diagnostic.fixes, [] as [bibmgr_model::FixId; 0]);
             assert!(result
                 .fixes
                 .iter()
@@ -5863,7 +5861,10 @@ exclude = []
             let syntax = parse(source, ParseOptions::tolerant());
             let semantics = analyze(&syntax);
             let validation = validate(&syntax, &semantics, &validation_policy);
-            assert!(semantics.records.is_empty());
+            assert_eq!(
+                semantics.records,
+                [] as [bibmgr_semantics::BibliographicRecord; 0]
+            );
             assert!(!registration_allowed(
                 &validation.diagnostics,
                 &semantics,
