@@ -171,6 +171,28 @@ class NativeEngine:
         return dto
 
 
+class NativeSearchIndex:
+    """Owned search index; all tokenization and ranking live in Rust."""
+
+    def __init__(self) -> None:
+        try:
+            self._index = NativeEngine().native.SearchIndex()
+        except Exception as error:
+            raise NativeCallError("search_unavailable", str(error), 503) from error
+
+    def apply(self, documents: list[dict[str, Any]], deleted_ids: list[str]) -> None:
+        try:
+            self._index.apply(json.dumps(documents), deleted_ids)
+        except Exception as error:
+            raise NativeCallError("search_unavailable", str(error), 503) from error
+
+    def search(self, request: dict[str, Any]) -> dict[str, Any]:
+        try:
+            return self._index.search(json.dumps(request))
+        except Exception as error:
+            raise NativeCallError("search_unavailable", str(error), 503) from error
+
+
 def _optional_json(value: dict[str, Any] | None) -> str | None:
     if value is None:
         return None

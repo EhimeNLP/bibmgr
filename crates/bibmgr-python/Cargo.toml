@@ -13,7 +13,7 @@ name = "bibmgr_native"
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
-bibmgr-core.workspace = true
+bibmgr-core = { workspace = true, features = ["search"] }
 pyo3.workspace = true
 serde.workspace = true
 serde_json.workspace = true
