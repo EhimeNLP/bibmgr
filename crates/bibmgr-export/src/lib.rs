@@ -3604,7 +3604,10 @@ validation_profile = "modern"
         let mut conflicting = bibliography(
             "@article{k, title={T}, journal={J}, year={2024}, doi={10.1000/one}, url={https://doi.org/10.1000/two},}\n",
         );
-        assert!(!conflicting.records[0].conflicts.is_empty());
+        assert_ne!(
+            conflicting.records[0].conflicts,
+            [] as [bibmgr_semantics::SemanticConflict; 0]
+        );
         conflicting.records[0].ambiguities.clear();
         assert!(matches!(
             export(&conflicting, &ExportProfile::modern()),

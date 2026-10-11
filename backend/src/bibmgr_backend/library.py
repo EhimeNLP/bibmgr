@@ -27,6 +27,7 @@ from .models import (
     CitationContextResponse,
     ReferenceResponse,
 )
+from .search import ReferenceSearch, mark_search_change, timestamp
 
 
 class RegistrationEngine(Protocol):
@@ -101,6 +102,7 @@ class InvalidRegistrationResultError(LibraryError):
 class ReferenceLibrary:
     def __init__(self, engine: RegistrationEngine) -> None:
         self.engine = engine
+        self.search_index = ReferenceSearch()
 
     def search(
         self,
@@ -117,10 +119,13 @@ class ReferenceLibrary:
         created_by: str | None = None,
         updated_from: datetime | None = None,
         updated_to: datetime | None = None,
-        sort: str = "updated_desc",
+        sort: str = "relevance",
     ) -> list[ReferenceRecord]:
-        statement = self._search_statement(
+        records, _total = self.search_page(
+            session,
             query,
+            limit=limit,
+            offset=offset,
             year=year,
             author=author,
             venue=venue,
@@ -131,8 +136,7 @@ class ReferenceLibrary:
             updated_to=updated_to,
             sort=sort,
         )
-        statement = statement.offset(offset).limit(limit)
-        return list(session.scalars(statement).unique())
+        return records
 
     def search_page(
         self,
@@ -149,10 +153,43 @@ class ReferenceLibrary:
         created_by: str | None = None,
         updated_from: datetime | None = None,
         updated_to: datetime | None = None,
-        sort: str = "updated_desc",
+        sort: str = "relevance",
     ) -> tuple[list[ReferenceRecord], int]:
-        statement = self._search_statement(
-            query,
+        if query.strip():
+            ids, total = self.search_index.search(
+                session,
+                query=query,
+                limit=limit,
+                offset=offset,
+                year=year,
+                author=author,
+                venue=venue,
+                identifier=identifier,
+                entry_type=entry_type,
+                created_by=created_by,
+                updated_from=timestamp(updated_from),
+                updated_to=timestamp(updated_to),
+                sort=sort,
+            )
+            records_by_id = {}
+            if ids:
+                records_by_id = {
+                    record.id: record
+                    for record in session.scalars(
+                        select(ReferenceRecord).where(
+                            ReferenceRecord.id.in_(ids)
+                        )
+                    ).unique()
+                }
+            return (
+                [
+                    records_by_id[value]
+                    for value in ids
+                    if value in records_by_id
+                ],
+                total,
+            )
+        statement = self._browse_statement(
             year=year,
             author=author,
             venue=venue,
@@ -161,7 +198,7 @@ class ReferenceLibrary:
             created_by=created_by,
             updated_from=updated_from,
             updated_to=updated_to,
-            sort=sort,
+            sort="updated_desc" if sort == "relevance" else sort,
         )
         id_query = statement.with_only_columns(ReferenceRecord.id).order_by(
             None
@@ -174,9 +211,8 @@ class ReferenceLibrary:
         )
         return records, int(total or 0)
 
-    def _search_statement(
+    def _browse_statement(
         self,
-        query: str,
         *,
         year: int | None,
         author: str | None,
@@ -189,34 +225,12 @@ class ReferenceLibrary:
         sort: str,
     ) -> Select[tuple[ReferenceRecord]]:
         statement: Select[tuple[ReferenceRecord]] = select(ReferenceRecord)
-        normalized_query = query.strip()
         normalized_author = (author or "").strip()
         normalized_identifier = (identifier or "").strip()
-        if normalized_query or normalized_author:
+        if normalized_author:
             statement = statement.outerjoin(ReferenceRecord.contributors)
-        if normalized_query or normalized_identifier:
+        if normalized_identifier:
             statement = statement.outerjoin(ReferenceRecord.identifiers)
-        if normalized_query:
-            pattern = f"%{_escape_like(normalized_query)}%"
-            statement = statement.where(
-                or_(
-                    ReferenceRecord.title.ilike(pattern, escape="\\"),
-                    ReferenceRecord.citation_key.ilike(
-                        pattern, escape="\\"
-                    ),
-                    ReferenceRecord.venue_raw.ilike(pattern, escape="\\"),
-                    ReferenceRecord.venue_name.ilike(pattern, escape="\\"),
-                    ReferenceRecord.canonical_bibtex.ilike(
-                        pattern, escape="\\"
-                    ),
-                    ReferenceContributor.display_name.ilike(
-                        pattern, escape="\\"
-                    ),
-                    ReferenceIdentifier.normalized_value.ilike(
-                        pattern, escape="\\"
-                    ),
-                )
-            )
         if year is not None:
             statement = statement.where(
                 ReferenceRecord.publication_year == year
@@ -960,6 +974,7 @@ def _append_history_event(
         occurred_at=head.updated_at,
     )
     session.add(event)
+    mark_search_change(session, head.reference_id)
     return event
 
 

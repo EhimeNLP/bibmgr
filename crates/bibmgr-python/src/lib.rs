@@ -18,6 +18,45 @@ create_exception!(bibmgr_native, ValidationError, BibmgrError);
 create_exception!(bibmgr_native, EditConflictError, BibmgrError);
 create_exception!(bibmgr_native, ExportError, BibmgrError);
 create_exception!(bibmgr_native, ConfigurationError, BibmgrError);
+create_exception!(bibmgr_native, SearchError, BibmgrError);
+
+#[pyclass(name = "SearchIndex", module = "bibmgr_native", frozen)]
+#[derive(Debug)]
+pub struct PySearchIndex {
+    inner: bibmgr_core::SearchIndex,
+}
+
+#[pymethods]
+impl PySearchIndex {
+    #[new]
+    fn new(py: Python<'_>) -> PyResult<Self> {
+        let inner = py
+            .detach(bibmgr_core::SearchIndex::new)
+            .map_err(|error| SearchError::new_err(error.to_string()))?;
+        Ok(Self { inner })
+    }
+
+    fn apply(
+        &self,
+        py: Python<'_>,
+        documents_json: &str,
+        deleted_ids: Vec<String>,
+    ) -> PyResult<()> {
+        let documents: Vec<bibmgr_core::SearchDocument> =
+            serde_json::from_str(documents_json).map_err(json_error)?;
+        py.detach(move || self.inner.apply(documents, &deleted_ids))
+            .map_err(|error| SearchError::new_err(error.to_string()))
+    }
+
+    fn search(&self, py: Python<'_>, request_json: &str) -> PyResult<Py<PyAny>> {
+        let request: bibmgr_core::SearchRequest =
+            serde_json::from_str(request_json).map_err(json_error)?;
+        let page = py
+            .detach(|| self.inner.search(&request))
+            .map_err(|error| SearchError::new_err(error.to_string()))?;
+        value_to_dict(py, &serde_json::to_value(page).map_err(json_error)?)
+    }
+}
 
 macro_rules! json_dto {
     ($rust:ident, $python:literal) => {
@@ -978,6 +1017,8 @@ fn json_error(error: serde_json::Error) -> PyErr {
 
 #[pymodule]
 fn bibmgr_native(module: &Bound<'_, PyModule>) -> PyResult<()> {
+    module.add("SearchError", module.py().get_type::<SearchError>())?;
+    module.add_class::<PySearchIndex>()?;
     module.add("SCHEMA_VERSION", SCHEMA_VERSION)?;
     module.add("BibmgrError", module.py().get_type::<BibmgrError>())?;
     module.add("ParseError", module.py().get_type::<ParseError>())?;

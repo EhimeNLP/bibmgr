@@ -64,7 +64,7 @@ describe("SearchBar", () => {
       query: "vision",
       year: 2025,
       author: "Yoneyama",
-      sort: "updated_desc",
+      sort: "relevance",
     });
     expect(wrapper.find(".search-filter-panel").exists()).toBe(false);
     expect(wrapper.findAll(".search-token")).toHaveLength(2);
@@ -83,7 +83,7 @@ describe("SearchBar", () => {
 
     const trigger = wrapper.get(".search-sort-trigger");
     expect(trigger.attributes("aria-label")).toBe(
-      "Sort references: Recently Updated",
+      "Sort references: Relevance",
     );
 
     await trigger.trigger("click");
@@ -91,6 +91,7 @@ describe("SearchBar", () => {
     const menu = wrapper.get('[role="menu"][aria-label="Sort references"]');
     const options = menu.findAll('[role="menuitemradio"]');
     expect(options.map((option) => option.text())).toEqual([
+      "Relevance",
       "Recently Updated",
       "Oldest Update",
       "Newest Publication",
@@ -99,7 +100,7 @@ describe("SearchBar", () => {
     ]);
     expect(options[0]?.attributes("aria-checked")).toBe("true");
 
-    await options[2]?.trigger("click");
+    await options[3]?.trigger("click");
 
     expect(wrapper.emitted("search")?.at(-1)?.[0]).toMatchObject({
       query: "vision",

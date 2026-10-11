@@ -15,6 +15,10 @@ allow = [
   "Unicode-3.0",
   "Zlib",
 ]
+# Mozilla trust anchors used by Lindera's dictionary downloader.
+exceptions = [
+  { crate = "webpki-roots", allow = ["CDLA-Permissive-2.0"] },
+]
 
 [bans]
 multiple-versions = "warn"

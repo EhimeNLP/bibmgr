@@ -97,8 +97,8 @@ fn malformed_input_is_retained_and_diagnosed_without_panicking() {
     assert_eq!(strict.to_source(), source);
     assert_eq!(tolerant.to_source(), source);
     assert_ne!(strict.summary().status, ParseStatus::Ok);
-    assert!(!strict.diagnostics().is_empty());
-    assert!(!tolerant.diagnostics().is_empty());
+    assert_ne!(strict.diagnostics(), []);
+    assert_ne!(tolerant.diagnostics(), []);
     assert!(tolerant
         .entries()
         .iter()
@@ -129,7 +129,7 @@ fn percent_and_explicit_comments_are_distinct_and_interstitial_text_is_retained(
         .comments()
         .iter()
         .any(|comment| comment.kind == CommentKind::Explicit));
-    assert!(!document.text_blocks().is_empty());
+    assert_ne!(document.text_blocks(), []);
     for comment in document.comments() {
         assert!(document.slice(comment.range).is_some());
         assert!(document.slice(comment.content_range).is_some());

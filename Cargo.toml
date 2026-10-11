@@ -8,6 +8,7 @@ members = [
   "crates/bibmgr-edit",
   "crates/bibmgr-export",
   "crates/bibmgr-core",
+  "crates/bibmgr-search",
   "crates/bibmgr-cli",
   "crates/bibmgr-python",
 ]
@@ -28,6 +29,7 @@ bibmgr-validation = { path = "crates/bibmgr-validation" }
 bibmgr-edit = { path = "crates/bibmgr-edit" }
 bibmgr-export = { path = "crates/bibmgr-export" }
 bibmgr-core = { path = "crates/bibmgr-core" }
+bibmgr-search = { path = "crates/bibmgr-search" }
 bibtex-parser = "0.4.0"
 clap = { version = "4.5", features = ["derive"] }
 pyo3 = { version = "0.29", features = ["abi3-py38"] }

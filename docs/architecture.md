@@ -15,6 +15,7 @@ flowchart TD
     edit["bibmgr-edit"]
     export["bibmgr-export"]
     core["bibmgr-core"]
+    search["bibmgr-search"]
     cli["bibmgr-cli"]
     python["bibmgr-python"]
 
@@ -32,11 +33,14 @@ flowchart TD
     validation --> core
     edit --> core
     export --> core
+    search --> core
     core --> cli
     core --> python
 ```
 
 Arrows mean “is used by.” Crates do not form dependency cycles. Parser backend types never cross the `bibmgr-syntax` boundary, and no adapter depends on `pipeline/`.
+
+The optional `bibmgr-core/search` feature exposes the Tantivy search facade and is enabled by the Python adapter. `bibmgr-search` owns tokenization, BM25 ranking, fuzzy matching, filtering, and stable pagination; Python projects database records and synchronizes committed changes. The CLI does not enable this feature by default.
 
 ## Processing model
 

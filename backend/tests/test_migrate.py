@@ -38,6 +38,9 @@ def test_migrations_are_available_from_the_installed_package() -> None:
     assert migrations.joinpath(
         "versions", "0007_configuration_audit_actions.py"
     ).is_file()
+    assert migrations.joinpath(
+        "versions", "0008_reference_search.py"
+    ).is_file()
 
 
 def test_reset_target_must_be_local_postgresql() -> None:

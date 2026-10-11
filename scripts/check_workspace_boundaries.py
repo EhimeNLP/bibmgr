@@ -54,6 +54,7 @@ def main() -> int:
             "bibmgr-edit",
             "bibmgr-export",
             "bibmgr-core",
+            "bibmgr-search",
             "bibmgr-cli",
             "bibmgr-python",
         )
