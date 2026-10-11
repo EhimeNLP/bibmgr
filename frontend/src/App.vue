@@ -34,7 +34,7 @@ const pageLimit = 25;
 const pageOffset = ref(0);
 const activeFilters = ref<ReferenceSearchFilters>({
   query: "",
-  sort: "updated_desc",
+  sort: "relevance",
 });
 const mobileView = ref<"library" | "detail">("library");
 const mobileBackButton = ref<HTMLButtonElement | null>(null);
@@ -168,7 +168,7 @@ function resetProtectedWorkspace() {
   pageOffset.value = 0;
   activeFilters.value = {
     query: "",
-    sort: "updated_desc",
+    sort: "relevance",
   };
   mobileView.value = "library";
 }

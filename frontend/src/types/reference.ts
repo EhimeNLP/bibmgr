@@ -50,6 +50,7 @@ export type UpdateReferencePayload = {
 };
 
 export type ReferenceSort =
+  | "relevance"
   | "updated_desc"
   | "updated_asc"
   | "year_desc"
