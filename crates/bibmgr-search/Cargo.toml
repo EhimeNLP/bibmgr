@@ -10,6 +10,8 @@ publish.workspace = true
 [dependencies]
 tantivy = { version = "0.24.2", default-features = false, features = ["lz4-compression"] }
 lindera = { version = "0.43.3", features = ["ipadic"] }
+levenshtein_automata = "0.2.1"
+tantivy-fst = "0.5.0"
 unicode-normalization = "0.1"
 regex.workspace = true
 serde.workspace = true

@@ -13,6 +13,7 @@ pub(crate) enum Group {
 #[derive(Debug, Default)]
 pub(crate) struct Analysis {
     pub groups: Vec<Group>,
+    pub reading_tokens: Vec<Vec<String>>,
 }
 
 impl Analysis {
@@ -64,6 +65,7 @@ pub(crate) fn analyze(text: &str) -> Result<Analysis, SearchError> {
         append_words(&mut result, &normalized[end..span.start()]);
         let mut words = Vec::new();
         let mut reading = String::new();
+        let mut reading_tokens = Vec::new();
         for mut token in tokenizer()?
             .segment(span.as_str().into())
             .map_err(|error| SearchError::Tokenizer(error.to_string()))?
@@ -81,9 +83,21 @@ pub(crate) fn analyze(text: &str) -> Result<Analysis, SearchError> {
                     .map_or(surface, katakana)
             };
             reading.extend(value.chars().filter(|c| c.is_alphanumeric() || *c == 'ー'));
+            reading_tokens.push(value);
         }
         if !words.is_empty() {
             result.groups.push(Group::Japanese { words, reading });
+            if split_words(&normalized[end..span.start()]).next().is_none()
+                && !result.reading_tokens.is_empty()
+            {
+                result
+                    .reading_tokens
+                    .last_mut()
+                    .expect("existing reading tokens")
+                    .extend(reading_tokens);
+            } else {
+                result.reading_tokens.push(reading_tokens);
+            }
         }
         end = span.end();
     }

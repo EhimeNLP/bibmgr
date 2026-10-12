@@ -212,7 +212,7 @@ impl Pattern {
     }
 }
 
-fn voicing_variants(chars: &[char]) -> Vec<Vec<char>> {
+pub(crate) fn voicing_variants(chars: &[char]) -> Vec<Vec<char>> {
     let groups = [
         "カガ",
         "キギ",

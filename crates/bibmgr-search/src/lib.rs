@@ -23,6 +23,7 @@ use tantivy::{
 use unicode_normalization::{char::is_combining_mark, UnicodeNormalization};
 
 mod analysis;
+mod correction;
 mod reading;
 
 use analysis::{analyze, Analysis, Group};
@@ -59,6 +60,7 @@ pub struct SearchDocument {
 #[serde(default)]
 pub struct SearchRequest {
     pub query: String,
+    pub search_mode: SearchMode,
     pub year: Option<i64>,
     pub author: Option<String>,
     pub venue: Option<String>,
@@ -72,10 +74,32 @@ pub struct SearchRequest {
     pub offset: usize,
 }
 
+#[derive(Debug, Clone, Copy, Default, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum SearchMode {
+    #[default]
+    Auto,
+    Original,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct SearchCorrection {
+    pub original_query: String,
+    pub corrected_query: String,
+}
+
 #[derive(Debug, Serialize)]
 pub struct SearchPage {
     pub ids: Vec<String>,
     pub total: usize,
+    pub correction: Option<SearchCorrection>,
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Retrieval {
+    Expanded,
+    ExactReading,
+    Literal,
 }
 
 #[derive(Debug)]
@@ -143,15 +167,17 @@ impl SearchIndex {
         for name in ["title", "authors", "venues", "identifiers", "body"] {
             schema.add_text_field(name, TEXT);
         }
-        schema.add_text_field(
-            reading::GRAM_FIELD,
-            TextOptions::default().set_indexing_options(
-                TextFieldIndexing::default()
-                    .set_tokenizer("default")
-                    .set_index_option(IndexRecordOption::Basic)
-                    .set_fieldnorms(false),
-            ),
-        );
+        for name in [reading::GRAM_FIELD, correction::FIELD] {
+            schema.add_text_field(
+                name,
+                TextOptions::default().set_indexing_options(
+                    TextFieldIndexing::default()
+                        .set_tokenizer("default")
+                        .set_index_option(IndexRecordOption::Basic)
+                        .set_fieldnorms(false),
+                ),
+            );
+        }
         for name in [
             "author_filter",
             "venue_filter",
@@ -201,6 +227,7 @@ impl SearchIndex {
         for input in &documents {
             let mut doc = TantivyDocument::default();
             let mut readings = Readings::default();
+            let mut spelling = std::collections::BTreeSet::new();
             doc.add_text(field(&schema, "id"), &input.id);
             for (name, values) in [
                 ("title", vec![input.title.as_str()]),
@@ -219,11 +246,20 @@ impl SearchIndex {
                     let analysis = analyze(value)?;
                     doc.add_text(field(&schema, name), analysis.words().join(" "));
                     readings.add(name, &analysis);
+                    if matches!(name, "title" | "authors" | "venues") {
+                        spelling.extend(correction::terms(&analysis));
+                    }
                 }
             }
             for alias in &input.author_aliases {
-                readings.add("author_aliases", &analyze(alias)?);
+                let analysis = analyze(alias)?;
+                readings.add("author_aliases", &analysis);
+                spelling.extend(correction::terms(&analysis));
             }
+            doc.add_text(
+                field(&schema, correction::FIELD),
+                spelling.into_iter().collect::<Vec<_>>().join(" "),
+            );
             doc.add_text(field(&schema, reading::GRAM_FIELD), readings.grams());
             for (name, values) in [
                 ("author_filter", &input.authors),
@@ -296,18 +332,33 @@ impl SearchIndex {
             .map_err(|_| SearchError::InvalidRequest("index lock poisoned".into()))?;
         let schema = state.index.schema();
         let mut request = request.clone();
-        request.query = identifier_query(&request.query);
         let searcher = state.reader.searcher();
         let metadata = Arc::clone(&state.metadata);
         // Pin the reader and its corresponding metadata together. Readers can
         // finish on this immutable snapshot while another batch is committed.
         drop(state);
+        let correction = if request.search_mode == SearchMode::Auto {
+            correction::suggest(&searcher, &schema, &request, &metadata)?
+        } else {
+            None
+        };
+        let retrieval = match (request.search_mode, correction.is_some()) {
+            (SearchMode::Original, _) => Retrieval::Literal,
+            (_, true) => Retrieval::ExactReading,
+            (_, false) => Retrieval::Expanded,
+        };
+        request.query = identifier_query(
+            correction
+                .as_ref()
+                .map_or(&request.query, |value| &value.corrected_query),
+        );
         let analysis = analyze(&request.query)?;
-        let query = build_query(&schema, &request, &analysis, &metadata)?;
+        let query = build_query(&schema, &request, &analysis, &metadata, retrieval)?;
         if u64::try_from(request.offset).unwrap_or(u64::MAX) >= searcher.num_docs() {
             return Ok(SearchPage {
                 total: searcher.search(&query, &Count)?,
                 ids: Vec::new(),
+                correction,
             });
         }
         let sort = request.sort.clone();
@@ -366,6 +417,7 @@ impl SearchIndex {
         let (total, hits) = searcher.search(&query, &(Count, collector))?;
         Ok(SearchPage {
             total,
+            correction,
             ids: hits
                 .into_iter()
                 .map(|(rank, _)| rank.data.id.clone())
@@ -402,7 +454,7 @@ fn identifier_query(query: &str) -> String {
     query
 }
 
-fn word_query(schema: &Schema, word: &str) -> Box<dyn Query> {
+fn word_query(schema: &Schema, word: &str, retrieval: Retrieval) -> Box<dyn Query> {
     let mut alternatives = Vec::new();
     for (name, weight) in [
         ("title", 5.0),
@@ -418,7 +470,8 @@ fn word_query(schema: &Schema, word: &str) -> Box<dyn Query> {
         ));
         // Short words require exact matches. Bound expansion by Unicode
         // character count, including long Japanese and accented Latin terms.
-        if (4..=32).contains(&word.chars().count())
+        if retrieval == Retrieval::Expanded
+            && (4..=32).contains(&word.chars().count())
             && word.chars().all(char::is_alphabetic)
             && name != "identifiers"
         {
@@ -434,7 +487,7 @@ fn word_query(schema: &Schema, word: &str) -> Box<dyn Query> {
                 )),
             ));
         }
-        if word.len() >= 3 && word.is_ascii() {
+        if retrieval == Retrieval::Expanded && word.len() >= 3 && word.is_ascii() {
             alternatives.push((
                 Occur::Should,
                 Box::new(BoostQuery::new(
@@ -456,6 +509,7 @@ fn build_query(
     request: &SearchRequest,
     analysis: &Analysis,
     metadata: &Arc<HashMap<u64, Arc<Metadata>>>,
+    retrieval: Retrieval,
 ) -> Result<Box<dyn Query>, SearchError> {
     let words = analysis.words();
     let mut clauses: Vec<(Occur, Box<dyn Query>)> = Vec::new();
@@ -471,21 +525,25 @@ fn build_query(
     }
     for group in &analysis.groups {
         let query = match group {
-            Group::Word(word) => word_query(schema, word),
+            Group::Word(word) => word_query(schema, word, retrieval),
             Group::Japanese { words, reading } => {
                 let surface = BooleanQuery::new(
                     words
                         .iter()
-                        .map(|word| (Occur::Must, word_query(schema, word)))
+                        .map(|word| (Occur::Must, word_query(schema, word, retrieval)))
                         .collect(),
                 );
+                if retrieval == Retrieval::Literal {
+                    clauses.push((Occur::Must, Box::new(surface)));
+                    continue;
+                }
                 Box::new(BooleanQuery::new(vec![
                     (Occur::Should, Box::new(surface)),
                     (
                         Occur::Should,
                         Box::new(ReadingQuery::new(
                             schema,
-                            Pattern::new(reading.clone(), true),
+                            Pattern::new(reading.clone(), retrieval == Retrieval::Expanded),
                             metadata,
                         )),
                     ),
@@ -519,7 +577,7 @@ fn build_query(
     {
         let phrase_analysis = analyze(phrase)?;
         let phrase_words = phrase_analysis.words();
-        if phrase_words.len() > 1 || phrase_analysis.has_japanese() {
+        if !phrase_words.is_empty() {
             let mut alternatives: Vec<_> = ["title", "authors", "venues", "identifiers", "body"]
                 .into_iter()
                 .map(|name| {
@@ -538,7 +596,7 @@ fn build_query(
                     )
                 })
                 .collect();
-            if phrase_analysis.has_japanese() {
+            if phrase_analysis.has_japanese() && retrieval != Retrieval::Literal {
                 alternatives.push((
                     Occur::Should,
                     Box::new(ReadingQuery::new(

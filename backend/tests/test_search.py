@@ -144,6 +144,57 @@ def test_independent_indexes_follow_edits_deletion_and_restoration() -> None:
         assert search(index, "neural")[0] == [uuid.UUID(first["id"])]
 
 
+def test_api_exposes_correction_and_original_spelling_mode() -> None:
+    client, engine, _sessions = build_test_client()
+    for key in ["one", "two", "three"]:
+        register(client, engine, key, "Machine learning")
+    params = {"query": "machne learning", "year": 2024, "limit": 1}
+    for offset in [0, 1, 3]:
+        response = client.get(
+            "/references/page", params={**params, "offset": offset}
+        )
+        assert response.status_code == 200
+        page = response.json()
+        assert page["total"] == 3
+        assert len(page["items"]) == (0 if offset == 3 else 1)
+        assert page["correction"] == {
+            "original_query": "machne learning",
+            "corrected_query": "machine learning",
+        }
+    original = client.get(
+        "/references/page", params={**params, "search_mode": "original"}
+    ).json()
+    assert original["items"] == []
+    assert original["total"] == 0
+    assert original["correction"] is None
+    typo = register(client, engine, "typo", "Machne learning")
+    original = client.get(
+        "/references/page", params={**params, "search_mode": "original"}
+    ).json()
+    assert [item["id"] for item in original["items"]] == [typo["id"]]
+    assert client.get("/references/page").json()["correction"] is None
+    assert client.get(
+        "/references/page", params={"search_mode": "unknown"}
+    ).status_code == 422
+
+
+def test_api_correction_uses_japanese_readings() -> None:
+    client, engine, _sessions = build_test_client()
+    reference = register(client, engine, "ja", "自然言語処理のための手法")
+    params = {"query": "しぜんげごしょり"}
+    page = client.get("/references/page", params=params).json()
+    assert [item["id"] for item in page["items"]] == [reference["id"]]
+    assert page["correction"] == {
+        "original_query": "しぜんげごしょり",
+        "corrected_query": "しぜんげんごしょり",
+    }
+    page = client.get(
+        "/references/page", params={**params, "search_mode": "original"}
+    ).json()
+    assert page["total"] == 0
+    assert page["correction"] is None
+
+
 def test_rollback_does_not_advance_generation_or_publish_documents() -> None:
     client, engine, sessions = build_test_client()
     register(client, engine, "retained", "Retained paper")

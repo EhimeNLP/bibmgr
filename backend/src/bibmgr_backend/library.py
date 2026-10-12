@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import datetime
 from hashlib import sha256
 import uuid
-from typing import Any, Protocol
+from typing import Any, Literal, Protocol
 
 from sqlalchemy import Select, and_, func, or_, select
 from sqlalchemy.exc import IntegrityError
@@ -26,6 +26,7 @@ from .models import (
     CitationContextInput,
     CitationContextResponse,
     ReferenceResponse,
+    SearchCorrection,
 )
 from .search import ReferenceSearch, mark_search_change, timestamp
 
@@ -121,7 +122,7 @@ class ReferenceLibrary:
         updated_to: datetime | None = None,
         sort: str = "relevance",
     ) -> list[ReferenceRecord]:
-        records, _total = self.search_page(
+        records, _total, _correction = self.search_page(
             session,
             query,
             limit=limit,
@@ -154,11 +155,13 @@ class ReferenceLibrary:
         updated_from: datetime | None = None,
         updated_to: datetime | None = None,
         sort: str = "relevance",
-    ) -> tuple[list[ReferenceRecord], int]:
+        search_mode: Literal["auto", "original"] = "auto",
+    ) -> tuple[list[ReferenceRecord], int, SearchCorrection | None]:
         if query.strip():
-            ids, total = self.search_index.search(
+            ids, total, correction = self.search_index.search(
                 session,
                 query=query,
+                search_mode=search_mode,
                 limit=limit,
                 offset=offset,
                 year=year,
@@ -188,6 +191,7 @@ class ReferenceLibrary:
                     if value in records_by_id
                 ],
                 total,
+                correction,
             )
         statement = self._browse_statement(
             year=year,
@@ -209,7 +213,7 @@ class ReferenceLibrary:
         records = list(
             session.scalars(statement.offset(offset).limit(limit)).unique()
         )
-        return records, int(total or 0)
+        return records, int(total or 0), None
 
     def _browse_statement(
         self,

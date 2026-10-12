@@ -209,11 +209,13 @@ dependencies = [
 name = "bibmgr-search"
 version = "0.1.0"
 dependencies = [
+ "levenshtein_automata",
  "lindera",
  "regex",
  "serde",
  "serde_json",
  "tantivy",
+ "tantivy-fst",
  "thiserror 2.0.19",
  "unicode-normalization",
 ]

@@ -18,6 +18,7 @@ from .db_models import (
     ReferenceSearchState,
     UserRecord,
 )
+from .models import SearchCorrection
 from .native import NativeSearchIndex
 
 
@@ -72,7 +73,7 @@ class ReferenceSearch:
 
     def search(
         self, session: Session, **request: Any
-    ) -> tuple[list[uuid.UUID], int]:
+    ) -> tuple[list[uuid.UUID], int, SearchCorrection | None]:
         with self._lock:
             try:
                 self._synchronize(session)
@@ -83,7 +84,12 @@ class ReferenceSearch:
                 self._index = None
                 self._generation = -1
                 raise
-        return [uuid.UUID(value) for value in page["ids"]], int(page["total"])
+        correction = page.get("correction")
+        return (
+            [uuid.UUID(value) for value in page["ids"]],
+            int(page["total"]),
+            SearchCorrection.model_validate(correction) if correction else None,
+        )
 
     def _synchronize(self, session: Session) -> None:
         generation = (
