@@ -594,5 +594,5 @@ def test_tantivy_search_projects_postgres_records(monkeypatch) -> None:
             identifier=key,
             limit=1,
             offset=0,
-        ) == ([], 0)
+        ) == ([], 0, None)
     engine.dispose()
