@@ -38,6 +38,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         "neural translation",
         "neurla translation",
         "山田 言語処理",
+        "しぜんげんごしょり",
+        "しぜんげごしょり",
+        "やまだたろう しぜんげんご BERT",
+        "\"しぜんげんごしょりのためのBERT\"",
         "Muller retrieval",
         "10.1234/paper42",
     ] {
