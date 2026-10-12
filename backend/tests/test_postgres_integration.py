@@ -31,8 +31,11 @@ from bibmgr_backend.db_models import (
     ApplicationConfigurationAuditEvent,
     ApplicationConfigurationRecord,
     EmailLoginChallenge,
+    ReferenceSearchChange,
+    ReferenceSearchState,
 )
 from bibmgr_backend.migrate import migration_config
+from bibmgr_backend.search import mark_search_change
 
 
 POSTGRES_URL = os.environ.get("BIBMGR_TEST_POSTGRES_URL")
@@ -483,3 +486,113 @@ def test_venue_registry_validation_is_serialized_across_venue_rows(
             .select_from(ApplicationConfigurationRecord)
             .where(ApplicationConfigurationRecord.kind == VENUE)
         ) == 1
+
+
+def test_search_generations_follow_commit_order_and_rollback(
+    monkeypatch,
+) -> None:
+    assert POSTGRES_URL is not None
+    monkeypatch.setenv("BIBMGR_DATABASE_URL", POSTGRES_URL)
+    command.upgrade(migration_config(), "head")
+    engine = create_engine(POSTGRES_URL)
+    first_id, second_id, rolled_back_id = (
+        uuid.uuid4(),
+        uuid.uuid4(),
+        uuid.uuid4(),
+    )
+    started = Event()
+
+    def second_writer() -> int:
+        with Session(engine) as session:
+            started.set()
+            mark_search_change(session, second_id)
+            generation = session.scalar(
+                select(ReferenceSearchState.generation)
+            )
+            session.commit()
+            return generation
+
+    with Session(engine) as first, ThreadPoolExecutor(max_workers=1) as pool:
+        mark_search_change(first, first_id)
+        first_generation = first.scalar(
+            select(ReferenceSearchState.generation)
+        )
+        second = pool.submit(second_writer)
+        try:
+            assert started.wait(timeout=5)
+            with pytest.raises(FutureTimeoutError):
+                second.result(timeout=0.1)
+        finally:
+            first.commit()
+        assert second.result(timeout=5) == first_generation + 1
+
+    with Session(engine) as session:
+        mark_search_change(session, rolled_back_id)
+        session.rollback()
+        assert (
+            session.scalar(select(ReferenceSearchState.generation))
+            == first_generation + 1
+        )
+        assert session.get(ReferenceSearchChange, rolled_back_id) is None
+        assert (
+            session.get(ReferenceSearchChange, first_id).generation
+            == first_generation
+        )
+        assert (
+            session.get(ReferenceSearchChange, second_id).generation
+            == first_generation + 1
+        )
+    engine.dispose()
+
+
+def test_tantivy_search_projects_postgres_records(monkeypatch) -> None:
+    from bibmgr_backend.db_models import UserRecord
+    from bibmgr_backend.library import ReferenceLibrary
+    from bibmgr_backend.native import NativeEngine
+
+    assert POSTGRES_URL is not None
+    monkeypatch.setenv("BIBMGR_DATABASE_URL", POSTGRES_URL)
+    command.upgrade(migration_config(), "head")
+    engine = create_engine(POSTGRES_URL)
+    library = ReferenceLibrary(NativeEngine())
+    key = f"search{uuid.uuid4().hex}"
+    with Session(engine) as session:
+        user = UserRecord(email=f"{key}@example.test")
+        session.add(user)
+        session.flush()
+        record = library.register(
+            session,
+            bibtex=(
+                f"@article{{{key}, title = {{日本語の文献検索}}, "
+                "author = {山田, 太郎}, year = {2024}}"
+            ),
+            source="manual",
+            policy="archive",
+            actor_user_id=user.id,
+        )[0]
+        session.commit()
+        records, total = library.search_page(
+            session,
+            "山田 文献",
+            identifier=key,
+            year=2024,
+            limit=1,
+            offset=0,
+        )
+        assert total == 1
+        assert records[0].id == record.id
+        library.delete(
+            session,
+            reference_id=record.id,
+            expected_source_revision=record.source_revision,
+            actor_user_id=user.id,
+        )
+        session.commit()
+        assert library.search_page(
+            session,
+            "山田 文献",
+            identifier=key,
+            limit=1,
+            offset=0,
+        ) == ([], 0)
+    engine.dispose()

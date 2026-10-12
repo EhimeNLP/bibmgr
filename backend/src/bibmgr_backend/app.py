@@ -1076,12 +1076,13 @@ def create_app(
         updated_from: datetime | None = None,
         updated_to: datetime | None = None,
         sort: Literal[
+            "relevance",
             "updated_desc",
             "updated_asc",
             "year_desc",
             "year_asc",
             "title_asc",
-        ] = "updated_desc",
+        ] = "relevance",
         limit: Annotated[int, Query(ge=1, le=100)] = 25,
         offset: Annotated[int, Query(ge=0)] = 0,
     ) -> ReferencePageResponse:

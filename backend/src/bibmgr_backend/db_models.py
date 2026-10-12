@@ -8,6 +8,7 @@ from typing import Any
 
 from sqlalchemy import (
     CheckConstraint,
+    BigInteger,
     DateTime,
     ForeignKey,
     Index,
@@ -33,6 +34,25 @@ json_type = JSON().with_variant(JSONB(), "postgresql")
 
 class Base(DeclarativeBase):
     pass
+
+
+class ReferenceSearchState(Base):
+    __tablename__ = "reference_search_state"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    generation: Mapped[int] = mapped_column(BigInteger, nullable=False)
+
+
+class ReferenceSearchChange(Base):
+    __tablename__ = "reference_search_changes"
+
+    # No foreign key: deleted references must still invalidate every index.
+    reference_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid(as_uuid=True), primary_key=True
+    )
+    generation: Mapped[int] = mapped_column(
+        BigInteger, nullable=False, index=True
+    )
 
 
 class UserRecord(Base):

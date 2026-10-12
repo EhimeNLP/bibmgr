@@ -50,7 +50,7 @@ type AdvancedFilters = {
   updatedTo: string;
 };
 
-const defaultSort: ReferenceSort = "updated_desc";
+const defaultSort: ReferenceSort = "relevance";
 const root = ref<HTMLFormElement | null>(null);
 const filterButton = ref<HTMLButtonElement | null>(null);
 const filterPanel = ref<HTMLElement | null>(null);
@@ -63,6 +63,7 @@ const advanced = reactive<AdvancedFilters>(initialAdvancedFilters());
 const applied = reactive<AdvancedFilters>(initialAdvancedFilters());
 
 const sortLabels: Record<ReferenceSort, string> = {
+  relevance: "Relevance",
   updated_desc: "Recently Updated",
   updated_asc: "Oldest Update",
   year_desc: "Newest Publication",

@@ -541,7 +541,7 @@ mod tests {
         let first = apply_fix_plan(source, &plan).unwrap();
         let second = apply_fix_plan(&first.source, &plan).unwrap();
         assert_eq!(first.source, second.source);
-        assert!(first.diff.is_empty());
+        assert_eq!(first.diff, "");
     }
 
     #[test]

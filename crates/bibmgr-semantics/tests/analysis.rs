@@ -32,7 +32,7 @@ fn all_supported_arxiv_spellings_produce_the_same_identity() {
             "1706.03762"
         );
         assert_eq!(record.work_type.value, WorkType::Preprint);
-        assert!(!preprint.origins.is_empty());
+        assert_ne!(preprint.origins, [] as [bibmgr_semantics::SyntaxOrigin; 0]);
     }
 }
 
@@ -64,7 +64,10 @@ fn explicit_non_arxiv_repositories_produce_preprints() {
         assert_eq!(preprint.status, ValueStatus::Parsed);
         assert_eq!(preprint.confidence, Confidence::High);
         assert_eq!(record.work_type.value, WorkType::Preprint);
-        assert!(record.identifiers.arxiv.is_empty());
+        assert_eq!(
+            record.identifiers.arxiv,
+            [] as [bibmgr_semantics::Sourced<bibmgr_semantics::ArxivId>; 0]
+        );
         assert!(preprint
             .origins
             .iter()
@@ -85,7 +88,10 @@ fn explicit_non_arxiv_repository_takes_priority_over_arxiv_shaped_eprint() {
         Repository::Other("bioRxiv".to_string())
     );
     assert_eq!(preprint.value.identifier, "2401.12345");
-    assert!(record.identifiers.arxiv.is_empty());
+    assert_eq!(
+        record.identifiers.arxiv,
+        [] as [bibmgr_semantics::Sourced<bibmgr_semantics::ArxivId>; 0]
+    );
 }
 
 #[test]
