@@ -34,12 +34,6 @@ cargo install --git https://github.com/EhimeNLP/bibmgr.git --locked bibmgr-cli
 bibmgr --version
 ```
 
-Add `--force` to replace an existing Cargo installation:
-
-```bash
-cargo install --git https://github.com/EhimeNLP/bibmgr.git --locked --force bibmgr-cli
-```
-
 Alternatively, Linux and macOS users can install a prebuilt binary without requiring Rust:
 
 ```bash
@@ -59,7 +53,7 @@ curl -LsSf https://github.com/EhimeNLP/bibmgr/releases/latest/download/bibmgr-in
   BIBMGR_INSTALL_DIR="$HOME/bin" BIBMGR_VERSION=v0.1.0 sh
 ```
 
-Run the installer again to update an existing installation. Windows x86_64 users can download `bibmgr-x86_64-pc-windows-msvc.zip` from the [latest release](https://github.com/EhimeNLP/bibmgr/releases/latest), extract `bibmgr.exe`, and place it on `PATH`.
+Windows x86_64 users can download `bibmgr-x86_64-pc-windows-msvc.zip` from the [latest release](https://github.com/EhimeNLP/bibmgr/releases/latest), extract `bibmgr.exe`, and place it on `PATH`.
 
 If you clone the repository for development or inspection, you can install from the local path:
 
@@ -67,13 +61,6 @@ If you clone the repository for development or inspection, you can install from 
 git clone https://github.com/EhimeNLP/bibmgr.git
 cd bibmgr
 cargo install --locked --path crates/bibmgr-cli
-```
-
-To update an installation from a local checkout, update the checkout and reinstall:
-
-```bash
-git pull
-cargo install --locked --force --path crates/bibmgr-cli
 ```
 
 To build a release binary without installing it, use the Poe task:

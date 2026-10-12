@@ -20,15 +20,13 @@ npm --version
 
 Installing the Rust toolchain through `rustup` is recommended. Because `npm` is bundled with Node.js, it normally does not require a separate installation.
 
-The first Rust build of the native search extension downloads and compiles the embedded IPADIC NEologd dictionary. It needs network access and substantially more build space than plain IPADIC. To reuse the dictionary across build profiles and toolchains, set an absolute cache directory before building:
+The first Rust build of the native search extension downloads and compiles the embedded IPADIC NEologd dictionary. It needs network access. To reuse the dictionary across build profiles and toolchains, set an absolute cache directory before building:
 
 ```bash
 export LINDERA_BUILD_DICTIONARY_CACHE_DIR="$PWD/target/lindera-dictionaries"
 ```
 
 The compiled extension contains the dictionary; running the application does not require network access to Lindera. Dictionary coverage and search behavior are described in [database.md](database.md#search-and-pagination).
-
-Rust dependency versions are resolved in `Cargo.lock`; a version in `Cargo.toml` is a compatible lower bound, not the exact installed version. The root, `fuzz`, and `benches` workspaces each have a lockfile. All three use Cargo resolver 3 to prefer dependencies compatible with their declared Rust 1.88 minimum. After dependency updates, verify all three workspaces and the Python native extension, including source revision hashes and Japanese reading search.
 
 In addition to the BibMgR application, local development requires two services:
 

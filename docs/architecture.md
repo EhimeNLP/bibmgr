@@ -75,8 +75,6 @@ A source range is `[start, end)` in UTF-8 bytes. Line and column values are deri
 
 The adapter also isolates parser-backend limitations for non-ASCII input while preserving the original UTF-8 source and byte ranges exposed by the project facade. No backend-specific range convention leaks into validation or clients.
 
-This boundary permits an upstream fork, a Rowan or tree-sitter layer, or a replacement parser without changing validation, CLI, Python, or API DTOs.
-
 ## Validation and registration
 
 The validation engine receives both CST and semantic bibliography plus a resolved policy. Rule output is sorted deterministically by source range, rule code, and stable diagnostic ID. A diagnostic has two independent dimensions:
@@ -102,7 +100,7 @@ All machine consumers use schema version 1. Unknown additive fields should be ig
 
 ## Determinism and concurrency
 
-For identical source, resolved policy, and registry snapshots, diagnostics, fixes, registration decisions, and exports are byte-for-byte deterministic. Read-only results are shareable. Multi-file CLI analysis may run documents in parallel, but output preserves input order. The first implementation may reanalyze a complete document after an edit; `DocumentSession` keeps that choice private so incremental parsing can be introduced later.
+For identical source, resolved policy, and registry snapshots, diagnostics, fixes, registration decisions, and exports are byte-for-byte deterministic. Read-only results are shareable. Multi-file CLI analysis may run documents in parallel, but output preserves input order.
 
 ## Failure model
 

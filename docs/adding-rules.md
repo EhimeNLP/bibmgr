@@ -10,7 +10,7 @@ Choose a code in the appropriate namespace:
 | --- | --- |
 | `BIB-SYNTAX-` | Lossless syntax/CST |
 | `BIB-SEMANTIC-` | Semantic bibliography and provenance |
-| `LAB-` | Profile-specific convention; retained as a stable legacy code prefix |
+| `LAB-` | Profile-specific convention |
 | `EXPORT-` | Readiness for a named export representation |
 
 Codes are permanent identifiers. Do not reuse a retired code or encode the severity in it. Add the code and metadata to the validation rule catalog so configuration validation can reject misspellings.
