@@ -13,11 +13,20 @@ use tantivy::query::{
     AllQuery, BooleanQuery, BoostQuery, ConstScoreQuery, EmptyQuery, FuzzyTermQuery, Occur,
     PhraseQuery, Query, RangeQuery, RegexQuery, TermQuery,
 };
-use tantivy::schema::{Field, IndexRecordOption, Schema, FAST, INDEXED, STORED, STRING, TEXT};
+use tantivy::schema::{
+    Field, IndexRecordOption, Schema, TextFieldIndexing, TextOptions, FAST, INDEXED, STORED,
+    STRING, TEXT,
+};
 use tantivy::{
     Index, IndexReader, IndexWriter, ReloadPolicy, SegmentReader, TantivyDocument, Term,
 };
 use unicode_normalization::{char::is_combining_mark, UnicodeNormalization};
+
+mod analysis;
+mod reading;
+
+use analysis::{analyze, Analysis, Group};
+use reading::{Pattern, ReadingQuery, Readings};
 
 #[derive(Debug, thiserror::Error)]
 pub enum SearchError {
@@ -35,6 +44,8 @@ pub struct SearchDocument {
     pub id: String,
     pub title: String,
     pub authors: Vec<String>,
+    /// Additional name orders used only by Japanese reading retrieval.
+    pub author_aliases: Vec<String>,
     pub venues: Vec<String>,
     pub identifiers: Vec<String>,
     pub body: String,
@@ -67,13 +78,14 @@ pub struct SearchPage {
     pub total: usize,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 struct Metadata {
     id: String,
     title: String,
     identifiers: Vec<String>,
     year: Option<i64>,
     updated_at: i64,
+    readings: Readings,
 }
 
 #[derive(Clone)]
@@ -122,38 +134,6 @@ fn normalize(text: &str) -> String {
         .join(" ")
 }
 
-fn tokens(text: &str) -> Result<Vec<String>, SearchError> {
-    static JAPANESE: OnceLock<regex::Regex> = OnceLock::new();
-    let japanese = JAPANESE.get_or_init(|| {
-        regex::Regex::new(r"[\p{Han}\p{Hiragana}\p{Katakana}ー]+")
-            .expect("valid Japanese script pattern")
-    });
-    let normalized = normalize(text);
-    let mut words = Vec::new();
-    let mut append = |text: &str| {
-        words.extend(
-            text.split(|c: char| !c.is_alphanumeric())
-                .filter(|word| !word.is_empty())
-                .map(str::to_owned),
-        );
-    };
-    let mut end = 0;
-    // Keep English and alphanumeric names such as Word2Vec intact, even next
-    // to Japanese text. Only Japanese runs need dictionary segmentation.
-    for span in japanese.find_iter(&normalized) {
-        append(&normalized[end..span.start()]);
-        for token in tokenizer()?
-            .segment(span.as_str().into())
-            .map_err(|error| SearchError::Tokenizer(error.to_string()))?
-        {
-            append(&token.text);
-        }
-        end = span.end();
-    }
-    append(&normalized[end..]);
-    Ok(words)
-}
-
 impl SearchIndex {
     pub fn new() -> Result<Self, SearchError> {
         tokenizer()?;
@@ -163,6 +143,15 @@ impl SearchIndex {
         for name in ["title", "authors", "venues", "identifiers", "body"] {
             schema.add_text_field(name, TEXT);
         }
+        schema.add_text_field(
+            reading::GRAM_FIELD,
+            TextOptions::default().set_indexing_options(
+                TextFieldIndexing::default()
+                    .set_tokenizer("default")
+                    .set_index_option(IndexRecordOption::Basic)
+                    .set_fieldnorms(false),
+            ),
+        );
         for name in [
             "author_filter",
             "venue_filter",
@@ -211,6 +200,7 @@ impl SearchIndex {
         let mut prepared = Vec::with_capacity(documents.len());
         for input in &documents {
             let mut doc = TantivyDocument::default();
+            let mut readings = Readings::default();
             doc.add_text(field(&schema, "id"), &input.id);
             for (name, values) in [
                 ("title", vec![input.title.as_str()]),
@@ -226,9 +216,15 @@ impl SearchIndex {
                 ("body", vec![input.body.as_str()]),
             ] {
                 for value in values {
-                    doc.add_text(field(&schema, name), tokens(value)?.join(" "));
+                    let analysis = analyze(value)?;
+                    doc.add_text(field(&schema, name), analysis.words().join(" "));
+                    readings.add(name, &analysis);
                 }
             }
+            for alias in &input.author_aliases {
+                readings.add("author_aliases", &analyze(alias)?);
+            }
+            doc.add_text(field(&schema, reading::GRAM_FIELD), readings.grams());
             for (name, values) in [
                 ("author_filter", &input.authors),
                 ("venue_filter", &input.venues),
@@ -244,7 +240,7 @@ impl SearchIndex {
                 doc.add_i64(field(&schema, "year"), year);
             }
             doc.add_i64(field(&schema, "updated_at"), input.updated_at);
-            prepared.push(doc);
+            prepared.push((doc, readings));
         }
         for id in deleted_ids
             .iter()
@@ -257,7 +253,7 @@ impl SearchIndex {
                 Arc::make_mut(&mut state.metadata).remove(&ordinal);
             }
         }
-        for (input, mut doc) in documents.into_iter().zip(prepared) {
+        for (input, (mut doc, readings)) in documents.into_iter().zip(prepared) {
             let ordinal = state.next_ordinal;
             state.next_ordinal += 1;
             doc.add_u64(field(&schema, "ordinal"), ordinal);
@@ -275,6 +271,7 @@ impl SearchIndex {
                         .collect(),
                     year: input.year,
                     updated_at: input.updated_at,
+                    readings,
                 }),
             );
         }
@@ -300,17 +297,29 @@ impl SearchIndex {
         let schema = state.index.schema();
         let mut request = request.clone();
         request.query = identifier_query(&request.query);
-        let query = build_query(&schema, &request)?;
         let searcher = state.reader.searcher();
+        let metadata = Arc::clone(&state.metadata);
+        // Pin the reader and its corresponding metadata together. Readers can
+        // finish on this immutable snapshot while another batch is committed.
+        drop(state);
+        let analysis = analyze(&request.query)?;
+        let query = build_query(&schema, &request, &analysis, &metadata)?;
         if u64::try_from(request.offset).unwrap_or(u64::MAX) >= searcher.num_docs() {
             return Ok(SearchPage {
                 total: searcher.search(&query, &Count)?,
                 ids: Vec::new(),
             });
         }
-        let metadata = Arc::clone(&state.metadata);
         let sort = request.sort.clone();
         let normalized_query = normalize(&request.query);
+        let japanese: Vec<_> = analysis
+            .groups
+            .into_iter()
+            .filter_map(|group| match group {
+                Group::Japanese { words, reading } => Some((words, Pattern::new(reading, false))),
+                Group::Word(_) => None,
+            })
+            .collect();
         let collector = TopDocs::with_limit(request.limit)
             .and_offset(request.offset)
             .tweak_score(move |segment: &SegmentReader| {
@@ -322,6 +331,7 @@ impl SearchIndex {
                 let metadata = Arc::clone(&metadata);
                 let sort = sort.clone();
                 let query = normalized_query.clone();
+                let japanese = japanese.clone();
                 move |doc, score| {
                     let data = &metadata[&ordinals.get_val(doc)];
                     let exact = if data.identifiers.contains(&query) {
@@ -332,6 +342,22 @@ impl SearchIndex {
                     Rank {
                         sort: sort.clone(),
                         exact,
+                        quality: japanese
+                            .iter()
+                            .map(|(words, pattern)| {
+                                if words
+                                    .iter()
+                                    .all(|word| data.readings.surface_words.contains(word))
+                                {
+                                    3
+                                } else if data.readings.exact(pattern) {
+                                    2
+                                } else {
+                                    1
+                                }
+                            })
+                            .min()
+                            .unwrap_or(3),
                         score,
                         data: data.clone(),
                     }
@@ -425,8 +451,13 @@ fn word_query(schema: &Schema, word: &str) -> Box<dyn Query> {
     Box::new(BooleanQuery::new(alternatives))
 }
 
-fn build_query(schema: &Schema, request: &SearchRequest) -> Result<Box<dyn Query>, SearchError> {
-    let words = tokens(&request.query)?;
+fn build_query(
+    schema: &Schema,
+    request: &SearchRequest,
+    analysis: &Analysis,
+    metadata: &Arc<HashMap<u64, Arc<Metadata>>>,
+) -> Result<Box<dyn Query>, SearchError> {
+    let words = analysis.words();
     let mut clauses: Vec<(Occur, Box<dyn Query>)> = Vec::new();
     if words.is_empty() {
         clauses.push((
@@ -438,8 +469,30 @@ fn build_query(schema: &Schema, request: &SearchRequest) -> Result<Box<dyn Query
             },
         ));
     }
-    for word in &words {
-        clauses.push((Occur::Must, word_query(schema, word)));
+    for group in &analysis.groups {
+        let query = match group {
+            Group::Word(word) => word_query(schema, word),
+            Group::Japanese { words, reading } => {
+                let surface = BooleanQuery::new(
+                    words
+                        .iter()
+                        .map(|word| (Occur::Must, word_query(schema, word)))
+                        .collect(),
+                );
+                Box::new(BooleanQuery::new(vec![
+                    (Occur::Should, Box::new(surface)),
+                    (
+                        Occur::Should,
+                        Box::new(ReadingQuery::new(
+                            schema,
+                            Pattern::new(reading.clone(), true),
+                            metadata,
+                        )),
+                    ),
+                ]))
+            }
+        };
+        clauses.push((Occur::Must, query));
     }
     if words.len() > 1 {
         clauses.push((
@@ -464,22 +517,37 @@ fn build_query(schema: &Schema, request: &SearchRequest) -> Result<Box<dyn Query
         .step_by(2)
         .take(request.query.matches('"').count() / 2)
     {
-        let phrase_words = tokens(phrase)?;
-        if phrase_words.len() > 1 {
-            let alternatives = ["title", "authors", "venues", "identifiers", "body"]
+        let phrase_analysis = analyze(phrase)?;
+        let phrase_words = phrase_analysis.words();
+        if phrase_words.len() > 1 || phrase_analysis.has_japanese() {
+            let mut alternatives: Vec<_> = ["title", "authors", "venues", "identifiers", "body"]
                 .into_iter()
                 .map(|name| {
                     (
                         Occur::Should,
-                        Box::new(PhraseQuery::new(
-                            phrase_words
-                                .iter()
-                                .map(|word| Term::from_field_text(field(schema, name), word))
-                                .collect(),
-                        )) as Box<dyn Query>,
+                        if phrase_words.len() == 1 {
+                            term_query(field(schema, name), &phrase_words[0])
+                        } else {
+                            Box::new(PhraseQuery::new(
+                                phrase_words
+                                    .iter()
+                                    .map(|word| Term::from_field_text(field(schema, name), word))
+                                    .collect(),
+                            )) as Box<dyn Query>
+                        },
                     )
                 })
                 .collect();
+            if phrase_analysis.has_japanese() {
+                alternatives.push((
+                    Occur::Should,
+                    Box::new(ReadingQuery::new(
+                        schema,
+                        Pattern::new(phrase_analysis.canonical_reading(), false),
+                        metadata,
+                    )),
+                ));
+            }
             clauses.push((Occur::Must, Box::new(BooleanQuery::new(alternatives))));
         }
     }
@@ -556,6 +624,7 @@ fn append_filters(
 struct Rank {
     sort: String,
     exact: u8,
+    quality: u8,
     score: f32,
     data: Arc<Metadata>,
 }
@@ -594,6 +663,7 @@ impl Ord for Rank {
             _ => self
                 .exact
                 .cmp(&other.exact)
+                .then_with(|| self.quality.cmp(&other.quality))
                 .then_with(|| self.score.total_cmp(&other.score)),
         };
         order.then_with(|| other.data.id.cmp(&self.data.id))
