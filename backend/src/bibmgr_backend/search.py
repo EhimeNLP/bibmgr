@@ -145,6 +145,20 @@ def _document(record: ReferenceRecord, email: str | None) -> dict[str, Any]:
         "id": str(record.id),
         "title": record.title or "",
         "authors": [person.display_name for person in record.contributors],
+        "author_aliases": [
+            " ".join(
+                [
+                    *person.name_prefixes,
+                    *person.family_names,
+                    *person.given_names,
+                    *person.name_suffixes,
+                ]
+            )
+            for person in record.contributors
+            if not person.literal_name
+            and person.family_names
+            and person.given_names
+        ],
         "venues": list(dict.fromkeys(value for value in venues if value)),
         "identifiers": [
             record.citation_key,

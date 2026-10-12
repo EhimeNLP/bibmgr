@@ -69,6 +69,27 @@ def test_api_search_ranks_and_filters_before_pagination() -> None:
     )
     result = client.get("/references/page", params={"query": "山田 bert"})
     assert [item["bibtexKey"] for item in result.json()["items"]] == ["ja"]
+    for query in [
+        "しぜんげんごしょり",
+        "しぜんげごしょり",
+        "やまだたろう BERT",
+        '"しぜんげんごしょりとBERT"',
+    ]:
+        result = client.get(
+            "/references/page",
+            params={"query": query, "year": 2024, "limit": 1},
+        )
+        assert result.status_code == 200
+        assert result.json()["total"] == 1, query
+        assert [item["bibtexKey"] for item in result.json()["items"]] == [
+            "ja"
+        ], query
+        beyond_page = client.get(
+            "/references/page",
+            params={"query": query, "year": 2024, "limit": 1, "offset": 1},
+        )
+        assert beyond_page.json()["total"] == 1
+        assert beyond_page.json()["items"] == []
 
 
 def test_independent_indexes_follow_edits_deletion_and_restoration() -> None:
