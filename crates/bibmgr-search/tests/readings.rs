@@ -22,6 +22,38 @@ fn ids(index: &SearchIndex, query: &str) -> Vec<String> {
 }
 
 #[test]
+fn retrieves_researcher_names_from_neologd_readings() {
+    let index = SearchIndex::new().unwrap();
+    index
+        .apply(
+            vec![
+                SearchDocument {
+                    authors: vec!["山中伸弥".into()],
+                    ..document("stem-cells", "幹細胞研究")
+                },
+                SearchDocument {
+                    authors: vec!["本庶佑".into()],
+                    ..document("immunity", "免疫学研究")
+                },
+                document("other", "自然言語処理"),
+            ],
+            &[],
+        )
+        .unwrap();
+    for (query, expected) in [
+        ("やまなかしんや", "stem-cells"),
+        ("ほんじょたすく", "immunity"),
+        ("ホンジョタスク 免疫学", "immunity"),
+        ("\"ほんじょたすく\"", "immunity"),
+        ("しぜんげんごしょり", "other"),
+    ] {
+        let page = index.search(&request(query)).unwrap();
+        assert_eq!(page.ids, [expected], "{query}");
+        assert!(page.correction.is_none(), "{query}");
+    }
+}
+
+#[test]
 fn retrieves_kana_homophones_names_and_mixed_model_names() {
     let index = SearchIndex::new().unwrap();
     index

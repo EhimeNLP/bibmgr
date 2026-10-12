@@ -7,7 +7,7 @@
 Developing, testing, or building this repository from source requires the following tools:
 
 - `uv`: provisions the Python environment, installs locked dependencies, and runs Poe tasks; the application supports Python 3.11–3.13, while `.python-version` selects 3.12 only as the default contributor version
-- Rust 1.86 or later (`rustc` and `cargo`): builds the CLI and Python native extension
+- Rust 1.88 or later (`rustc` and `cargo`): builds the CLI and Python native extension
 - Node.js 22.12 or later in the Node.js 22 release line, with npm 10 or later: manages frontend dependencies, the development server, tests, and production builds
 
 ## Setup

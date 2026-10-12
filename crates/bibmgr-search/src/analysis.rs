@@ -70,15 +70,15 @@ pub(crate) fn analyze(text: &str) -> Result<Analysis, SearchError> {
             .segment(span.as_str().into())
             .map_err(|error| SearchError::Tokenizer(error.to_string()))?
         {
-            words.extend(split_words(&token.text).map(str::to_owned));
+            words.extend(split_words(&token.surface).map(str::to_owned));
             // Preserve literal kana, including misspellings and particles.
             // Unknown kanji keep their surface; never invent a pronunciation.
-            let surface = katakana(&token.text);
+            let surface = katakana(&token.surface);
             let value = if surface.chars().all(is_kana) {
                 surface
             } else {
                 token
-                    .get_detail(7)
+                    .get("reading")
                     .filter(|value| !value.is_empty() && value.chars().all(is_kana))
                     .map_or(surface, katakana)
             };

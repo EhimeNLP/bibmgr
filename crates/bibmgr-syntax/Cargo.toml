@@ -14,7 +14,7 @@ bibtex-parser.workspace = true
 serde.workspace = true
 
 [dev-dependencies]
-proptest = "1.11"
+proptest = "1.12"
 serde_json.workspace = true
 
 [lints]

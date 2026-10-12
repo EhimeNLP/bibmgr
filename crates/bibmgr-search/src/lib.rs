@@ -137,7 +137,7 @@ fn tokenizer() -> Result<&'static Segmenter, SearchError> {
     TOKENIZER
         .get_or_init(|| {
             Segmenter::from_config(&serde_json::json!({
-                "dictionary": {"kind": "ipadic"}, "mode": "normal"
+                "dictionary": "embedded://ipadic-neologd", "mode": "normal"
             }))
             .map_err(|error| error.to_string())
         })

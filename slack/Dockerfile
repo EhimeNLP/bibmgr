@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1.7
 
-FROM rust:1.86-bookworm AS builder
+FROM rust:1.88-bookworm AS builder
 
 RUN apt-get update \
     && apt-get install --yes --no-install-recommends python3.11 python3-pip \

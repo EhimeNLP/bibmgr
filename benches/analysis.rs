@@ -1,7 +1,8 @@
 use bibmgr_core::{analyze, AnalysisOptions};
 use bibmgr_edit::{apply_fix_plan, FixPlan};
 use bibmgr_model::{SourceRevision, TextEdit, TextRange};
-use criterion::{black_box, criterion_group, criterion_main, BenchmarkId, Criterion, Throughput};
+use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion, Throughput};
+use std::hint::black_box;
 
 fn bibliography(entries: usize) -> String {
     let mut source = String::with_capacity(entries * 240);
