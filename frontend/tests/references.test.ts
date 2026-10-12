@@ -145,6 +145,24 @@ describe("reference library API", () => {
     });
   });
 
+  it("passes the original spelling mode and preserves correction metadata", async () => {
+    const fetchMock = vi.fn().mockImplementation(() => Promise.resolve(jsonResponse({
+      items: [], total: 0, limit: 25, offset: 0,
+      correction: {
+        original_query: "machne learning",
+        corrected_query: "machine learning",
+      },
+    })));
+    vi.stubGlobal("fetch", fetchMock);
+    await expect(searchReferencePage({ query: "machne learning" })).resolves.toMatchObject({
+      correction: { originalQuery: "machne learning", correctedQuery: "machine learning" },
+    });
+    await searchReferencePage({ query: "machne learning", searchMode: "original" });
+    const parameters = new URL(String(fetchMock.mock.calls[1]?.[0]), "https://bibmgr.test").searchParams;
+    expect(parameters.get("search_mode")).toBe("original");
+    expect(parameters.get("query")).toBe("machne learning");
+  });
+
   it("deletes a reference using the resource endpoint", async () => {
     const fetchMock = vi.fn().mockResolvedValue(new Response(null, { status: 204 }));
     vi.stubGlobal("fetch", fetchMock);

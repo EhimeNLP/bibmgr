@@ -8,10 +8,12 @@ import {
 import type {
   Reference,
   ReferenceSearchFilters,
+  SearchCorrection,
 } from "./types/reference";
 import type { AuthenticationSession } from "./types/auth";
 import { searchReferencePage } from "./api/references";
 import SearchBar from "./components/SearchBar.vue";
+import SearchCorrectionNotice from "./components/SearchCorrectionNotice.vue";
 import ReferenceList from "./components/ReferenceList.vue";
 import ReferenceDetail from "./components/ReferenceDetail.vue";
 import EmptyState from "./components/EmptyState.vue";
@@ -30,6 +32,7 @@ const isLoading = ref(false);
 const errorMessage = ref<string | null>(null);
 const hasSearched = ref(false);
 const totalReferences = ref(0);
+const searchCorrection = ref<SearchCorrection>();
 const pageLimit = 25;
 const pageOffset = ref(0);
 const activeFilters = ref<ReferenceSearchFilters>({
@@ -122,6 +125,7 @@ async function loadReferences(
   isLoading.value = true;
   errorMessage.value = null;
   selectedReference.value = null;
+  searchCorrection.value = undefined;
 
   try {
     const page = await searchReferencePage(filters, {
@@ -137,6 +141,7 @@ async function loadReferences(
     references.value = page.items;
     totalReferences.value = page.total;
     pageOffset.value = page.offset;
+    searchCorrection.value = page.correction;
     selectedReference.value = references.value[0] ?? null;
   } catch (error) {
     if (
@@ -166,6 +171,7 @@ function resetProtectedWorkspace() {
   hasSearched.value = false;
   totalReferences.value = 0;
   pageOffset.value = 0;
+  searchCorrection.value = undefined;
   activeFilters.value = {
     query: "",
     sort: "relevance",
@@ -176,7 +182,30 @@ function resetProtectedWorkspace() {
 async function handleSearch(filters?: ReferenceSearchFilters) {
   mobileView.value = "library";
   hasSearched.value = true;
-  activeFilters.value = filters ?? activeFilters.value;
+  if (filters) {
+    activeFilters.value = {
+      ...filters,
+      searchMode: filters.query?.trim() === activeFilters.value.query?.trim()
+        ? activeFilters.value.searchMode
+        : "auto",
+    };
+  }
+  await loadReferences(activeFilters.value, 0);
+}
+
+async function searchOriginal() {
+  if (!searchCorrection.value || isLoading.value) return;
+  activeFilters.value = {
+    ...activeFilters.value,
+    query: searchCorrection.value.originalQuery,
+    searchMode: "original",
+  };
+  query.value = activeFilters.value.query ?? "";
+  await loadReferences(activeFilters.value, 0);
+}
+
+async function enableAutomaticCorrection() {
+  activeFilters.value = { ...activeFilters.value, searchMode: "auto" };
   await loadReferences(activeFilters.value, 0);
 }
 
@@ -353,6 +382,22 @@ async function changePage(direction: -1 | 1) {
               :loading="isLoading"
               @search="handleSearch"
             />
+          </div>
+
+          <SearchCorrectionNotice
+            v-if="!isLoading && !errorMessage && searchCorrection"
+            :correction="searchCorrection"
+            @search-original="searchOriginal"
+          />
+          <div
+            v-else-if="!isLoading && !errorMessage && activeFilters.searchMode === 'original'"
+            class="search-original-notice"
+            role="status"
+          >
+            <p>Searching for the original spelling.</p>
+            <button type="button" @click="enableAutomaticCorrection">
+              Use automatic correction
+            </button>
           </div>
 
           <LoadingState v-if="isLoading" />
