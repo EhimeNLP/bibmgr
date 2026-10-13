@@ -224,8 +224,14 @@ class RegisterReferencesResponse(BaseModel):
     references: list[ReferenceResponse]
 
 
+class SearchCorrection(BaseModel):
+    original_query: str
+    corrected_query: str
+
+
 class ReferencePageResponse(BaseModel):
     items: list[ReferenceResponse]
     total: int = Field(ge=0)
     limit: int = Field(ge=1)
     offset: int = Field(ge=0)
+    correction: SearchCorrection | None = None

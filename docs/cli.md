@@ -55,7 +55,7 @@ bibmgr lint bibliography.bib --format json > lint.json
 # Preview byte-preserving safe edits
 bibmgr fix bibliography.bib --safe --dry-run
 
-# Generate a separate legacy-compatible artifact
+# Generate a separate artifact for a classical BibTeX style
 bibmgr export bibliography.bib --profile classical-bst > submission.bib
 
 # Capture the generated source and export metadata as one stable DTO

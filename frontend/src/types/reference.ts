@@ -59,6 +59,7 @@ export type ReferenceSort =
 
 export type ReferenceSearchFilters = {
   query?: string;
+  searchMode?: "auto" | "original";
   year?: number;
   author?: string;
   venue?: string;
@@ -75,4 +76,10 @@ export type ReferencePage = {
   total: number;
   limit: number;
   offset: number;
+  correction?: SearchCorrection;
+};
+
+export type SearchCorrection = {
+  originalQuery: string;
+  correctedQuery: string;
 };
