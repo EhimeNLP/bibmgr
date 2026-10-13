@@ -3,13 +3,14 @@ name = "bibmgr-fuzz"
 version = "0.0.0"
 publish = false
 edition = "2021"
+rust-version = "1.88"
 
 [package.metadata]
 cargo-fuzz = true
 
 [dependencies]
-libfuzzer-sys = "0.4"
-serde_json = "1"
+libfuzzer-sys = "0.4.13"
+serde_json = "1.0.154"
 bibmgr-core = { path = "../crates/bibmgr-core" }
 bibmgr-edit = { path = "../crates/bibmgr-edit" }
 bibmgr-model = { path = "../crates/bibmgr-model" }
@@ -37,6 +38,7 @@ doc = false
 bench = false
 
 [workspace]
+resolver = "3"
 members = ["."]
 
 [profile.release]

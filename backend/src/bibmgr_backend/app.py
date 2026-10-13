@@ -1067,6 +1067,7 @@ def create_app(
         session: SessionDependency,
         _authenticated: AuthenticatedSessionDependency,
         query: Annotated[str, Query(max_length=512)] = "",
+        search_mode: Literal["auto", "original"] = "auto",
         year: Annotated[int | None, Query(ge=1, le=9999)] = None,
         author: Annotated[str | None, Query(max_length=320)] = None,
         venue: Annotated[str | None, Query(max_length=512)] = None,
@@ -1086,9 +1087,10 @@ def create_app(
         limit: Annotated[int, Query(ge=1, le=100)] = 25,
         offset: Annotated[int, Query(ge=0)] = 0,
     ) -> ReferencePageResponse:
-        records, total = library.search_page(
+        records, total, correction = library.search_page(
             session,
             query,
+            search_mode=search_mode,
             year=year,
             author=author,
             venue=venue,
@@ -1104,6 +1106,7 @@ def create_app(
         return ReferencePageResponse(
             items=[reference_response(record) for record in records],
             total=total,
+            correction=correction,
             limit=limit,
             offset=offset,
         )

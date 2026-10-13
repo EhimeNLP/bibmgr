@@ -5,7 +5,7 @@
 Install the following tools before running the application from source:
 
 - `uv`: provisions the Python environment, installs locked dependencies, and runs Poe tasks; the application supports Python 3.11–3.13, while `.python-version` selects 3.12 only as the default contributor version
-- Rust 1.86 or later (`rustc` and `cargo`): builds the Rust workspace and `bibmgr_native`
+- Rust 1.88 or later (`rustc` and `cargo`): builds the Rust workspace and `bibmgr_native`
 - Node.js 22.12 or later in the Node.js 22 release line, with npm 10 or later: manages Vue frontend dependencies, the development server, tests, and builds
 
 If all of the following commands succeed, you can proceed with the application setup:
@@ -19,6 +19,14 @@ npm --version
 ```
 
 Installing the Rust toolchain through `rustup` is recommended. Because `npm` is bundled with Node.js, it normally does not require a separate installation.
+
+The first Rust build of the native search extension downloads and compiles the embedded IPADIC NEologd dictionary. It needs network access. To reuse the dictionary across build profiles and toolchains, set an absolute cache directory before building:
+
+```bash
+export LINDERA_BUILD_DICTIONARY_CACHE_DIR="$PWD/target/lindera-dictionaries"
+```
+
+The compiled extension contains the dictionary; running the application does not require network access to Lindera. Dictionary coverage and search behavior are described in [database.md](database.md#search-and-pagination).
 
 In addition to the BibMgR application, local development requires two services:
 

@@ -38,6 +38,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         "neural translation",
         "neurla translation",
         "山田 言語処理",
+        "しぜんげんごしょり",
+        "しぜんげごしょり",
+        "やまだたろう しぜんげんご BERT",
+        "\"しぜんげんごしょりのためのBERT\"",
         "Muller retrieval",
         "10.1234/paper42",
     ] {
@@ -56,8 +60,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
         elapsed.sort_unstable();
         println!(
-            "query={query:?} matches={} p50_us={} p95_us={}",
-            page.total, elapsed[20], elapsed[37]
+            "query={query:?} correction={:?} matches={} p50_us={} p95_us={}",
+            page.correction.as_ref().map(|value| &value.corrected_query),
+            page.total,
+            elapsed[20],
+            elapsed[37]
         );
     }
     Ok(())

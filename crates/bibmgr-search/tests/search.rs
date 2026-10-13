@@ -70,7 +70,7 @@ fn tokenizes_japanese_and_normalizes_width_and_accents() {
         ["ja"]
     );
     assert_eq!(index.search(&request("Muller bert")).unwrap().ids, ["ja"]);
-    assert_eq!(index.search(&request("モテル")).unwrap().total, 0);
+    assert_eq!(index.search(&request("モテル")).unwrap().ids, ["ja"]);
 }
 
 #[test]

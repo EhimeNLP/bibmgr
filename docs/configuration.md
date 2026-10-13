@@ -70,8 +70,6 @@ The TeX-special rule excludes raw identifier fields used for URLs, repository id
 
 The `archive` profile is the database-ingest boundary. It preserves field spelling and order, has no required or forbidden fields, disables optional profile conventions, accepts unresolved semantics, and leaves only strict parser diagnostics blocking. It never applies fixes. General analysis and export default to `modern`, which also disables those optional convention rules. The remaining built-in validation profiles are target-oriented; deployment-specific output conventions should be expressed as custom export profiles. No URL policy offers a metadata-deleting fix.
 
-The duplicate semantic analyzer codes `BIB-SEMANTIC-103`, `BIB-SEMANTIC-104`, and `BIB-SEMANTIC-105` are retired in favor of the canonical DOI, arXiv, and date codes `BIB-SEMANTIC-001`, `BIB-SEMANTIC-002`, and `BIB-SEMANTIC-007`. TOML loaders migrate the retired codes to their canonical replacements and reject conflicting settings.
-
 Validation-time arXiv representations are `any`, `eprint`, `howpublished`, and `article-journal`. Field order contains valid, unique BibTeX names. Invalid regular expressions, duplicate fields, unknown rule codes, empty profile IDs, and unsupported schema versions are rejected while loading.
 
 Parse mode is an analysis option rather than policy content: editors use tolerant mode, while registration and export use strict mode.
@@ -92,7 +90,7 @@ Export profiles are typed separately and include serialization-only fields such 
 
 - `misc-eprint`: `@misc`, `eprint`, and `archivePrefix`;
 - `misc-howpublished`: `@misc` and `howpublished`;
-- `article-journal`: legacy `@article` and `journal`.
+- `article-journal`: `@article` and `journal`.
 
 The validation catalog contains `archive`, `modern`, `acl`, and `classical-bst`; `archive` is reserved for ingest and is not an export profile. Export profiles with another matching ID still resolve to a separate typed value. Artifact-derived export profiles explicitly reuse the closest validation policy: `aaai`, `acm-publications`, `ieee-publications`, `ml-conferences`, and `springer-lncs` use `modern`; `lrec` uses `acl`; `eamt`, both IPSJ profiles, `jnlp-japanese`, `jsai-journal`, and `natbib-full-author-names` use `classical-bst`. `legacy-arxiv-article` also uses `modern`.
 
@@ -193,7 +191,7 @@ The form renders an unsaved draft through `POST /settings/export-profiles/previe
 
 `[field_renames]` defines case-insensitive source-to-target field names and is applied after candidate generation but before field projection. The ACL and LREC profiles use `pmid = "pubmed"`, allowing semantic PMID data to reach the `pubmed` field spelling expected by those BST families.
 
-The older top-level `include_doi`, `include_url`, `include_extra_fields`, and `excluded_fields` keys remain accepted for API compatibility, but new profiles should express the final field projection with `[field_selection]`. After compatibility include switches are applied, profile optimization generates structured and extra candidate fields, applies `[field_renames]`, projects the enabled fields, normalizes field names, sorts the survivors, and serializes them.
+`include_doi`, `include_url`, and `include_extra_fields` control candidate-field generation. Export applies `[field_renames]`, projects fields through `[field_selection]`, normalizes field names, sorts the survivors, and serializes them.
 
 During semantic export, prose text escapes raw `%`, `&`, `#`, and `_`, renders a text-mode caret as `\textasciicircum{}`, and escapes an unmatched dollar. Complete TeX math spans retain their delimiters, subscripts, superscripts, and alignment markers, while raw URL-like fields and recognized URL or verbatim command arguments retain their identifier bytes.
 
@@ -214,17 +212,13 @@ During semantic export, prose text escapes raw `%`, `&`, `#`, and `_`, renders a
 | `jnlp-japanese` | `journal-of-natural-language-processing-japanese.toml` | `jnlpbbl_1.7.bst` | Japanese natural-language-processing fields with yomi, romaji, and web metadata |
 | `jsai-journal` | `japanese-society-for-artificial-intelligence-journal.toml` | `jsai.bst` | JSAI journal fields with yomi metadata and identifiers suppressed to match style support |
 | `classical-bst` | `classical-bst.toml` | Conservative built-in | Classical BibTeX fields with preprints represented through `howpublished` |
-| `legacy-arxiv-article` | `legacy-arxiv-article.toml` | Legacy compatibility built-in | Legacy preprints represented as `@article` with an arXiv `journal` value |
+| `legacy-arxiv-article` | `legacy-arxiv-article.toml` | arXiv article representation | Preprints represented as `@article` with an arXiv `journal` value |
 
 The artifact-derived profiles are field-compatible optimizations informed by the referenced BST files, not executions or complete reproductions of those styles. They preserve an original BST-native entry type when it is explicitly supported, but do not reproduce bibliography sorting, citation-label construction, author-name formatting, punctuation, or entry-type-specific conditional field formatting and suppression; those remain responsibilities of a BST processor or the target publication toolchain.
 
-Every artifact-derived profile sets `allow_unknown_work_type = false`. An unrecognized semantic work type is exported only when its original entry type is explicitly listed in `supported_entry_types`; an unsupported original type fails export instead of being silently converted to `@misc`. The general-purpose `modern` and compatibility-focused `legacy-arxiv-article` profiles retain their existing unrestricted fallback behavior and are not artifact-derived profiles.
+Every artifact-derived profile sets `allow_unknown_work_type = false`. An unrecognized semantic work type is exported only when its original entry type is explicitly listed in `supported_entry_types`; an unsupported original type fails export instead of being silently converted to `@misc`. The `modern` and `legacy-arxiv-article` profiles allow unrecognized work types to fall back to `@misc`.
 
-`default` remains an API alias for `modern`, and `article-journal` remains an API alias for `legacy-arxiv-article`; aliases are not duplicated in the profile catalog.
-
-## Inheritance
-
-`extends` is reserved on validation policy files for a profile-set loader. The checked-in policies are intentionally self-contained. A loader that accepts a set must resolve parents before publication and reject a missing parent, duplicate ID, self-reference, or multi-profile cycle. Resolved values, rather than partial files, participate in determinism and cache keys.
+`default` is an API alias for `modern`, and `article-journal` is an API alias for `legacy-arxiv-article`; aliases are not duplicated in the profile catalog.
 
 ## Registry validation
 

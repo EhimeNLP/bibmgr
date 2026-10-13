@@ -7,7 +7,7 @@
 Developing, testing, or building this repository from source requires the following tools:
 
 - `uv`: provisions the Python environment, installs locked dependencies, and runs Poe tasks; the application supports Python 3.11–3.13, while `.python-version` selects 3.12 only as the default contributor version
-- Rust 1.86 or later (`rustc` and `cargo`): builds the CLI and Python native extension
+- Rust 1.88 or later (`rustc` and `cargo`): builds the CLI and Python native extension
 - Node.js 22.12 or later in the Node.js 22 release line, with npm 10 or later: manages frontend dependencies, the development server, tests, and production builds
 
 ## Setup
@@ -34,12 +34,6 @@ cargo install --git https://github.com/EhimeNLP/bibmgr.git --locked bibmgr-cli
 bibmgr --version
 ```
 
-Add `--force` to replace an existing Cargo installation:
-
-```bash
-cargo install --git https://github.com/EhimeNLP/bibmgr.git --locked --force bibmgr-cli
-```
-
 Alternatively, Linux and macOS users can install a prebuilt binary without requiring Rust:
 
 ```bash
@@ -59,7 +53,7 @@ curl -LsSf https://github.com/EhimeNLP/bibmgr/releases/latest/download/bibmgr-in
   BIBMGR_INSTALL_DIR="$HOME/bin" BIBMGR_VERSION=v0.1.1 sh
 ```
 
-Run the installer again to update an existing installation. Windows x86_64 users can download `bibmgr-x86_64-pc-windows-msvc.zip` from the [latest release](https://github.com/EhimeNLP/bibmgr/releases/latest), extract `bibmgr.exe`, and place it on `PATH`.
+Windows x86_64 users can download `bibmgr-x86_64-pc-windows-msvc.zip` from the [latest release](https://github.com/EhimeNLP/bibmgr/releases/latest), extract `bibmgr.exe`, and place it on `PATH`.
 
 If you clone the repository for development or inspection, you can install from the local path:
 
@@ -67,13 +61,6 @@ If you clone the repository for development or inspection, you can install from 
 git clone https://github.com/EhimeNLP/bibmgr.git
 cd bibmgr
 cargo install --locked --path crates/bibmgr-cli
-```
-
-To update an installation from a local checkout, update the checkout and reinstall:
-
-```bash
-git pull
-cargo install --locked --force --path crates/bibmgr-cli
 ```
 
 To build a release binary without installing it, use the Poe task:

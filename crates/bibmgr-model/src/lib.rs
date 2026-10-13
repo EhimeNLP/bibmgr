@@ -2,7 +2,7 @@
 
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
-use std::fmt;
+use std::fmt::{self, Write};
 
 /// Version of JSON and Python DTOs returned by this workspace.
 pub const SCHEMA_VERSION: &str = "1";
@@ -234,7 +234,12 @@ pub struct SourceRevision(pub String);
 impl SourceRevision {
     pub fn of(source: &str) -> Self {
         let digest = Sha256::digest(source.as_bytes());
-        Self(format!("sha256:{digest:x}"))
+        let mut revision = String::with_capacity(71);
+        revision.push_str("sha256:");
+        for byte in digest {
+            write!(revision, "{byte:02x}").expect("writing to a String cannot fail");
+        }
+        Self(revision)
     }
 
     pub fn as_str(&self) -> &str {
@@ -266,6 +271,18 @@ mod tests {
     fn revision_is_stable_and_content_addressed() {
         assert_eq!(SourceRevision::of("same"), SourceRevision::of("same"));
         assert_ne!(SourceRevision::of("same"), SourceRevision::of("different"));
+    }
+
+    #[test]
+    fn revision_preserves_sha256_wire_format() {
+        assert_eq!(
+            SourceRevision::of("").as_str(),
+            "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        );
+        assert_eq!(
+            SourceRevision::of("abc").as_str(),
+            "sha256:ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"
+        );
     }
 
     #[test]

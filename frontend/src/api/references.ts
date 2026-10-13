@@ -43,6 +43,7 @@ export async function searchReferencePage(
 ): Promise<ReferencePage> {
   const parameters = new URLSearchParams();
   appendParameter(parameters, "query", filters.query?.trim());
+  appendParameter(parameters, "search_mode", filters.searchMode ?? "auto");
   appendParameter(parameters, "year", filters.year);
   appendParameter(parameters, "author", filters.author?.trim());
   appendParameter(parameters, "venue", filters.venue?.trim());
@@ -80,6 +81,14 @@ export async function searchReferencePage(
     total: payload.total,
     limit: payload.limit,
     offset: payload.offset,
+    correction: isRecord(payload.correction) &&
+      typeof payload.correction.original_query === "string" &&
+      typeof payload.correction.corrected_query === "string"
+      ? {
+          originalQuery: payload.correction.original_query,
+          correctedQuery: payload.correction.corrected_query,
+        }
+      : undefined,
   };
 }
 

@@ -571,7 +571,7 @@ def test_tantivy_search_projects_postgres_records(monkeypatch) -> None:
             actor_user_id=user.id,
         )[0]
         session.commit()
-        records, total = library.search_page(
+        records, total, _correction = library.search_page(
             session,
             "山田 文献",
             identifier=key,
@@ -594,5 +594,5 @@ def test_tantivy_search_projects_postgres_records(monkeypatch) -> None:
             identifier=key,
             limit=1,
             offset=0,
-        ) == ([], 0)
+        ) == ([], 0, None)
     engine.dispose()

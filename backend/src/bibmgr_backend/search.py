@@ -18,6 +18,7 @@ from .db_models import (
     ReferenceSearchState,
     UserRecord,
 )
+from .models import SearchCorrection
 from .native import NativeSearchIndex
 
 
@@ -72,7 +73,7 @@ class ReferenceSearch:
 
     def search(
         self, session: Session, **request: Any
-    ) -> tuple[list[uuid.UUID], int]:
+    ) -> tuple[list[uuid.UUID], int, SearchCorrection | None]:
         with self._lock:
             try:
                 self._synchronize(session)
@@ -83,7 +84,12 @@ class ReferenceSearch:
                 self._index = None
                 self._generation = -1
                 raise
-        return [uuid.UUID(value) for value in page["ids"]], int(page["total"])
+        correction = page.get("correction")
+        return (
+            [uuid.UUID(value) for value in page["ids"]],
+            int(page["total"]),
+            SearchCorrection.model_validate(correction) if correction else None,
+        )
 
     def _synchronize(self, session: Session) -> None:
         generation = (
@@ -145,6 +151,20 @@ def _document(record: ReferenceRecord, email: str | None) -> dict[str, Any]:
         "id": str(record.id),
         "title": record.title or "",
         "authors": [person.display_name for person in record.contributors],
+        "author_aliases": [
+            " ".join(
+                [
+                    *person.name_prefixes,
+                    *person.family_names,
+                    *person.given_names,
+                    *person.name_suffixes,
+                ]
+            )
+            for person in record.contributors
+            if not person.literal_name
+            and person.family_names
+            and person.given_names
+        ],
         "venues": list(dict.fromkeys(value for value in venues if value)),
         "identifiers": [
             record.citation_key,
