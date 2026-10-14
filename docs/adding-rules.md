@@ -2,6 +2,8 @@
 
 A rule is implemented once in `bibmgr-validation` and is consumed unchanged by the CLI, PyO3, backend, and GUI.
 
+For a convention expressible as an entry type plus a regex on one resolved field, use [configurable field rules](configuration.md#configurable-field-rules) with a `CUSTOM-` code instead of adding domain-specific Rust code. Implement a built-in rule when the condition needs richer syntax or semantic analysis.
+
 ## Stable code and category
 
 Choose a code in the appropriate namespace:

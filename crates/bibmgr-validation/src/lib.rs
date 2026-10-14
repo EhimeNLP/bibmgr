@@ -5,7 +5,7 @@ use bibmgr_model::{
     Severity, SourceLocation, SourceRevision, TextEdit, TextRange,
 };
 pub use bibmgr_semantics::VenueKind;
-use bibmgr_semantics::{is_raw_identifier_field, Bibliography, WorkType};
+use bibmgr_semantics::{is_raw_identifier_field, Bibliography, FieldValueResolver, WorkType};
 use bibmgr_syntax::{EntryNode, FieldNode, SyntaxDocument, ValueAtomKind, ValueExpression};
 use regex::Regex;
 use serde::{Deserialize, Serialize};
@@ -136,6 +136,20 @@ impl Default for RuleSetting {
     }
 }
 
+/// A deployment-defined convention on one resolved field in one entry type.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct FieldRule {
+    pub code: RuleCode,
+    pub entry_type: String,
+    pub field: String,
+    pub pattern: String,
+    pub message: String,
+    pub enabled: bool,
+    pub severity: Severity,
+    pub blocking: bool,
+}
+
 /// TOML-friendly validation configuration. Missing rule overrides use embedded defaults.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(default = "ValidationPolicy::baseline", deny_unknown_fields)]
@@ -153,6 +167,8 @@ pub struct ValidationPolicy {
     pub arxiv_representation: ArxivRepresentation,
     pub prefer_braces: bool,
     pub rules: BTreeMap<RuleCode, RuleSetting>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub field_rules: Vec<FieldRule>,
 }
 
 impl Default for ValidationPolicy {
@@ -272,6 +288,7 @@ impl ValidationPolicy {
             arxiv_representation: ArxivRepresentation::Any,
             prefer_braces: true,
             rules: default_rule_settings(),
+            field_rules: Vec::new(),
         }
     }
 
@@ -351,24 +368,69 @@ impl ValidationPolicy {
                 }
             }
         }
+        self.compile_field_rules()?;
         for code in self.rules.keys() {
-            if !REGISTERED_RULE_CODES.contains(&code.as_str()) {
+            if !self.recognizes_rule(code.as_str()) {
                 return Err(ConfigurationError::UnknownRule(code.clone()));
             }
         }
         Ok(())
     }
 
+    /// Whether a diagnostic code is built in or defined by this policy.
+    pub fn recognizes_rule(&self, code: &str) -> bool {
+        REGISTERED_RULE_CODES.contains(&code)
+            || self
+                .field_rules
+                .iter()
+                .any(|rule| rule.code.as_str() == code)
+    }
+
+    fn compile_field_rules(&self) -> Result<Vec<(&FieldRule, Regex)>, ConfigurationError> {
+        let mut codes = BTreeSet::new();
+        self.field_rules.iter().map(|rule| {
+            let invalid = |message: &str| ConfigurationError::InvalidFieldRule {
+                code: rule.code.clone(), message: message.to_owned(),
+            };
+            if !is_custom_rule_code(rule.code.as_str()) {
+                return Err(invalid("code must use the CUSTOM- namespace with uppercase letters, digits, and nonempty hyphen-separated segments"));
+            }
+            if !codes.insert(&rule.code) {
+                return Err(invalid("duplicate code"));
+            }
+            if !is_field_name(&rule.entry_type) || !is_field_name(&rule.field) {
+                return Err(invalid("entry_type and field must be valid BibTeX names"));
+            }
+            if rule.message.trim().is_empty() || rule.pattern.trim().is_empty() {
+                return Err(invalid("message and pattern must not be empty"));
+            }
+            let pattern = Regex::new(&rule.pattern).map_err(|error| invalid(&error.to_string()))?;
+            Ok((rule, pattern))
+        }).collect()
+    }
+
     fn setting(&self, code: &str) -> RuleSetting {
         self.rules
             .get(&RuleCode::new(code))
             .cloned()
+            .or_else(|| {
+                self.field_rules
+                    .iter()
+                    .find(|rule| rule.code.as_str() == code)
+                    .map(|rule| RuleSetting {
+                        enabled: rule.enabled,
+                        severity: rule.severity,
+                        blocking: rule.blocking,
+                    })
+            })
             .unwrap_or_else(|| default_rule_setting(code))
     }
 }
 
 #[derive(Debug, thiserror::Error)]
 pub enum ConfigurationError {
+    #[error("invalid field rule `{code}`: {message}")]
+    InvalidFieldRule { code: RuleCode, message: String },
     #[error("unknown validation profile `{0}`")]
     UnknownProfile(String),
     #[error("validation profile id cannot be empty")]
@@ -863,7 +925,9 @@ impl RegistrationPolicy {
             .iter()
             .chain(&self.blocking_rules.exclude)
         {
-            if !REGISTERED_RULE_CODES.contains(&code.as_str()) {
+            if !REGISTERED_RULE_CODES.contains(&code.as_str())
+                && !is_custom_rule_code(code.as_str())
+            {
                 return Err(ConfigurationError::UnknownRule(code.clone()));
             }
         }
@@ -900,10 +964,30 @@ pub fn validate(
     policy: &ValidationPolicy,
 ) -> ValidationResult {
     let mut engine = Engine::new(syntax, policy);
+    let field_rules = match policy.compile_field_rules() {
+        Ok(rules) => rules,
+        Err(error) => {
+            return ValidationResult {
+                diagnostics: vec![Diagnostic::new(
+                    "configuration:BIB-CONFIG-001:0",
+                    RuleCode::new("BIB-CONFIG-001"),
+                    Severity::Error,
+                    true,
+                    error.to_string(),
+                    None,
+                )],
+                fixes: Vec::new(),
+            }
+        }
+    };
+    let resolver = (!field_rules.is_empty()).then(|| FieldValueResolver::new(syntax));
     engine.import_diagnostics(syntax.diagnostics());
     engine.import_diagnostics(&semantics.diagnostics);
 
     for (entry_index, entry) in syntax.entries().iter().enumerate() {
+        if let Some(resolver) = &resolver {
+            engine.validate_field_rules(entry, resolver, &field_rules);
+        }
         engine.validate_entry_syntax(entry);
         engine.validate_identifiers(entry);
         engine.validate_profile_conventions(entry);
@@ -990,7 +1074,7 @@ struct Engine<'a> {
     revision: SourceRevision,
     diagnostics: Vec<Diagnostic>,
     fixes: Vec<Fix>,
-    counters: BTreeMap<&'static str, usize>,
+    counters: BTreeMap<String, usize>,
 }
 
 impl<'a> Engine<'a> {
@@ -1002,6 +1086,52 @@ impl<'a> Engine<'a> {
             diagnostics: Vec::new(),
             fixes: Vec::new(),
             counters: BTreeMap::new(),
+        }
+    }
+
+    fn validate_field_rules(
+        &mut self,
+        entry: &EntryNode,
+        resolver: &FieldValueResolver<'_>,
+        rules: &[(&FieldRule, Regex)],
+    ) {
+        for field in &entry.fields {
+            let matching: Vec<_> = rules
+                .iter()
+                .filter(|(rule, _)| {
+                    self.policy.setting(rule.code.as_str()).enabled
+                        && entry.entry_type.text.eq_ignore_ascii_case(&rule.entry_type)
+                        && field.name.text.eq_ignore_ascii_case(&rule.field)
+                })
+                .collect();
+            if matching.is_empty() {
+                continue;
+            }
+            let value = resolver.resolve(field);
+            // Ambiguous and unresolved values retain their existing semantic diagnostics.
+            // Never select one macro definition merely to satisfy a convention.
+            let Some(text) = value
+                .resolved
+                .as_deref()
+                .filter(|_| value.candidates.len() <= 1)
+            else {
+                continue;
+            };
+            for (rule, pattern) in matching {
+                if pattern.is_match(text) {
+                    self.emit(
+                        rule.code.as_str(),
+                        rule.message.clone(),
+                        field.value.range,
+                        vec![RelatedLocation {
+                            message: String::from("matching entry type"),
+                            location: self.location(entry.entry_type.range),
+                        }],
+                        vec![],
+                        None,
+                    );
+                }
+            }
         }
     }
 
@@ -1062,7 +1192,7 @@ impl<'a> Engine<'a> {
 
     fn emit_duplicate_groups(
         &mut self,
-        code: &'static str,
+        code: &str,
         label: &str,
         groups: BTreeMap<String, Vec<TextRange>>,
     ) {
@@ -1954,7 +2084,7 @@ impl<'a> Engine<'a> {
     #[allow(clippy::too_many_arguments)]
     fn emit(
         &mut self,
-        code: &'static str,
+        code: &str,
         message: String,
         primary_range: TextRange,
         related_locations: Vec<RelatedLocation>,
@@ -1965,7 +2095,7 @@ impl<'a> Engine<'a> {
         if !setting.enabled {
             return;
         }
-        let counter = self.counters.entry(code).or_default();
+        let counter = self.counters.entry(code.to_owned()).or_default();
         let ordinal = *counter;
         *counter += 1;
         let stable_id = format!("{code}:{ordinal}");
@@ -3631,6 +3761,17 @@ fn is_field_name(value: &str) -> bool {
         && value
             .chars()
             .all(|character| character.is_ascii_alphanumeric() || matches!(character, '_' | '-'))
+}
+
+fn is_custom_rule_code(code: &str) -> bool {
+    code.strip_prefix("CUSTOM-").is_some_and(|suffix| {
+        suffix.split('-').all(|part| {
+            !part.is_empty()
+                && part
+                    .bytes()
+                    .all(|byte| byte.is_ascii_uppercase() || byte.is_ascii_digit())
+        })
+    })
 }
 
 fn default_field_order() -> Vec<String> {

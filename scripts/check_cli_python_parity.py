@@ -15,6 +15,13 @@ from bibmgr_backend.native import NativeEngine
 
 
 FIXTURES = {
+    "configurable-field": """@string{prefix = {Restricted}}
+@article{example-2024-field,
+  title = {Unicode 日本語},
+  journal = prefix # { Venue},
+  customfield = {12},
+}
+""",
     "valid": """@article{vaswani-attention,
   author = {Vaswani, Ashish and others},
   title = {Attention Is All You Need},
