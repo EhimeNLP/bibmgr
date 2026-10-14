@@ -17,7 +17,7 @@ pub use bibmgr_search::{SearchDocument, SearchError, SearchIndex, SearchPage, Se
 pub use bibmgr_semantics::Bibliography;
 pub use bibmgr_syntax::{ParseMode, ParseOptions, ParseStatus, SyntaxSummary};
 pub use bibmgr_validation::{
-    RegistrationPolicy, RepositoryRegistry, ValidationPolicy, VenueEntity, VenueRegistry,
+    FieldRule, RegistrationPolicy, RepositoryRegistry, ValidationPolicy, VenueEntity, VenueRegistry,
 };
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeSet;
@@ -431,6 +431,19 @@ pub fn validate_for_registration_with_options(
     }
     if let Err(error) = options.validation_policy.validate_configuration() {
         return registration_configuration_failure(source, &error.to_string());
+    }
+    for code in policy
+        .blocking_rules
+        .include
+        .iter()
+        .chain(&policy.blocking_rules.exclude)
+    {
+        if !options.validation_policy.recognizes_rule(code.as_str()) {
+            return registration_configuration_failure(
+                source,
+                &format!("unknown rule code `{code}`"),
+            );
+        }
     }
     let registration_profile = policy.validation_profile.as_str();
     let analysis_profile = options.validation_policy.profile.as_str();

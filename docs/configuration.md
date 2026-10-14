@@ -74,6 +74,28 @@ Validation-time arXiv representations are `any`, `eprint`, `howpublished`, and `
 
 Parse mode is an analysis option rather than policy content: editors use tolerant mode, while registration and export use strict mode.
 
+## Configurable field rules
+
+Deployments can define field-value conventions without adding domain-specific Rust rules:
+
+```toml
+[[field_rules]]
+code = "CUSTOM-VENUE-001"
+entry_type = "article"
+field = "journal"
+pattern = '(?i)^restricted venue$'
+message = "Choose an allowed journal."
+enabled = true
+severity = "error"
+blocking = true
+```
+
+All eight fields are required. `entry_type` and `field` match BibTeX names case-insensitively. `pattern` uses Rust regex syntax and searches the resolved field value; use anchors for a whole-value match and `(?i)` for case-insensitive matching. The shared semantic resolver expands `@string` references and concatenation. BibTeX value delimiters are removed, but inner TeX braces and commands are preserved. Missing fields and unresolved or ambiguous values do not match; existing semantic diagnostics still describe those cases. Each matching field occurrence produces a diagnostic at its source value, with the entry type as a related location. These rules never offer fixes or rewrite source.
+
+Codes must be unique within the policy and use `CUSTOM-` followed by nonempty, hyphen-separated segments of uppercase ASCII letters or digits. Invalid names, regexes, empty messages/patterns, duplicate codes, and unknown configuration keys are rejected even for disabled rules. Built-in codes cannot be redefined. The existing `[rules."CUSTOM-..."]` settings can override a declared field rule, and registration blocking selectors can reference its code; registration rejects selectors for undeclared codes. Severity and blocking remain independent.
+
+The built-in policies define no field rules. To enforce a deployment convention during registration, add its definition to the deployment's `archive` policy. The CLI, Python extension, backend, and editor consume the same diagnostics. Field rules are separate from export profiles and do not introduce an adapter-specific decision path.
+
 ## Registration policy
 
 Registration resolves one validation profile and then applies independent acceptance settings. The application default is the built-in Rust policy:
