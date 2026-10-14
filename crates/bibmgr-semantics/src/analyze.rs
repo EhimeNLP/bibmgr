@@ -11,7 +11,7 @@ use bibmgr_syntax::{
 use std::collections::{BTreeMap, BTreeSet};
 
 pub(crate) fn analyze(document: &SyntaxDocument) -> Bibliography {
-    let resolver = MacroResolver::new(document);
+    let resolver = FieldValueResolver::new(document);
     let mut bibliography = Bibliography::default();
     for entry in document.entries() {
         bibliography.records.push(analyze_entry(
@@ -46,7 +46,7 @@ impl EvaluatedField<'_> {
 fn analyze_entry(
     document: &SyntaxDocument,
     entry: &EntryNode,
-    resolver: &MacroResolver<'_>,
+    resolver: &FieldValueResolver<'_>,
     diagnostics: &mut Vec<Diagnostic>,
 ) -> BibliographicRecord {
     let source_id = document.source_id().clone();
@@ -202,7 +202,9 @@ fn analyze_entry(
     }
 }
 
-struct MacroResolver<'a> {
+/// Reuses the semantic engine's macro resolution for arbitrary source fields.
+#[derive(Debug)]
+pub struct FieldValueResolver<'a> {
     document: &'a SyntaxDocument,
     definitions: BTreeMap<String, Vec<&'a StringNode>>,
 }
@@ -243,8 +245,8 @@ impl AtomResolution {
     }
 }
 
-impl<'a> MacroResolver<'a> {
-    fn new(document: &'a SyntaxDocument) -> Self {
+impl<'a> FieldValueResolver<'a> {
+    pub fn new(document: &'a SyntaxDocument) -> Self {
         let mut definitions: BTreeMap<String, Vec<&StringNode>> = BTreeMap::new();
         for definition in document.strings() {
             definitions
@@ -256,6 +258,11 @@ impl<'a> MacroResolver<'a> {
             document,
             definitions,
         }
+    }
+
+    /// Resolve a field without normalizing, formatting, or rewriting its value.
+    pub fn resolve(&self, field: &FieldNode) -> SemanticValue {
+        self.evaluate(&field.value, &field.name.text).value
     }
 
     fn evaluate(&self, expression: &ValueExpression, field_name: &str) -> ValueEvaluation {

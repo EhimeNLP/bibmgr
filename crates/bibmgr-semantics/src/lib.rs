@@ -7,6 +7,8 @@
 mod analyze;
 mod names;
 
+pub use analyze::FieldValueResolver;
+
 use bibmgr_model::{Diagnostic, SourceId, TextRange};
 use bibmgr_syntax::SyntaxDocument;
 use serde::{Deserialize, Serialize};
