@@ -50,7 +50,7 @@ fn resolved_fields_emit_stable_diagnostics_without_rewriting_source() {
         assert_eq!(diagnostic.message, "Choose an allowed journal.");
         assert_eq!(diagnostic.severity, Severity::Error);
         assert!(diagnostic.blocking);
-        assert!(diagnostic.fixes.is_empty());
+        assert_eq!(diagnostic.fixes, [] as [bibmgr_core::FixId; 0]);
         let range = diagnostic.primary_location.as_ref().unwrap().range;
         assert_eq!(
             &source[range.start as usize..range.end as usize],
@@ -220,7 +220,7 @@ fn field_rules_round_trip_and_are_empty_in_builtin_policies() {
     );
     for profile in ["archive", "modern", "acl", "classical-bst"] {
         let policy = ValidationPolicy::builtin(profile).unwrap();
-        assert!(policy.field_rules.is_empty());
+        assert_eq!(policy.field_rules, [] as [bibmgr_core::FieldRule; 0]);
         assert!(serde_json::to_value(policy)
             .unwrap()
             .get("field_rules")
