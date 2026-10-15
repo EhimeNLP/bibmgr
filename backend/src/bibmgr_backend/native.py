@@ -53,6 +53,12 @@ class NativeEngine:
                 ) from error
         return self._native_module
 
+    def comparison_records(self, records: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        return self._call("comparison_records", json.dumps(records))["records"]
+
+    def assess_duplicates(self, incoming: list[dict[str, Any]], candidates: list[dict[str, Any]], policy: dict[str, Any]) -> dict[str, Any]:
+        return self._call("assess_duplicates", json.dumps(incoming), json.dumps(candidates), json.dumps(policy))
+
     def analyze(
         self,
         source: str,

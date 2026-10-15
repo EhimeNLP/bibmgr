@@ -29,6 +29,13 @@ struct Cli {
 
 #[derive(Debug, Subcommand)]
 enum Command {
+    /// Explain duplicate candidates within a document, using the shared engine.
+    Duplicates {
+        file: PathBuf,
+        /// JSON duplicate action policy (defaults to warning on title/key matches).
+        #[arg(long)]
+        policy: Option<PathBuf>,
+    },
     /// Analyze one or more BibTeX documents without modifying them.
     Lint {
         #[arg(required = true)]
@@ -136,6 +143,49 @@ fn main() {
 
 fn run(cli: Cli) -> Result<i32, CliError> {
     match cli.command {
+        Command::Duplicates { file, policy } => {
+            let source = read_source(&file)?;
+            let analysis = analyze(&source, &analysis_options("archive", false)?);
+            if analysis.syntax.status != bibmgr_core::ParseStatus::Ok {
+                return Err(CliError::message("Invalid BibTeX syntax".to_owned()));
+            }
+            let policy = policy
+                .map(|path| {
+                    read_source(&path).and_then(|s| {
+                        serde_json::from_str(&s).map_err(|e| CliError::message(e.to_string()))
+                    })
+                })
+                .transpose()?
+                .unwrap_or_default();
+            let records: Vec<_> = analysis
+                .bibliography
+                .records
+                .iter()
+                .map(bibmgr_core::comparison_record)
+                .collect();
+            let findings = bibmgr_core::duplicates::assess_duplicates(&records, &[], &policy)
+                .map_err(|e| CliError::message(e.to_string()))?;
+            println!(
+                "{}",
+                serde_json::to_string_pretty(
+                    &serde_json::json!({"schema_version": SCHEMA_VERSION, "findings": findings})
+                )
+                .map_err(|e| CliError::message(e.to_string()))?
+            );
+            Ok(
+                if findings.iter().any(|f| {
+                    matches!(
+                        f.action,
+                        bibmgr_core::duplicates::DuplicateAction::Reject
+                            | bibmgr_core::duplicates::DuplicateAction::Confirm
+                    )
+                }) {
+                    EXIT_BLOCKING
+                } else {
+                    EXIT_OK
+                },
+            )
+        }
         Command::Lint {
             files,
             format,

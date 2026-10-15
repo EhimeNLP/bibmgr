@@ -1,3 +1,4 @@
+import { duplicateReviewError, DuplicateReviewError, type DuplicateFinding } from "./duplicates";
 import type {
   CitationContextInput,
   Reference,
@@ -181,6 +182,7 @@ function normalizeReference(value: unknown): Reference {
   const rawCitationContexts =
     record.citationContexts ?? record.citation_contexts;
   return {
+    ...(Array.isArray(record.duplicate_warnings) ? { duplicateWarnings: record.duplicate_warnings as DuplicateFinding[] } : {}),
     id: stringValue(record.id) ?? "",
     title: bibtexTitleForDisplay(
       stringValue(record.title) ?? "Untitled reference",
@@ -241,7 +243,9 @@ async function readResponsePayload(response: Response): Promise<unknown> {
 function referenceApiError(
   payload: unknown,
   status: number,
-): BibtexApiError {
+): BibtexApiError | DuplicateReviewError {
+  const duplicate = duplicateReviewError(payload);
+  if (duplicate) return duplicate;
   const record = isRecord(payload) ? payload : undefined;
   const error = isRecord(record?.error) ? record.error : undefined;
   return new BibtexApiError(

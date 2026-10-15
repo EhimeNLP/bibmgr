@@ -1,3 +1,4 @@
+import type { DuplicateFinding } from "../api/duplicates";
 export type CitationContext = {
   id: string;
   sourcePaperTitle?: string;
@@ -10,6 +11,7 @@ export type CitationContext = {
 export type CitationContextInput = Omit<CitationContext, "id">;
 
 export type Reference = {
+  duplicateWarnings?: DuplicateFinding[];
   id: string;
   title: string;
   authors: string[];
@@ -28,6 +30,7 @@ export type Reference = {
 export type RegistrationSource = "manual" | "file";
 
 export type RegisterBibtexPayload = {
+  duplicate_confirmation?: string;
   bibtex: string;
   source: RegistrationSource;
   citation_contexts?: Array<{
@@ -40,11 +43,13 @@ export type RegisterBibtexPayload = {
 };
 
 export type RegisterBibtexResult = {
+  duplicateWarnings?: DuplicateFinding[];
   reference: Reference;
   references?: Reference[];
 };
 
 export type UpdateReferencePayload = {
+  duplicate_confirmation?: string;
   bibtex: string;
   source_revision: string;
 };

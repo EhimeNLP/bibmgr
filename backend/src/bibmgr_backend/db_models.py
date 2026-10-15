@@ -610,3 +610,23 @@ class ApplicationConfigurationAuditEvent(Base):
             "occurred_at",
         ),
     )
+
+
+class ReferenceComparison(Base):
+    """Rebuildable Rust comparison data; original references remain authoritative."""
+    __tablename__ = "reference_comparisons"
+    reference_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid(as_uuid=True), ForeignKey("bibliographic_references.id", ondelete="CASCADE"), primary_key=True
+    )
+    source_revision: Mapped[str] = mapped_column(String(71), nullable=False)
+    version: Mapped[int] = mapped_column(Integer, nullable=False)
+    profile: Mapped[dict[str, Any]] = mapped_column(json_type, nullable=False)
+
+
+class ReferenceComparisonKey(Base):
+    __tablename__ = "reference_comparison_keys"
+    reference_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid(as_uuid=True), ForeignKey("reference_comparisons.reference_id", ondelete="CASCADE"), primary_key=True
+    )
+    key: Mapped[str] = mapped_column(String(64), primary_key=True)
+    __table_args__ = (Index("ix_reference_comparison_keys_key", "key"),)

@@ -188,6 +188,7 @@ def create_app(
     engine: Engine | None = None,
     session_factory: Callable[[], Session] | None = None,
     registration_policy: str | None = None,
+    duplicate_policy: dict[str, Any] | None = None,
     authentication: AuthenticationManager | None = None,
     request_protection: RequestProtection | None = None,
 ) -> FastAPI:
@@ -201,7 +202,7 @@ def create_app(
     )
     selected_engine: Engine = engine or NativeEngine()
     selected_session_factory = session_factory or SessionFactory
-    library = ReferenceLibrary(selected_engine)
+    library = ReferenceLibrary(selected_engine, duplicate_policy)
     configuration = ApplicationConfiguration(selected_engine)
     selected_authentication = authentication or AuthenticationManager()
     selected_request_protection = (
@@ -1025,6 +1026,7 @@ def create_app(
         session: SessionDependency,
         authenticated: WriteSessionDependency,
     ) -> ReferenceResponse:
+        duplicate_warnings: list[dict[str, Any]] = []
         with write_transaction(session):
             record = library.restore(
                 session,
@@ -1032,8 +1034,10 @@ def create_app(
                 target_revision=request.target_revision,
                 expected_head_revision=request.expected_head_revision,
                 actor_user_id=authenticated.user.id,
+                duplicate_confirmation=request.duplicate_confirmation,
+                duplicate_warnings=duplicate_warnings,
             )
-        return reference_response(record)
+        return reference_response(record).model_copy(update={"duplicate_warnings": duplicate_warnings})
 
     @application.get(
         "/references",
@@ -1141,6 +1145,7 @@ def create_app(
         session: SessionDependency,
         authenticated: WriteSessionDependency,
     ) -> RegisterReferencesResponse:
+        duplicate_warnings: list[dict[str, Any]] = []
         with write_transaction(session):
             records = library.register(
                 session,
@@ -1148,12 +1153,14 @@ def create_app(
                 source=request.source,
                 policy=selected_registration_policy,
                 actor_user_id=authenticated.user.id,
+                duplicate_confirmation=request.duplicate_confirmation,
+                duplicate_warnings=duplicate_warnings,
                 citation_contexts=request.citation_contexts,
                 venue_registry=configuration.venue_registry(session),
             )
         responses = [reference_response(record) for record in records]
         return RegisterReferencesResponse(
-            reference=responses[0], references=responses
+            reference=responses[0], references=responses, duplicate_warnings=duplicate_warnings
         )
 
     @application.put(
@@ -1172,6 +1179,7 @@ def create_app(
         session: SessionDependency,
         authenticated: WriteSessionDependency,
     ) -> ReferenceResponse:
+        duplicate_warnings: list[dict[str, Any]] = []
         with write_transaction(session):
             record = library.update(
                 session,
@@ -1180,9 +1188,11 @@ def create_app(
                 source_revision=request.source_revision,
                 policy=selected_registration_policy,
                 actor_user_id=authenticated.user.id,
+                duplicate_confirmation=request.duplicate_confirmation,
+                duplicate_warnings=duplicate_warnings,
                 venue_registry=configuration.venue_registry(session),
             )
-        return reference_response(record)
+        return reference_response(record).model_copy(update={"duplicate_warnings": duplicate_warnings})
 
     @application.post(
         "/references/{reference_id}/citation-contexts",

@@ -5,6 +5,7 @@
 //! ambiguous and conflicting input is retained rather than silently replaced.
 
 mod analyze;
+pub mod duplicates;
 mod names;
 
 pub use analyze::FieldValueResolver;

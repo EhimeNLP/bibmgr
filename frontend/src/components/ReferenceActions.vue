@@ -13,6 +13,8 @@ import {
   getReference,
   updateReference,
 } from "../api/references";
+import DuplicateReview from "./DuplicateReview.vue";
+import { DuplicateReviewError, type DuplicateFinding } from "../api/duplicates";
 import type { BibtexDiagnostic } from "../types/bibtex";
 import type { Reference } from "../types/reference";
 import BibtexEditor from "./BibtexEditor.vue";
@@ -38,6 +40,9 @@ const isLoadingReference = ref(false);
 const isSaving = ref(false);
 const isDeleting = ref(false);
 const editSource = ref("");
+const editDuplicates = ref<DuplicateFinding[]>([]);
+const editConfirmation = ref<string>();
+watch(editSource, () => { editDuplicates.value = []; editConfirmation.value = undefined; }, { flush: "sync" });
 const initialSource = ref("");
 const editSourceRevision = ref("");
 const editError = ref<string | null>(null);
@@ -139,7 +144,7 @@ async function closeEdit() {
   actionsTrigger.value?.focus({ preventScroll: true });
 }
 
-async function saveEdit() {
+async function saveEdit(confirmed = false) {
   if (!canSave.value) return;
 
   const bibtex = editSource.value;
@@ -152,11 +157,20 @@ async function saveEdit() {
     const updated = await updateReference(props.reference.id, {
       bibtex,
       source_revision: sourceRevision,
+      ...(confirmed && editConfirmation.value ? { duplicate_confirmation: editConfirmation.value } : {}),
     });
     emit("updated", updated);
     initialSource.value = updated.bibtex ?? bibtex;
-    await closeEditAfterSave();
+    editDuplicates.value = updated.duplicateWarnings ?? [];
+    editConfirmation.value = undefined;
+    editSourceRevision.value = updated.sourceRevision ?? sourceRevision;
+    if (editDuplicates.value.length) editMessage.value = "Saved. Review the related references below.";
+    else await closeEditAfterSave();
   } catch (error) {
+    if (error instanceof DuplicateReviewError) {
+      editDuplicates.value = error.findings;
+      editConfirmation.value = error.confirmationToken;
+    }
     editError.value = errorText(error, "Could not update the reference.");
   } finally {
     isSaving.value = false;
@@ -465,6 +479,7 @@ function trapDialogFocus(event: KeyboardEvent, root: HTMLElement | null) {
                 />
               </section>
 
+              <DuplicateReview :findings="editDuplicates" :confirmation-token="editConfirmation" :busy="isSaving" @confirm="saveEdit(true)" />
               <div class="registration-actions reference-edit-actions">
                 <p
                   v-if="editError"
@@ -485,7 +500,7 @@ function trapDialogFocus(event: KeyboardEvent, root: HTMLElement | null) {
                   class="button-primary"
                   :disabled="!canSave"
                   :aria-busy="isSaving"
-                  @click="saveEdit"
+                  @click="saveEdit()"
                 >
                   <span
                     v-if="isSaving"

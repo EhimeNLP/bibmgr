@@ -88,3 +88,7 @@ BibmgrError
 Document diagnostics are regular successful results. Exceptions represent an operation/configuration failure. CPU-heavy core calls release the GIL, so the same extension can be used from a threaded HTTP service.
 
 The backend in [`backend/`](../backend) performs DTO conversion without reimplementing any rule.
+
+## Duplicate comparison
+
+`bibmgr_native.comparison_records(records_json)` accepts the serialized semantic record array from core analysis and returns `{"records": [...]}`. Pass that array to `bibmgr_native.assess_duplicates(incoming_json, candidates_json, policy_json="{}")`. The result contains `findings` and the resolved `policy`; normalization and comparison execute in Rust with the GIL released. Candidate indices identify records in the supplied arrays, not database IDs. The backend adds database IDs and source revisions for its warning/confirmation workflow.

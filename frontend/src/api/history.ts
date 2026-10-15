@@ -1,3 +1,4 @@
+import { duplicateReviewError, DuplicateReviewError, type DuplicateFinding } from "./duplicates";
 import type {
   ReferenceHistory,
   ReferenceHistoryAction,
@@ -92,6 +93,7 @@ export async function revertReference(
   referenceId: string,
   targetRevision: number,
   expectedHeadRevision: number,
+  duplicateConfirmation?: string,
 ): Promise<Reference> {
   const response = await fetch(
     `${API_BASE_URL}/references/${encodeURIComponent(referenceId)}/revert`,
@@ -102,6 +104,7 @@ export async function revertReference(
       body: JSON.stringify({
         target_revision: targetRevision,
         expected_head_revision: expectedHeadRevision,
+        ...(duplicateConfirmation ? { duplicate_confirmation: duplicateConfirmation } : {}),
       }),
     },
   );
@@ -163,6 +166,7 @@ function normalizeReference(value: unknown): Reference {
   const citationContexts =
     record.citationContexts ?? record.citation_contexts;
   return {
+    ...(Array.isArray(record.duplicate_warnings) ? { duplicateWarnings: record.duplicate_warnings as DuplicateFinding[] } : {}),
     id: requiredString(record.id),
     title: requiredString(record.title),
     authors: Array.isArray(record.authors)
@@ -221,7 +225,9 @@ function historyError(
   payload: unknown,
   status: number,
   fallback = `History request failed with status ${status}.`,
-): BibtexApiError {
+): BibtexApiError | DuplicateReviewError {
+  const duplicate = duplicateReviewError(payload);
+  if (duplicate) return duplicate;
   const record = isRecord(payload) ? payload : undefined;
   const error = isRecord(record?.error) ? record.error : undefined;
   return new BibtexApiError(

@@ -164,6 +164,15 @@ def assert_parity(cli: Path, profile: str) -> None:
         if backend_dto != python_dto:
             raise AssertionError(f"{name}: backend/PyO3 DTO mismatch")
 
+    duplicate_source = "@misc{a,title={{CAFÉ} Methods},year={2024}}\n@misc{b,title={café methods}}\n"
+    compared = subprocess.run([str(cli), "duplicates", "-"], input=duplicate_source, text=True, capture_output=True, check=True)
+    records = bibmgr_native.analyze(duplicate_source, profile="archive").to_dict()["bibliography"]["records"]
+    profiles = bibmgr_native.comparison_records(json.dumps(records))["records"]
+    python_comparison = bibmgr_native.assess_duplicates(json.dumps(profiles), "[]")
+    backend_comparison = backend.assess_duplicates(backend.comparison_records(records), [], {})
+    if json.loads(compared.stdout)["findings"] != python_comparison["findings"] or backend_comparison != python_comparison:
+        raise AssertionError("Duplicate comparison CLI/PyO3/backend mismatch")
+
     for export_profile in EXPORT_PROFILES:
         cli_dto = cli_export(cli, EXPORT_SOURCE, export_profile)
         python_dto = bibmgr_native.export_source(
