@@ -115,3 +115,13 @@ describe("reference registration API", () => {
 function concatBibtex(...lines: string[]): string {
   return `${lines.join("\n")}\n`;
 }
+
+
+it("preserves duplicate review details and server-issued confirmation tokens", async () => {
+  vi.stubGlobal("fetch", vi.fn().mockResolvedValue(jsonResponse({ error: {
+    code: "duplicate_confirmation_required", details: { duplicates: [], confirmation_token: "a".repeat(64) },
+  } }, 409)));
+  await expect(registerBibtexToDatabase({ bibtex: "@misc{a}", source: "manual" })).rejects.toMatchObject({
+    name: "DuplicateReviewError", findings: [], confirmationToken: "a".repeat(64),
+  });
+});

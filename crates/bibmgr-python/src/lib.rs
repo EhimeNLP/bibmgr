@@ -739,6 +739,37 @@ fn apply_fixes(
     PyApplyFixResult::from_serializable(&result)
 }
 
+#[pyfunction]
+fn comparison_records(py: Python<'_>, records_json: &str) -> PyResult<Py<PyAny>> {
+    let records: Vec<bibmgr_core::BibliographicRecord> =
+        serde_json::from_str(records_json).map_err(json_error)?;
+    let records: Vec<_> =
+        py.detach(|| records.iter().map(bibmgr_core::comparison_record).collect());
+    value_to_dict(py, &serde_json::json!({"records": records}))
+}
+
+#[pyfunction(signature = (incoming_json, candidates_json, policy_json="{}"))]
+fn assess_duplicates(
+    py: Python<'_>,
+    incoming_json: &str,
+    candidates_json: &str,
+    policy_json: &str,
+) -> PyResult<Py<PyAny>> {
+    let incoming: Vec<bibmgr_core::ComparisonRecord> =
+        serde_json::from_str(incoming_json).map_err(json_error)?;
+    let candidates: Vec<bibmgr_core::ComparisonRecord> =
+        serde_json::from_str(candidates_json).map_err(json_error)?;
+    let policy: bibmgr_core::duplicates::DuplicatePolicy =
+        serde_json::from_str(policy_json).map_err(json_error)?;
+    let findings = py
+        .detach(|| bibmgr_core::duplicates::assess_duplicates(&incoming, &candidates, &policy))
+        .map_err(|error| ValidationError::new_err(error.to_string()))?;
+    value_to_dict(
+        py,
+        &serde_json::json!({"findings": findings, "policy": policy}),
+    )
+}
+
 #[pyfunction(name = "validate_for_registration", signature = (source, policy="archive", *, venue_registry_json=None))]
 fn py_validate_for_registration(
     py: Python<'_>,
@@ -1046,6 +1077,8 @@ fn bibmgr_native(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_class::<PyExportProfileCatalog>()?;
     module.add_class::<PyAnalysisDelta>()?;
     module.add_class::<PyDocumentSession>()?;
+    module.add_function(wrap_pyfunction!(comparison_records, module)?)?;
+    module.add_function(wrap_pyfunction!(assess_duplicates, module)?)?;
     module.add_function(wrap_pyfunction!(py_analyze, module)?)?;
     module.add_function(wrap_pyfunction!(apply_fixes, module)?)?;
     module.add_function(wrap_pyfunction!(py_validate_for_registration, module)?)?;

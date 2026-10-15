@@ -70,6 +70,7 @@ class CitationContextInput(StrictRequest):
 
 
 class RegisterReferencesRequest(StrictRequest):
+    duplicate_confirmation: str | None = Field(default=None, pattern=r"^[0-9a-f]{64}$")
     bibtex: str = Field(
         min_length=1, max_length=MAX_BIBTEX_SOURCE_CHARACTERS
     )
@@ -80,6 +81,7 @@ class RegisterReferencesRequest(StrictRequest):
 
 
 class UpdateReferenceRequest(StrictRequest):
+    duplicate_confirmation: str | None = Field(default=None, pattern=r"^[0-9a-f]{64}$")
     bibtex: str = Field(
         min_length=1, max_length=MAX_BIBTEX_SOURCE_CHARACTERS
     )
@@ -89,6 +91,7 @@ class UpdateReferenceRequest(StrictRequest):
 
 
 class RestoreReferenceRevisionRequest(StrictRequest):
+    duplicate_confirmation: str | None = Field(default=None, pattern=r"^[0-9a-f]{64}$")
     target_revision: int = Field(ge=1)
     expected_head_revision: int = Field(ge=1)
 
@@ -198,6 +201,7 @@ class CitationContextResponse(BaseModel):
 
 
 class ReferenceResponse(BaseModel):
+    duplicate_warnings: list[dict[str, Any]] = Field(default_factory=list)
     model_config = ConfigDict(populate_by_name=True)
 
     id: str
@@ -220,6 +224,7 @@ class ReferenceResponse(BaseModel):
 
 
 class RegisterReferencesResponse(BaseModel):
+    duplicate_warnings: list[dict[str, Any]] = Field(default_factory=list)
     reference: ReferenceResponse
     references: list[ReferenceResponse]
 

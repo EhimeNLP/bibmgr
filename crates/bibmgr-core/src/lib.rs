@@ -14,7 +14,12 @@ pub use bibmgr_model::{
 pub use bibmgr_model::{ProfileId, Severity};
 #[cfg(feature = "search")]
 pub use bibmgr_search::{SearchDocument, SearchError, SearchIndex, SearchPage, SearchRequest};
+pub use bibmgr_semantics::duplicates::{
+    compare_records, comparison_record, ComparisonRecord, DuplicateComparison, DuplicateKind,
+};
+pub use bibmgr_semantics::BibliographicRecord;
 pub use bibmgr_semantics::Bibliography;
+pub mod duplicates;
 pub use bibmgr_syntax::{ParseMode, ParseOptions, ParseStatus, SyntaxSummary};
 pub use bibmgr_validation::{
     FieldRule, RegistrationPolicy, RepositoryRegistry, ValidationPolicy, VenueEntity, VenueRegistry,

@@ -5,6 +5,7 @@ from __future__ import annotations
 from datetime import datetime
 from hashlib import sha256
 import uuid
+import json
 from typing import Any, Literal, Protocol
 
 from sqlalchemy import Select, and_, func, or_, select
@@ -28,6 +29,7 @@ from .models import (
     ReferenceResponse,
     SearchCorrection,
 )
+from .duplicates import DuplicateCheck, lock_reference_writes
 from .search import ReferenceSearch, mark_search_change, timestamp
 
 
@@ -101,9 +103,10 @@ class InvalidRegistrationResultError(LibraryError):
 
 
 class ReferenceLibrary:
-    def __init__(self, engine: RegistrationEngine) -> None:
+    def __init__(self, engine: RegistrationEngine, duplicate_policy: dict[str, Any] | None = None) -> None:
         self.engine = engine
         self.search_index = ReferenceSearch()
+        self.duplicates = DuplicateCheck(duplicate_policy)
 
     def search(
         self,
@@ -442,7 +445,10 @@ class ReferenceLibrary:
         target_revision: int,
         expected_head_revision: int,
         actor_user_id: uuid.UUID,
+        duplicate_confirmation: str | None = None,
+        duplicate_warnings: list[dict[str, Any]] | None = None,
     ) -> ReferenceRecord:
+        lock_reference_writes(session)
         head = session.scalar(
             select(ReferenceHistoryHead)
             .where(
@@ -475,6 +481,11 @@ class ReferenceLibrary:
                 "The selected revision does not contain a restorable record."
             )
 
+        findings = self.duplicates.check(session, [target.after_data["semantic_data"]],
+                                         source=json.dumps(target.after_data, sort_keys=True),
+                                         confirmation=duplicate_confirmation, exclude_id=reference_id)
+        if duplicate_warnings is not None:
+            duplicate_warnings.extend(findings)
         current = session.scalar(
             select(ReferenceRecord)
             .where(ReferenceRecord.id == reference_id)
@@ -516,9 +527,12 @@ class ReferenceLibrary:
         source: str,
         policy: str,
         actor_user_id: uuid.UUID,
+        duplicate_confirmation: str | None = None,
+        duplicate_warnings: list[dict[str, Any]] | None = None,
         citation_contexts: list[CitationContextInput] | None = None,
         venue_registry: dict[str, Any] | None = None,
     ) -> list[ReferenceRecord]:
+        lock_reference_writes(session)
         # Materialize the database transaction before authoritative validation.
         session.connection()
         validation = self.engine.validate_for_registration(
@@ -550,6 +564,9 @@ class ReferenceLibrary:
             raise RegistrationRejectedError(
                 "BibTeX does not contain a bibliographic entry."
             )
+        findings = self.duplicates.check(session, records, source=bibtex, confirmation=duplicate_confirmation)
+        if duplicate_warnings is not None:
+            duplicate_warnings.extend(findings)
         contexts = citation_contexts or []
         if contexts and len(records) != 1:
             raise RegistrationRejectedError(
@@ -601,8 +618,11 @@ class ReferenceLibrary:
         source_revision: str,
         policy: str,
         actor_user_id: uuid.UUID,
+        duplicate_confirmation: str | None = None,
+        duplicate_warnings: list[dict[str, Any]] | None = None,
         venue_registry: dict[str, Any] | None = None,
     ) -> ReferenceRecord:
+        lock_reference_writes(session)
         session.connection()
         record = self.get_for_update(session, reference_id)
         head = _ensure_history_head(
@@ -647,6 +667,10 @@ class ReferenceLibrary:
                 "Editing requires exactly one bibliographic entry."
             )
 
+        findings = self.duplicates.check(session, semantic_records, source=bibtex,
+                                         confirmation=duplicate_confirmation, exclude_id=reference_id)
+        if duplicate_warnings is not None:
+            duplicate_warnings.extend(findings)
         record.contributors.clear()
         record.identifiers.clear()
         record.urls.clear()
@@ -681,6 +705,7 @@ class ReferenceLibrary:
         contexts: list[CitationContextInput],
         actor_user_id: uuid.UUID,
     ) -> ReferenceRecord:
+        lock_reference_writes(session)
         record = self.get_for_update(session, reference_id)
         head = _ensure_history_head(
             session,
@@ -711,6 +736,7 @@ class ReferenceLibrary:
         expected_source_revision: str,
         actor_user_id: uuid.UUID,
     ) -> None:
+        lock_reference_writes(session)
         record = self.get_for_update(session, reference_id)
         if record.source_revision != expected_source_revision:
             raise StaleReferenceError(

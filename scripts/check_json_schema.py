@@ -36,6 +36,7 @@ def main() -> None:
 
     Draft202012Validator.check_schema(schema)
     validator = Draft202012Validator(schema)
+    validator.validate({"schema_version": "1", "findings": []})
     validator.validate(EXPORT_RESULT)
     validator.validate(EXPORT_WORKFLOW_RESULT)
 

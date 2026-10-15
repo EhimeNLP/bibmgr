@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, nextTick, onBeforeUnmount, reactive, ref } from "vue";
+import { computed, nextTick, onBeforeUnmount, reactive, ref, watch } from "vue";
 import { registerBibtexToDatabase } from "../api/registration";
 import type { BibtexDiagnostic } from "../types/bibtex";
 import type {
@@ -10,6 +10,8 @@ import { countBibliographicEntries } from "../utils/bibtexHighlight";
 import BibtexEditor from "./BibtexEditor.vue";
 import BibtexExportPanel from "./BibtexExportPanel.vue";
 import BibtexValidationPanel from "./BibtexValidationPanel.vue";
+import DuplicateReview from "./DuplicateReview.vue";
+import { DuplicateReviewError, type DuplicateFinding } from "../api/duplicates";
 import AppIcon from "./AppIcon.vue";
 
 type RegistrationMode = "manual" | "file";
@@ -32,6 +34,8 @@ const fileInput = ref<HTMLInputElement | null>(null);
 const mode = ref<RegistrationMode>("manual");
 
 const manualBibtex = ref("");
+const manualDuplicates = ref<DuplicateFinding[]>([]);
+const manualConfirmation = ref<string>();
 const isManualRegistering = ref(false);
 const manualError = ref<string | null>(null);
 const manualMessage = ref<string | null>(null);
@@ -39,6 +43,10 @@ const manualDiagnostics = reactive<BibtexDiagnostic[]>([]);
 
 const selectedBibFile = ref<File | null>(null);
 const fileBibtex = ref("");
+const fileDuplicates = ref<DuplicateFinding[]>([]);
+const fileConfirmation = ref<string>();
+watch(manualBibtex, () => { manualDuplicates.value = []; manualConfirmation.value = undefined; }, { flush: "sync" });
+watch(fileBibtex, () => { fileDuplicates.value = []; fileConfirmation.value = undefined; }, { flush: "sync" });
 const isFileReading = ref(false);
 const isFileRegistering = ref(false);
 const fileError = ref<string | null>(null);
@@ -139,7 +147,7 @@ function selectMode(nextMode: RegistrationMode, moveFocus = false) {
   }
 }
 
-async function registerManualBibtex() {
+async function registerManualBibtex(confirmed = false) {
   if (!manualBibtex.value.trim()) return;
 
   const bibtex = manualBibtex.value;
@@ -151,12 +159,19 @@ async function registerManualBibtex() {
     const result = await registerBibtexToDatabase({
       bibtex,
       source: "manual",
+      ...(confirmed && manualConfirmation.value ? { duplicate_confirmation: manualConfirmation.value } : {}),
     });
     manualBibtex.value = "";
     replaceDiagnostics(manualDiagnostics, []);
+    manualDuplicates.value = result.duplicateWarnings ?? [];
+    manualConfirmation.value = undefined;
     manualMessage.value = "Registered.";
     emitRegisteredReferences(result);
   } catch (error) {
+    if (error instanceof DuplicateReviewError) {
+      manualDuplicates.value = error.findings;
+      manualConfirmation.value = error.confirmationToken;
+    }
     manualError.value =
       error instanceof Error ? error.message : "Failed to register BibTeX.";
   } finally {
@@ -211,7 +226,7 @@ async function onBibFileChange(event: Event) {
   }
 }
 
-async function registerFileBibtex() {
+async function registerFileBibtex(confirmed = false) {
   if (!selectedBibFile.value || !fileBibtex.value.trim()) return;
 
   const fileName = selectedBibFile.value.name;
@@ -224,14 +239,21 @@ async function registerFileBibtex() {
     const result = await registerBibtexToDatabase({
       bibtex,
       source: "file",
+      ...(confirmed && fileConfirmation.value ? { duplicate_confirmation: fileConfirmation.value } : {}),
     });
     selectedBibFile.value = null;
     fileBibtex.value = "";
     replaceDiagnostics(fileDiagnostics, []);
     resetFileInput();
+    fileDuplicates.value = result.duplicateWarnings ?? [];
+    fileConfirmation.value = undefined;
     fileMessage.value = `${fileName} was registered.`;
     emitRegisteredReferences(result);
   } catch (error) {
+    if (error instanceof DuplicateReviewError) {
+      fileDuplicates.value = error.findings;
+      fileConfirmation.value = error.confirmationToken;
+    }
     fileError.value =
       error instanceof Error ? error.message : "Failed to register BibTeX.";
   } finally {
@@ -408,6 +430,7 @@ function onFileFixApplied() {
               <BibtexExportPanel :source="manualBibtex" />
             </section>
 
+            <DuplicateReview :findings="manualDuplicates" :confirmation-token="manualConfirmation" :busy="isManualRegistering" @confirm="registerManualBibtex(true)" />
             <div class="registration-actions">
               <p
                 v-if="manualError"
@@ -428,7 +451,7 @@ function onFileFixApplied() {
                 class="button-primary"
                 :disabled="!canRegisterManual"
                 :aria-busy="isManualRegistering"
-                @click="registerManualBibtex"
+                @click="registerManualBibtex()"
               >
                 <span
                   v-if="isManualRegistering"
@@ -519,13 +542,14 @@ function onFileFixApplied() {
               </section>
             </template>
 
+            <DuplicateReview :findings="fileDuplicates" :confirmation-token="fileConfirmation" :busy="isFileRegistering" @confirm="registerFileBibtex(true)" />
             <div class="registration-actions registration-actions--file">
               <button
                 type="button"
                 class="button-primary"
                 :disabled="!canRegisterFile"
                 :aria-busy="isFileRegistering"
-                @click="registerFileBibtex"
+                @click="registerFileBibtex()"
               >
                 <span
                   v-if="isFileRegistering"

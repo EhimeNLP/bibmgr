@@ -106,3 +106,9 @@ BibmgrError
 ```
 
 An analysis diagnostic is a problem in the user's document. An API error means the requested operation could not be carried out; adapters should not collapse the two. `apply_safe_fixes` additionally reports a typed no-progress or pass limit error if repeated safe batches fail to reach a fixed point.
+
+## Duplicate comparison
+
+`comparison_record(&BibliographicRecord)` derives versioned comparison data from semantic records. `compare_records(&ComparisonRecord, &ComparisonRecord)` returns an optional `DuplicateComparison` containing its category and every field's `match`, `different`, or `missing` evidence. Neither function changes the records. Use records returned by the core analysis pipeline to retain registry enrichment.
+
+`duplicates::assess_duplicates(incoming, candidates, &DuplicatePolicy)` compares an incoming batch internally and against an external candidate list. Findings include both indices, whether the candidate is external, the explanation, and the configured action. Candidate pairs and findings have deterministic ordering. Unsupported comparison versions and excessive candidate counts return explicit errors. Actions do not weaken syntax or export validation. See [duplicate configuration](configuration.md#duplicate-comparison-and-registration-actions) for categories, normalization, defaults, and limits.

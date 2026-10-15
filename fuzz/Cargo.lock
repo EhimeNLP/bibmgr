@@ -92,6 +92,7 @@ dependencies = [
  "bibmgr-model",
  "bibmgr-syntax",
  "serde",
+ "unicode-normalization",
  "url",
 ]
 

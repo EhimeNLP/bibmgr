@@ -5,6 +5,8 @@ import {
   pageReferenceHistory,
   revertReference,
 } from "../api/history";
+import DuplicateReview from "./DuplicateReview.vue";
+import { DuplicateReviewError, type DuplicateFinding } from "../api/duplicates";
 import type {
   ReferenceHistory,
   ReferenceHistoryAction,
@@ -35,6 +37,9 @@ const summaries = ref<ReferenceHistorySummary[]>([]);
 const selectedReferenceId = ref<string | null>(null);
 const history = ref<ReferenceHistory | null>(null);
 const pendingRevision = ref<number | null>(null);
+const restoreDuplicates = ref<DuplicateFinding[]>([]);
+const restoreConfirmation = ref<string>();
+watch(selectedReferenceId, () => { restoreDuplicates.value = []; restoreConfirmation.value = undefined; pendingRevision.value = null; });
 const errorMessage = ref<string | null>(null);
 const statusMessage = ref<string | null>(null);
 const catalogTotal = ref(0);
@@ -149,6 +154,8 @@ async function loadCatalog() {
 }
 
 async function selectHistory(referenceId: string) {
+  restoreDuplicates.value = [];
+  restoreConfirmation.value = undefined;
   selectedReferenceId.value = referenceId;
   pendingRevision.value = null;
   statusMessage.value = null;
@@ -188,11 +195,13 @@ async function loadHistory(referenceId: string, showLoading = true) {
 }
 
 function requestRestore(revision: number) {
+  restoreDuplicates.value = [];
+  restoreConfirmation.value = undefined;
   pendingRevision.value = revision;
   statusMessage.value = null;
 }
 
-async function confirmRestore() {
+async function confirmRestore(confirmed = false) {
   if (
     !history.value ||
     pendingRevision.value === null ||
@@ -209,12 +218,19 @@ async function confirmRestore() {
       history.value.referenceId,
       targetRevision,
       history.value.headRevision,
+      ...(confirmed && restoreConfirmation.value ? [restoreConfirmation.value] : []),
     );
+    restoreDuplicates.value = restored.duplicateWarnings ?? [];
+    restoreConfirmation.value = undefined;
     emit("restored", restored);
     statusMessage.value = `Revision ${targetRevision} was restored as a new revision.`;
     pendingRevision.value = null;
     await loadCatalog();
   } catch (error) {
+    if (error instanceof DuplicateReviewError) {
+      restoreDuplicates.value = error.findings;
+      restoreConfirmation.value = error.confirmationToken;
+    }
     errorMessage.value = errorText(error, "Could not restore the revision.");
     await loadCatalog();
   } finally {
@@ -374,6 +390,8 @@ function trapDialogFocus(event: KeyboardEvent, root: HTMLElement | null) {
             </button>
           </header>
 
+          <DuplicateReview :findings="restoreDuplicates" :confirmation-token="pendingRevision !== null ? restoreConfirmation : undefined" :busy="isRestoring" @confirm="confirmRestore(true)" />
+
           <p v-if="errorMessage" class="history-alert" role="alert">
             {{ errorMessage }}
           </p>
@@ -518,7 +536,7 @@ function trapDialogFocus(event: KeyboardEvent, root: HTMLElement | null) {
                         type="button"
                         class="button-primary"
                         :disabled="isRestoring"
-                        @click="confirmRestore"
+                        @click="confirmRestore()"
                       >
                         {{ isRestoring ? "Restoring…" : "Confirm restore" }}
                       </button>
