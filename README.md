@@ -1,246 +1,92 @@
 <p style="text-align: center"><img src="docs/assets/bibmgr-logo.svg" alt="BibMgR Logo" width=100%></p>
 
-**BibMgR** is a BibTeX reference manager for collecting, validating, editing, and exporting bibliography data. It provides a shared authenticated web library with revision history, a CLI, and a Socket Mode Slack app built on the same source-preserving Rust core.
+**BibMgR** is a BibTeX reference manager for maintaining a shared bibliography. The web application lets users collect, search, validate, edit, and export references, with email authentication and revision history. A CLI and Slack app provide additional ways to validate and format BibTeX using the same Rust core.
 
-## Prerequisites
+## Features
 
-Developing, testing, or building this repository from source requires the following tools:
+- **Shared reference library:** register BibTeX by pasting text or uploading a file, then search and edit stored references.
+- **Validation and safe fixes:** inspect diagnostics and preview corrections while preserving the original BibTeX source.
+- **Configurable export:** format references for different publication conventions using built-in or custom profiles.
+- **Duplicate review:** compare normalized titles, identifiers, and supporting fields, with configurable warnings, confirmation, or rejection.
+- **Revision history:** review changes and restore earlier versions, including deleted references.
 
-- `uv`: provisions the Python environment, installs locked dependencies, and runs Poe tasks; the application supports Python 3.11–3.13, while `.python-version` selects 3.12 only as the default contributor version
-- Rust 1.88 or later (`rustc` and `cargo`): builds the CLI and Python native extension
-- Node.js 22.12 or later in the Node.js 22 release line, with npm 10 or later: manages frontend dependencies, the development server, tests, and production builds
+Registration preserves the submitted source. Fixes and export are explicit operations, so storing a reference does not silently reformat it. Validation policies, export profiles, and duplicate handling can be configured independently.
 
-## Setup
+## Run locally
 
-Install the locked dependencies:
+To build and run the web application from source, install:
 
-```bash
-uv sync
-uv run poe setup
-```
+- `uv` for the Python environment and development tasks.
+- Rust 1.88 or later for the shared core and Python extension.
+- Node.js 22.12 or later within the 22.x release line, with npm 10 or later, for the frontend.
 
-List the available tasks with:
-
-```bash
-uv run poe --help
-```
-
-## CLI installation (optional)
-
-To use BibTeX validation from the command line, install the CLI directly from GitHub without cloning the repository:
-
-```bash
-cargo install --git https://github.com/EhimeNLP/bibmgr.git --locked bibmgr-cli
-bibmgr --version
-```
-
-Alternatively, Linux and macOS users can install a prebuilt binary without requiring Rust:
-
-```bash
-curl -LsSf https://github.com/EhimeNLP/bibmgr/releases/latest/download/bibmgr-installer.sh | sh
-```
-
-The installer verifies the release archive with SHA-256 and writes the `bibmgr` executable to `~/.local/bin` by default. If that directory is not already on `PATH`, add it in your shell configuration:
-
-```bash
-export PATH="$HOME/.local/bin:$PATH"
-```
-
-Set `BIBMGR_INSTALL_DIR` to select another destination, or `BIBMGR_VERSION` to install a specific release. A version may be written with or without the leading `v`.
-
-```bash
-curl -LsSf https://github.com/EhimeNLP/bibmgr/releases/latest/download/bibmgr-installer.sh |
-  BIBMGR_INSTALL_DIR="$HOME/bin" BIBMGR_VERSION=v0.1.3 sh
-```
-
-Windows x86_64 users can download `bibmgr-x86_64-pc-windows-msvc.zip` from the [latest release](https://github.com/EhimeNLP/bibmgr/releases/latest), extract `bibmgr.exe`, and place it on `PATH`.
-
-If you clone the repository for development or inspection, you can install from the local path:
+PostgreSQL 18 stores the library, and Mailpit captures login emails during development. The example below starts both through Docker Compose; [Local development](docs/local-development.md) also covers macOS without Docker and external services. Python 3.11–3.13 is supported, with 3.12 selected by default for development.
 
 ```bash
 git clone https://github.com/EhimeNLP/bibmgr.git
 cd bibmgr
-cargo install --locked --path crates/bibmgr-cli
+
+uv sync
+uv run poe setup
+uv run poe dev-services-up
+uv run poe db-migrate
+uv run poe dev
 ```
 
-To build a release binary without installing it, use the Poe task:
+The first build downloads the search dictionary and requires network access. See [Development tools](docs/local-development.md#development-tools) for caching it across builds.
+
+Open the web app at `http://127.0.0.1:5173/`. For the first login, enter an address such as `dev@example.test`, retrieve its verification code from Mailpit at `http://127.0.0.1:8025/`, and enter the code in the app. The account is created on verification. Use the add button to register BibTeX, then select a reference to inspect or edit it and choose an export profile when exporting.
+
+The backend API documentation is available at `http://127.0.0.1:8000/docs`. Connection settings, authentication options, separate server commands, and service shutdown are covered in [Local development](docs/local-development.md).
+
+## Other interfaces
+
+### CLI
+
+The CLI supports file-based validation, safe fixes, export, and duplicate comparison within a document:
 
 ```bash
-uv run --frozen poe build-cli
-./target/release/bibmgr --version
-```
-
-## CLI usage
-
-The following examples cover the basic commands. Use `bibmgr COMMAND --help` for detailed options, and see [`docs/cli.md`](docs/cli.md) for exit codes and the JSON output contract.
-
-```bash
-# Lint
 bibmgr lint references.bib
-
-# Emit JSON for CI
-bibmgr lint references.bib --format json
-
-# Preview safe, source-preserving fixes
 bibmgr fix references.bib --safe --dry-run
-
-# Export a separate file using the default modern profile
 bibmgr export references.bib --output references.exported.bib
-
-# Return the export result as a JSON DTO
-bibmgr export references.bib --profile classical-bst --format json
-
-# Inspect the semantic AST
-bibmgr inspect references.bib --ast
 ```
 
-## Slack app
+See [Command-line interface](docs/cli.md) for installation, profiles, JSON output, and exit codes.
 
-The Slack app accepts a BibTeX entry in a channel mention or direct message, asks the user to choose an export profile, applies safe fixes, and returns the formatted entry with any remaining warnings. It runs in Socket Mode and is deployed separately from the web application.
+### Slack app
 
-Create the Slack app from the bundled manifest, then use the interactive Docker task for local operation:
+Send a BibTeX entry in a channel mention or direct message, choose an export profile, and receive the formatted entry with any remaining warnings. The app runs in Socket Mode, separately from the web application.
 
-```bash
-uv run poe slack
-```
-
-Bot messages default to English. Select Japanese at startup with:
-
-```bash
-BIBMGR_SLACK_LANGUAGE=ja uv run poe slack
-```
-
-For an unattended production deployment, build the image separately and start it with both Slack tokens supplied by the deployment environment:
-
-```bash
-uv run poe slack-build
-uv run poe slack-up
-```
-
-See [`docs/slack.md`](docs/slack.md) for the Slack website setup, token options, usage, and deployment-only profiles.
-
-## Initialization pipelines
-
-The optional out-of-band initialization pipeline is separate from the application dependency graph. See the [pipeline overview](pipeline/README.md) for the two-stage workflow, shared contracts, and boundaries; the stage-specific guides cover [metadata extraction](pipeline/metadata_extraction/README.md) and [BibTeX reconstruction](pipeline/bibtex_reconstruction/README.md). Neither stage registers records in the shared BibMgR library automatically.
+See [Slack app](docs/slack.md) for app creation, tokens, language settings, and deployment.
 
 ## Development
 
-The reference library API uses PostgreSQL 18. Mailpit provides the development inbox for email authentication. If Docker is available, start both services and apply the database migrations:
+The Rust core is shared by the CLI and Python bindings. FastAPI provides the web API, PostgreSQL stores the library and audit history, and Vue provides the interface. See [Architecture](docs/architecture.md) for component boundaries and the processing model.
 
-```bash
-uv run poe dev-services-up
-uv run poe db-migrate
-```
-
-Open the Mailpit inbox at `http://127.0.0.1:8025/`. Unless configured otherwise, the development backend sends authentication email through `127.0.0.1:1025`.
-
-Docker is optional. On macOS, PostgreSQL 18 and Mailpit can run directly through Homebrew. See [`docs/local-development.md`](docs/local-development.md) for instructions covering local database creation, the first account, BibTeX registration, and service shutdown.
-
-To reset the development database to an empty current schema, run the following task and type the displayed database name to confirm. The task refuses to reset a remote database.
-
-```bash
-uv run poe db-reset
-```
-
-Set `BIBMGR_DATABASE_URL` to change the database connection. It defaults to `postgresql+psycopg://bibmgr:bibmgr@127.0.0.1:5432/bibmgr`. The server-owned `BIBMGR_REGISTRATION_POLICY` selects the registration policy and defaults to the source-preserving `archive` policy. Default analysis and export use `modern`; deployment-specific output conventions belong in a custom export profile. `BIBMGR_AUTH_EMAIL_DOMAIN` selects the exact permitted login domain; local development defaults to the reserved domain `example.test`, while production requires an explicit value.
-
-```bash
-BIBMGR_DATABASE_URL=postgresql+psycopg://user:password@db.example/bibmgr \
-BIBMGR_REGISTRATION_POLICY=archive \
-uv run poe db-migrate
-```
-
-Start the backend and frontend development servers together:
-
-```bash
-uv run poe dev
-```
-
-- Frontend: `http://127.0.0.1:5173/`
-- Backend: `http://127.0.0.1:8000/`
-- Health check: `http://127.0.0.1:8000/healthz`
-- Readiness check: `http://127.0.0.1:8000/readyz`
-- API documentation: `http://127.0.0.1:8000/docs`
-- Development email inbox: `http://127.0.0.1:8025/`
-
-After login, the `History` view shows sequential per-reference revisions, including edits and deletions. Deleted references remain in the history index and can be reviewed and restored from a selected earlier state. A restore appends a new revision without rewriting existing history.
-
-To permit a user outside the configured login domain, add their complete email address to `BIBMGR_AUTH_ALLOWED_EMAILS`. Domain entries and wildcards are not accepted.
-
-To run the servers separately, use two terminals:
-
-```bash
-uv run poe dev-backend
-uv run poe dev-frontend
-```
-
-The listening addresses and ports can be changed with environment variables:
-
-```bash
-HOST=127.0.0.1 PORT=8000 \
-FRONTEND_HOST=127.0.0.1 FRONTEND_PORT=5173 \
-uv run poe dev
-```
-
-Run the complete test suite and the integrated checks, including formatting, linting, type checking, lockfile, schema, Markdown, and fuzz/benchmark builds, with:
+From a configured development environment, run the test suite or the integrated checks:
 
 ```bash
 uv run poe test
 uv run poe check
 ```
 
-## Production deployment
+List all tasks with `uv run poe --help`. The [Rust API](docs/api.md), [Python API](docs/python-api.md), and [GUI integration](docs/gui-integration.md) guides describe how to use the core in other applications.
 
-Build the CLI, native extension wheel, backend wheel, and frontend static files from the locked dependencies:
+## Deployment
 
-```bash
-uv run --frozen poe build
-```
+The production Compose configuration supports either HTTPS managed by Caddy or an external reverse proxy. It runs the web application, backend, and PostgreSQL together; the Slack app is deployed separately. Source and wheel-based deployment options are also available.
 
-The artifacts are written to:
+See [Production operations](docs/operations.md) for deployment, health checks, account management, and backups, and [Authentication](docs/authentication.md) for login and session configuration.
 
-- CLI: `target/release/bibmgr`
-- Native wheel: `dist/native/*.whl`
-- Backend wheel: `dist/backend/*.whl`
-- Frontend static files: `frontend/dist/`
+## Further documentation
 
-To run the backend from a source checkout, synchronize the environment without modifying the lockfile, then use the production-oriented task that disables automatic reload:
-
-```bash
-uv sync --frozen
-HOST=0.0.0.0 PORT=8000 uv run --frozen poe start-backend
-```
-
-To deploy only the wheels to a runtime host, install the native extension and backend wheels into a supported Python 3.11–3.13 environment and start the application. The following example uses Python 3.11, matching the production container:
-
-```bash
-uv venv --python 3.11 .venv-runtime
-uv pip install \
-  --python .venv-runtime/bin/python \
-  dist/native/*.whl \
-  dist/backend/*.whl
-.venv-runtime/bin/python -m uvicorn bibmgr_backend.app:app \
-  --host 0.0.0.0 \
-  --port 8000
-```
-
-Serve `frontend/dist/` from a static file server or CDN, and configure a reverse proxy that forwards `/api/` to the backend.
-
-`compose.production.yaml` contains the shared production configuration for PostgreSQL 18, the migration job, the backend, and Vue/Caddy. Choose either `compose.production.direct.yaml`, where Caddy terminates TLS directly, or `compose.production.proxy.yaml`, where an external reverse proxy terminates TLS.
-
-```bash
-cp .env.production.example .env.production
-
-# Publish HTTPS directly through Caddy
-uv run poe prod-direct-config
-uv run poe prod-direct-up
-
-# Run behind an external reverse proxy
-uv run poe prod-proxy-config
-uv run poe prod-proxy-up
-```
-
-The production backend requires `BIBMGR_ENV=production`, a secret file, SMTP connection settings, secure cookies, and HTTPS. See [`docs/operations.md`](docs/operations.md) for account management, periodic authentication-data cleanup, monitoring, backup/restore, and systemd timers. See [`docs/authentication.md`](docs/authentication.md) for the authentication contract.
+| Topic | Guide |
+| --- | --- |
+| Validation policies, export profiles, and duplicate handling | [Configuration](docs/configuration.md) |
+| Storage, search, and revision history | [Database](docs/database.md) |
+| Extending validation rules | [Adding rules](docs/adding-rules.md) |
+| Venue names and aliases | [Venue registry](docs/venues.md) |
+| Preparing bibliography data from papers | [Initialization pipelines](pipeline/README.md) |
 
 ## License
 

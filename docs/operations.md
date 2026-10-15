@@ -196,3 +196,40 @@ sudo systemctl enable --now bibmgr-auth-cleanup.timer bibmgr-backup.timer
 ```
 
 Adjust `WorkingDirectory`, backup schedule, off-host transfer, and monitoring for the deployment host before enabling the units.
+
+## Building and running release artifacts
+
+Build the CLI, native extension wheel, backend wheel, and frontend static files from the locked dependencies:
+
+```bash
+uv run --frozen poe build
+```
+
+The artifacts are written to:
+
+- CLI: `target/release/bibmgr`
+- Native wheel: `dist/native/*.whl`
+- Backend wheel: `dist/backend/*.whl`
+- Frontend static files: `frontend/dist/`
+
+To run the backend from a source checkout, synchronize the environment without modifying the lockfile, then use the production-oriented task that disables automatic reload:
+
+```bash
+uv sync --frozen
+HOST=0.0.0.0 PORT=8000 uv run --frozen poe start-backend
+```
+
+To deploy only the wheels to a runtime host, install the native extension and backend wheels into a supported Python 3.11–3.13 environment and start the application. The following example uses Python 3.11, matching the production container:
+
+```bash
+uv venv --python 3.11 .venv-runtime
+uv pip install \
+  --python .venv-runtime/bin/python \
+  dist/native/*.whl \
+  dist/backend/*.whl
+.venv-runtime/bin/python -m uvicorn bibmgr_backend.app:app \
+  --host 0.0.0.0 \
+  --port 8000
+```
+
+Serve `frontend/dist/` from a static file server or CDN, and configure a reverse proxy that forwards `/api/` to the backend.
