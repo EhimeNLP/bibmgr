@@ -1,3 +1,4 @@
+import { duplicateReviewError } from "./duplicates";
 import type {
   Reference,
   RegisterBibtexPayload,
@@ -25,7 +26,7 @@ export async function registerBibtexToDatabase(
 
   if (!response.ok) {
     handleAuthenticationFailure(response.status);
-    throw new Error(errorMessage(responsePayload, "Failed to register BibTeX."));
+    throw duplicateReviewError(responsePayload) ?? new Error(errorMessage(responsePayload, "Failed to register BibTeX."));
   }
 
   return normalizeRegisterBibtexResult(responsePayload, payload.bibtex);
@@ -69,6 +70,7 @@ function normalizeRegisterBibtexResult(
   return {
     reference,
     references,
+    ...(Array.isArray(record?.duplicate_warnings) ? { duplicateWarnings: record.duplicate_warnings } : {}),
   };
 }
 

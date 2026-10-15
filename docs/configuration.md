@@ -260,3 +260,31 @@ Configuration errors are not returned as document diagnostics because changing t
 Check policy and registry files into source control. Pin the active profile by ID in each environment. Log the resolved profile and registry snapshot digest with registration/export operations. A production service should validate a new snapshot before atomically swapping it into use.
 
 See [Adding a rule](adding-rules.md) and [Adding a venue](venues.md).
+
+## Duplicate comparison and registration actions
+
+Duplicate comparison is independent of BibTeX validation and export profiles. The Rust core builds comparison records and returns field-level evidence; the backend searches stored records and applies a server-owned action policy. It compares incoming entries both with each other and with stored references. Updates and history restores exclude the record being changed, but still check all other candidates. Original BibTeX is never rewritten or automatically merged.
+
+Set `BIBMGR_DUPLICATE_POLICY_FILE` to a UTF-8 JSON file on the backend server. An absent file setting uses these defaults; omitted fields use the same defaults:
+
+```json
+{
+  "identifier": "reject",
+  "arxiv_family": "warn",
+  "corroborated_title": "warn",
+  "title": "warn",
+  "citation_key": "warn"
+}
+```
+
+Unknown fields/actions are rejected. Policies are read at server startup. Each category accepts `ignore`, `warn`, `confirm`, or `reject` in the Rust API and CLI. The database backend requires `identifier: reject` because existing DOI/exact-arXiv uniqueness constraints remain in force.
+
+Categories are evaluated in the order above. `identifier` means a shared DOI or exact arXiv ID. `arxiv_family` ignores only the terminal version number (v1, v2, etc.); stored IDs retain their versions. Identifiers find candidates even when titles differ. Citation keys alone are warnings by default, including collisions with already-stored references. Existing validation/export rules are unchanged; this policy cannot override a rejection from the selected validation profile.
+
+Title comparison uses NFC Unicode normalization, lowercase text, collapsed whitespace, TeX grouping, and a conservative set of presentation/accent commands. Punctuation and numbers are preserved. Unsupported commands, math, unresolved macros, and ambiguous values are not guessed: their comparison title is absent. This is exact normalized matching, not fuzzy title search.
+
+A matching title is `corroborated_title` only when year and venue also match and either pages match or both authors and volume match. Conflicting known DOI, arXiv, date, venue, volume, issue, or page evidence prevents this classification. Missing fields are reported as missing, never as mismatches. Author comparison uses order-independent family names and given-name initials as supporting information only. Venue IDs come from semantic registry enrichment; unresolved venues use normalized names. Otherwise a title match remains `title` and is presented for review. A deployment can choose `confirm` for either title category without changing the comparison engine.
+
+`warn` allows saving and returns `duplicate_warnings`. `confirm` initially returns HTTP 409 (`duplicate_confirmation_required`) with candidate records, field comparisons, and a `confirmation_token`. The client explicitly confirms by resubmitting the same operation with `duplicate_confirmation`. The server repeats the check under the reference-write lock; changes to the input, policy, or matched candidate source revisions invalidate the token. `reject` returns HTTP 409 (`duplicate_reference`) and cannot be overridden by a confirmation token.
+
+Reference writes are serialized transactionally across workers to avoid concurrent duplicate inserts. The backend rejects checks exceeding 500 stored candidates; the core rejects checks exceeding 1,000 candidate pairs. It never silently drops candidates to permit registration. Split large batches when these limits are reached.

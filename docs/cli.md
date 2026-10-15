@@ -63,3 +63,12 @@ bibmgr export bibliography.bib --format json > export.json
 ```
 
 Export writes a newly optimized document for the selected output profile; it is not an in-place lint fix. With `--output`, the generated BibTeX is written to that file, while `--format json` still writes the result DTO to stdout when requested.
+
+## Duplicate candidates
+
+```sh
+bibmgr duplicates references.bib
+bibmgr duplicates references.bib --policy duplicate-policy.json
+```
+
+This read-only command compares entries inside one input document and emits `{"schema_version":"1","findings":[...]}` using the same Rust engine as Web registration. It does not connect to a database. `--policy` accepts the duplicate action JSON described in [Configuration](configuration.md#duplicate-comparison-and-registration-actions). With the default policy, title and citation-key matches are warnings; exact DOI or arXiv matches reject. Exit status is 1 for `confirm` or `reject` findings, 0 for warnings/no matches, and 2 for invalid syntax/configuration or exceeded limits.

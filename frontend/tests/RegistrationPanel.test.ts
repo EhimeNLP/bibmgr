@@ -1,3 +1,4 @@
+import { DuplicateReviewError, type DuplicateFinding } from "../src/api/duplicates";
 // @vitest-environment jsdom
 
 import { flushPromises, mount } from "@vue/test-utils";
@@ -662,4 +663,27 @@ describe("RegistrationPanel", () => {
     expect(wrapper.find("#file-bibtex-preview").exists()).toBe(false);
     expect(apiMocks.registerBibtexToDatabase).not.toHaveBeenCalled();
   });
+});
+
+
+it("requires an explicit duplicate confirmation and clears it when input changes", async () => {
+  const findings: DuplicateFinding[] = [{ incoming_index: 0, candidate_index: 0, existing: true,
+    reference_id: "existing", title: "Existing study", citation_key: "old", action: "confirm",
+    comparison: { kind: "title", fields: [{ field: "year", agreement: "missing", left: [], right: ["2024"] }] } }];
+  apiMocks.registerBibtexToDatabase.mockRejectedValue(new DuplicateReviewError(findings, "a".repeat(64)));
+  const wrapper = renderPanel();
+  await openRegistration(wrapper);
+  await wrapper.get("#manual-bibtex").setValue("@misc{new,title={Existing study}}");
+  await wrapper.get(".registration-actions button.button-primary").trigger("click");
+  await flushPromises();
+  expect(wrapper.text()).toContain("Existing study");
+  expect(wrapper.text()).toContain("Insufficient information");
+  const confirm = wrapper.findAll("button").find(button => button.text() === "Save as a separate reference")!;
+  await confirm.trigger("click");
+  await flushPromises();
+  expect(apiMocks.registerBibtexToDatabase).toHaveBeenLastCalledWith({ bibtex: "@misc{new,title={Existing study}}", source: "manual", duplicate_confirmation: "a".repeat(64) });
+  await wrapper.get("#manual-bibtex").setValue("@misc{changed,title={Other}}");
+  expect(wrapper.text()).not.toContain("Save as a separate reference");
+  await wrapper.get(".registration-actions button.button-primary").trigger("click");
+  expect(apiMocks.registerBibtexToDatabase).toHaveBeenLastCalledWith({ bibtex: "@misc{changed,title={Other}}", source: "manual" });
 });

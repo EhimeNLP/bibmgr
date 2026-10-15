@@ -596,3 +596,51 @@ def test_tantivy_search_projects_postgres_records(monkeypatch) -> None:
             offset=0,
         ) == ([], 0, None)
     engine.dispose()
+
+
+def test_duplicate_rejection_serializes_concurrent_reference_writes(monkeypatch) -> None:
+    from bibmgr_backend.db_models import ReferenceRecord, UserRecord
+    from bibmgr_backend.library import LibraryError, ReferenceLibrary
+    from bibmgr_backend.native import NativeEngine
+
+    assert POSTGRES_URL is not None
+    monkeypatch.setenv("BIBMGR_DATABASE_URL", POSTGRES_URL)
+    config = migration_config()
+    command.downgrade(config, "base")
+    command.upgrade(config, "head")
+    engine = create_engine(POSTGRES_URL)
+    sessions = sessionmaker(bind=engine, expire_on_commit=False)
+    user_id = uuid.uuid4()
+    with sessions.begin() as session:
+        session.add(UserRecord(id=user_id, email="duplicates@example.test", status="active"))
+    first_written, release_first, second_started = Event(), Event(), Event()
+    library = ReferenceLibrary(NativeEngine(), {"title": "reject", "corroborated_title": "reject"})
+
+    def first_writer():
+        with sessions.begin() as session:
+            library.register(session, bibtex="@misc{one,title={Same title}}", source="manual", policy="archive", actor_user_id=user_id)
+            first_written.set()
+            assert release_first.wait(10)
+
+    def second_writer():
+        assert first_written.wait(10)
+        second_started.set()
+        with sessions.begin() as session:
+            library.register(session, bibtex="@misc{two,title={Same title}}", source="manual", policy="archive", actor_user_id=user_id)
+
+    with ThreadPoolExecutor(max_workers=2) as workers:
+        first = workers.submit(first_writer)
+        second = workers.submit(second_writer)
+        try:
+            assert second_started.wait(10)
+            with pytest.raises(FutureTimeoutError):
+                second.result(timeout=0.2)
+        finally:
+            release_first.set()
+        first.result(timeout=10)
+        with pytest.raises(LibraryError) as rejected:
+            second.result(timeout=10)
+        assert rejected.value.code == "duplicate_reference"
+    with sessions() as session:
+        assert session.scalar(select(func.count()).select_from(ReferenceRecord)) == 1
+    engine.dispose()

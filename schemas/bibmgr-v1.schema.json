@@ -13,9 +13,53 @@
     { "$ref": "#/$defs/AnalysisDelta" },
     { "$ref": "#/$defs/CstInspection" },
     { "$ref": "#/$defs/AstInspection" },
+    { "$ref": "#/$defs/DuplicateReport" },
     { "$ref": "#/$defs/ErrorResponse" }
   ],
   "$defs": {
+    "DuplicateReport": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schema_version", "findings"],
+      "properties": {
+        "schema_version": { "$ref": "#/$defs/SchemaVersion" },
+        "findings": { "type": "array", "items": { "$ref": "#/$defs/DuplicateFinding" } }
+      }
+    },
+    "DuplicateFinding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["incoming_index", "candidate_index", "existing", "action", "comparison"],
+      "properties": {
+        "incoming_index": { "type": "integer", "minimum": 0 },
+        "candidate_index": { "type": "integer", "minimum": 0 },
+        "existing": { "type": "boolean" },
+        "action": { "enum": ["warn", "confirm", "reject"] },
+        "comparison": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind", "fields"],
+          "properties": {
+            "kind": { "enum": ["identifier", "arxiv_family", "corroborated_title", "title", "citation_key"] },
+            "fields": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["field", "agreement", "left", "right"],
+                "properties": {
+                  "field": { "type": "string" },
+                  "agreement": { "enum": ["match", "different", "missing"] },
+                  "left": { "type": "array", "items": { "type": "string" } },
+                  "right": { "type": "array", "items": { "type": "string" } }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+
     "SchemaVersion": {
       "type": "string",
       "const": "1"
