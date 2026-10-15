@@ -35,6 +35,17 @@ In addition to the BibMgR application, local development requires two services:
 
 Docker is one way to run these services, but it is not an application requirement. Without Docker, install the same services directly on the local machine.
 
+## Application setup
+
+From the repository root, install the locked Python dependencies, frontend dependencies, and native extension:
+
+```bash
+uv sync
+uv run poe setup
+```
+
+List available tasks with `uv run poe --help`. Then start PostgreSQL and Mailpit using one of the options below.
+
 ## Using Docker
 
 Start PostgreSQL and Mailpit, then apply the database migrations:
@@ -87,7 +98,9 @@ After startup, use the following URLs:
 
 - Frontend: `http://127.0.0.1:5173/`
 - Backend: `http://127.0.0.1:8000/`
+- Backend health: `http://127.0.0.1:8000/healthz`
 - Backend readiness: `http://127.0.0.1:8000/readyz`
+- API documentation: `http://127.0.0.1:8000/docs`
 - Mailpit inbox: `http://127.0.0.1:8025/`
 
 For the first login, enter a development address on the permitted domain, such as `dev@example.test`. The address does not need to exist because Mailpit captures the message locally instead of delivering it externally. Find the eight-digit code in the Mailpit inbox and enter it; the account is created when the address is verified for the first time. After login, use the add button to register BibTeX.
@@ -99,6 +112,30 @@ To test a development address outside the configured login domain, list the comp
 ```bash
 export BIBMGR_AUTH_ALLOWED_EMAILS="visitor@example.org"
 uv run poe dev
+```
+
+## Development servers and checks
+
+`uv run poe dev` starts the backend and frontend together. To run them separately, use two terminals:
+
+```bash
+uv run poe dev-backend
+uv run poe dev-frontend
+```
+
+Override the listening addresses and ports when needed:
+
+```bash
+HOST=127.0.0.1 PORT=8000 \
+FRONTEND_HOST=127.0.0.1 FRONTEND_PORT=5173 \
+uv run poe dev
+```
+
+Run the test suite or the integrated checks, which also include formatting, linting, type checking, lockfile and schema validation, and fuzz/benchmark builds:
+
+```bash
+uv run poe test
+uv run poe check
 ```
 
 ## Stopping services
