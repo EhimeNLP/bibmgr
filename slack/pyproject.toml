@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "bibmgr-slack"
-version = "0.1.4"
+version = "0.1.5"
 description = "Socket Mode Slack app for profile-driven BibTeX export"
 requires-python = ">=3.11,<3.14"
 license = "MIT"
