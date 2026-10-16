@@ -2,7 +2,7 @@ export function normalizeDisplayWhitespace(value: string): string {
   return value.replace(/\s+/g, " ").trim();
 }
 
-export function bibtexTitleForDisplay(value: string): string {
+export function bibtexTextForDisplay(value: string): string {
   let output = "";
   for (let index = 0; index < value.length; index += 1) {
     const character = value[index];

@@ -15,6 +15,20 @@ afterEach(() => {
 });
 
 describe("reference registration API", () => {
+  it.each(["journal", "booktitle"])("removes protection from fallback %s without changing BibTeX", async field => {
+    const bibtex = `@article{a,title={Paper},${field}={{Venue of {NLP}}}}`;
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(jsonResponse({ id: "a" }, 201)));
+    const result = await registerBibtexToDatabase({ bibtex, source: "manual" });
+    expect(result.reference.venue).toBe("Venue of NLP");
+    expect(result.reference.bibtex).toBe(bibtex);
+  });
+
+  it("preserves literal braces in a venue already formatted by the backend", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(jsonResponse({ id: "a", venue: "Venue {Series}" }, 201)));
+    const result = await registerBibtexToDatabase({ bibtex: "@article{a,title={Paper}}", source: "manual" });
+    expect(result.reference.venue).toBe("Venue {Series}");
+  });
+
   it("preserves source bytes and returns the complete registered batch", async () => {
     const first = "@article{one,\n  title = {One}\n}\n";
     const second = "@article{two,\n  title = {Two}\n}\n";
