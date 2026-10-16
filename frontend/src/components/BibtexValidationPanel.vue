@@ -14,12 +14,14 @@ const props = withDefaults(
     profile?: string;
     debounceMs?: number;
     realtime?: boolean;
+    safeFixesOnExport?: boolean;
   }>(),
   {
     disabled: false,
     profile: "archive",
     debounceMs: 350,
     realtime: true,
+    safeFixesOnExport: false,
   },
 );
 
@@ -65,7 +67,7 @@ watch(
 
     if (source === appliedSourcePending) {
       appliedSourcePending = null;
-      emit("update:diagnostics", analysis.value?.diagnostics ?? []);
+      emit("update:diagnostics", visibleDiagnostics(analysis.value));
       return;
     }
 
@@ -98,18 +100,40 @@ const isCurrent = computed(
     analyzedSource.value === props.source &&
     analyzedProfile.value === props.profile,
 );
+// Preserve diagnostics that need a decision, have an unknown fix, or may block
+// registration. Only low-priority diagnostics fully covered by safe fixes disappear.
+function visibleDiagnostics(result: BibtexAnalysisResult | null): BibtexDiagnostic[] {
+  const all = result?.diagnostics ?? [];
+  if (!props.safeFixesOnExport) return all;
+  const safeFixIds = new Set(result?.available_fixes
+    .filter(fix => fix.applicability === "safe")
+    .map(fix => fix.id));
+  return all.filter(diagnostic =>
+    diagnostic.blocking ||
+    diagnostic.severity === "warning" ||
+    diagnostic.severity === "error" ||
+    diagnostic.fixes.length === 0 ||
+    !diagnostic.fixes.every(id => safeFixIds.has(id)),
+  );
+}
+
 const diagnostics = computed(() =>
-  isCurrent.value ? (analysis.value?.diagnostics ?? []) : [],
+  isCurrent.value ? visibleDiagnostics(analysis.value) : [],
 );
 const fixes = computed(() =>
-  isCurrent.value ? (analysis.value?.available_fixes ?? []) : [],
+  isCurrent.value ? (analysis.value?.available_fixes ?? [])
+    .filter(fix => !props.safeFixesOnExport || fix.applicability !== "safe") : [],
 );
 const blockingCount = computed(
   () => diagnostics.value.filter((diagnostic) => diagnostic.blocking).length,
 );
 const statusMessage = computed(() => {
   const count = diagnostics.value.length;
-  if (count === 0) return "No diagnostics. This source passes the selected lint profile.";
+  if (count === 0) {
+    return analysis.value?.diagnostics.length
+      ? "No diagnostics require manual attention."
+      : "No diagnostics. This source passes the selected lint profile.";
+  }
   const diagnosticLabel = count === 1 ? "1 diagnostic" : `${count} diagnostics`;
   if (blockingCount.value === 0) return `${diagnosticLabel}; none are blocking.`;
   const blockingLabel =
@@ -188,7 +212,7 @@ async function runCheck(): Promise<void> {
     ) {
       return;
     }
-    emit("update:diagnostics", nextAnalysis.diagnostics);
+    emit("update:diagnostics", visibleDiagnostics(nextAnalysis));
   } catch (cause) {
     if (
       requestedGeneration !== requestGeneration ||
@@ -266,7 +290,7 @@ async function applyFix(fix: BibtexFix): Promise<void> {
     analyzedProfile.value = props.profile;
     analysis.value = nextAnalysis;
     appliedSourcePending = applied.source === props.source ? null : applied.source;
-    emit("update:diagnostics", nextAnalysis.diagnostics);
+    emit("update:diagnostics", visibleDiagnostics(nextAnalysis));
     emit("update:source", applied.source);
     emit("fixed", fix.id);
   } catch (cause) {
@@ -306,6 +330,10 @@ defineExpose({ check });
         {{ isChecking ? "Checking…" : "Check BibTeX" }}
       </button>
     </div>
+
+    <p v-if="safeFixesOnExport" class="bibtex-lint__automatic-fixes">
+      Safe fixes are applied automatically on export.
+    </p>
 
     <p v-if="error" class="bibtex-lint__error" role="alert">
       {{ error }}
