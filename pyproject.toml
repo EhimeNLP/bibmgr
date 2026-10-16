@@ -1,6 +1,6 @@
 [project]
 name = "bibmgr-development"
-version = "0.1.4"
+version = "0.1.5"
 description = "Development environment and task definitions for bibmgr"
 requires-python = ">=3.11,<3.14"
 license = "MIT"
