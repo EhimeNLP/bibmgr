@@ -11,6 +11,7 @@ import BibtexEditor from "./BibtexEditor.vue";
 import BibtexExportPanel from "./BibtexExportPanel.vue";
 import BibtexValidationPanel from "./BibtexValidationPanel.vue";
 import DuplicateReview from "./DuplicateReview.vue";
+import DuplicateOverwrite from "./DuplicateOverwrite.vue";
 import { DuplicateReviewError, type DuplicateFinding } from "../api/duplicates";
 import AppIcon from "./AppIcon.vue";
 
@@ -45,8 +46,9 @@ const selectedBibFile = ref<File | null>(null);
 const fileBibtex = ref("");
 const fileDuplicates = ref<DuplicateFinding[]>([]);
 const fileConfirmation = ref<string>();
-watch(manualBibtex, () => { manualDuplicates.value = []; manualConfirmation.value = undefined; }, { flush: "sync" });
-watch(fileBibtex, () => { fileDuplicates.value = []; fileConfirmation.value = undefined; }, { flush: "sync" });
+const overwrite = ref<{ mode: RegistrationMode; finding: DuplicateFinding; original: string; source: string }>();
+watch(manualBibtex, () => { manualDuplicates.value = []; manualConfirmation.value = undefined; if (overwrite.value?.mode === "manual") overwrite.value = undefined; }, { flush: "sync" });
+watch(fileBibtex, () => { fileDuplicates.value = []; fileConfirmation.value = undefined; if (overwrite.value?.mode === "file") overwrite.value = undefined; }, { flush: "sync" });
 const isFileReading = ref(false);
 const isFileRegistering = ref(false);
 const fileError = ref<string | null>(null);
@@ -73,14 +75,14 @@ const fileEntryCountLabel = computed(() =>
     : `${fileEntryCount.value} entries detected.`,
 );
 const fileRegistrationLabel = computed(() => {
-  if (isFileRegistering.value) return "Registering…";
+  if (isFileRegistering.value) return overwrite.value ? "Overwriting…" : "Registering…";
   if (fileEntryCount.value === 0) return "Register file";
   return fileEntryCount.value === 1
     ? "Register 1 reference"
     : `Register ${fileEntryCount.value} references`;
 });
 const manualRegistrationLabel = computed(() => {
-  if (isManualRegistering.value) return "Registering…";
+  if (isManualRegistering.value) return overwrite.value ? "Overwriting…" : "Registering…";
   return "Register BibTeX";
 });
 
@@ -100,6 +102,7 @@ async function openRegistration() {
 }
 
 async function closeRegistration() {
+  if (isManualRegistering.value || isFileRegistering.value) return;
   isOpen.value = false;
   document.body.classList.remove("registration-open");
   await nextTick();
@@ -138,6 +141,8 @@ function onDialogKeydown(event: KeyboardEvent) {
 }
 
 function selectMode(nextMode: RegistrationMode, moveFocus = false) {
+  if (isManualRegistering.value || isFileRegistering.value) return;
+  overwrite.value = undefined;
   mode.value = nextMode;
 
   if (moveFocus) {
@@ -147,12 +152,13 @@ function selectMode(nextMode: RegistrationMode, moveFocus = false) {
   }
 }
 
-function removeDuplicateEntries(target: RegistrationMode, indices: number[]) {
+function removeDuplicateEntries(target: RegistrationMode, indices: number[], replacement?: DuplicateFinding) {
   const source = target === "manual" ? manualBibtex : fileBibtex;
   const findings = target === "manual" ? manualDuplicates : fileDuplicates;
   if (target === "manual" ? isManualRegistering.value : isFileRegistering.value) return;
   const ranges = bibliographicEntryRanges(source.value);
   const allowed = new Set(findings.value.map(finding => finding.incoming_index));
+  if (replacement && findings.value.includes(replacement) && !replacement.existing) allowed.add(replacement.candidate_index);
   const removed = new Set(indices.filter(index => allowed.has(index) && ranges[index]));
   if (!removed.size) return;
   const reindex = (index: number) => index - [...removed].filter(value => value < index).length;
@@ -179,8 +185,52 @@ function removeDuplicateEntries(target: RegistrationMode, indices: number[]) {
   }
 }
 
+function beginOverwrite(target: RegistrationMode, finding: DuplicateFinding) {
+  if (isManualRegistering.value || isFileRegistering.value) return;
+  const original = target === "manual" ? manualBibtex.value : fileBibtex.value;
+  const findings = target === "manual" ? manualDuplicates.value : fileDuplicates.value;
+  if (!findings.includes(finding)) return;
+  if (!finding.existing) {
+    removeDuplicateEntries(target, [finding.candidate_index], finding);
+    return;
+  }
+  const ranges = bibliographicEntryRanges(original);
+  if (!finding.reference_id || !ranges[finding.incoming_index]) return;
+  // Keep string definitions, preambles, and comments needed by the selected entry.
+  let source = original;
+  for (let index = ranges.length - 1; index >= 0; index -= 1) {
+    if (index === finding.incoming_index) continue;
+    const range = ranges[index]!;
+    source = source.slice(0, range.start) + source.slice(range.end);
+  }
+  overwrite.value = { mode: target, finding, original, source };
+  if (target === "manual") manualError.value = null;
+  else fileError.value = null;
+}
+
+function finishOverwrite(reference: Reference) {
+  const selected = overwrite.value;
+  if (!selected) return;
+  const source = selected.mode === "manual" ? manualBibtex : fileBibtex;
+  if (source.value === selected.original) {
+    removeDuplicateEntries(selected.mode, [selected.finding.incoming_index]);
+    const message = countBibliographicEntries(source.value)
+      ? "Reference overwritten. Review and register the remaining entries."
+      : "Reference overwritten.";
+    if (selected.mode === "manual") {
+      manualDuplicates.value = []; manualMessage.value = message;
+    } else {
+      fileDuplicates.value = []; fileMessage.value = message;
+    }
+  }
+  overwrite.value = undefined;
+  emit("registered", [reference]);
+  void nextTick(() => document.getElementById(selected.mode === "manual" ? "manual-bibtex" : "file-bibtex-preview")?.focus());
+}
+
 async function registerManualBibtex(confirmed = false) {
-  if (!manualBibtex.value.trim()) return;
+  if (!manualBibtex.value.trim() || isManualRegistering.value) return;
+  overwrite.value = undefined;
 
   const bibtex = manualBibtex.value;
   isManualRegistering.value = true;
@@ -212,6 +262,7 @@ async function registerManualBibtex(confirmed = false) {
 }
 
 async function onBibFileChange(event: Event) {
+  if (isFileRegistering.value) return;
   const input = event.target as HTMLInputElement;
   const file = input.files?.[0];
 
@@ -259,7 +310,8 @@ async function onBibFileChange(event: Event) {
 }
 
 async function registerFileBibtex(confirmed = false) {
-  if (!selectedBibFile.value || !fileBibtex.value.trim()) return;
+  if (!selectedBibFile.value || !fileBibtex.value.trim() || isFileRegistering.value) return;
+  overwrite.value = undefined;
 
   const fileName = selectedBibFile.value.name;
   const bibtex = fileBibtex.value;
@@ -466,10 +518,21 @@ function onFileFixApplied() {
             <DuplicateReview
               :findings="manualDuplicates"
               :can-remove="Boolean(manualBibtex.trim())"
+              :can-overwrite="Boolean(manualBibtex.trim())"
               :confirmation-token="manualConfirmation"
               :busy="isManualRegistering"
               @remove="removeDuplicateEntries('manual', $event)"
+              @overwrite="beginOverwrite('manual', $event)"
               @confirm="registerManualBibtex(true)"
+            />
+            <DuplicateOverwrite
+              v-if="overwrite?.mode === 'manual'"
+              key="manual-overwrite"
+              :reference-id="overwrite.finding.reference_id!"
+              :source="overwrite.source"
+              @busy="isManualRegistering = $event"
+              @saved="finishOverwrite"
+              @cancel="overwrite = undefined"
             />
             <div class="registration-actions">
               <p
@@ -586,10 +649,21 @@ function onFileFixApplied() {
             <DuplicateReview
               :findings="fileDuplicates"
               :can-remove="Boolean(fileBibtex.trim())"
+              :can-overwrite="Boolean(fileBibtex.trim())"
               :confirmation-token="fileConfirmation"
               :busy="isFileRegistering"
               @remove="removeDuplicateEntries('file', $event)"
+              @overwrite="beginOverwrite('file', $event)"
               @confirm="registerFileBibtex(true)"
+            />
+            <DuplicateOverwrite
+              v-if="overwrite?.mode === 'file'"
+              key="file-overwrite"
+              :reference-id="overwrite.finding.reference_id!"
+              :source="overwrite.source"
+              @busy="isFileRegistering = $event"
+              @saved="finishOverwrite"
+              @cancel="overwrite = undefined"
             />
             <div class="registration-actions registration-actions--file">
               <button

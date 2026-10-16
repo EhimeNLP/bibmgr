@@ -12,7 +12,7 @@ import {
 } from "./auth";
 import { API_BASE_URL } from "./base";
 import { BibtexApiError } from "./bibtex";
-import { bibtexTitleForDisplay } from "../utils/bibtexDisplay";
+import { bibtexTextForDisplay } from "../utils/bibtexDisplay";
 
 export async function searchReferences(query: string): Promise<Reference[]> {
   const parameters = new URLSearchParams({
@@ -184,7 +184,7 @@ function normalizeReference(value: unknown): Reference {
   return {
     ...(Array.isArray(record.duplicate_warnings) ? { duplicateWarnings: record.duplicate_warnings as DuplicateFinding[] } : {}),
     id: stringValue(record.id) ?? "",
-    title: bibtexTitleForDisplay(
+    title: bibtexTextForDisplay(
       stringValue(record.title) ?? "Untitled reference",
     ),
     authors: Array.isArray(record.authors)

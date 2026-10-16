@@ -344,6 +344,55 @@ def test_registration_separates_display_title_from_stored_bibtex() -> None:
         assert record.canonical_bibtex == source
 
 
+@pytest.mark.parametrize("field", ["journal", "booktitle"])
+@pytest.mark.parametrize(
+    ("raw", "display"),
+    [("{Venue}", "Venue"), ("{{Venue} of {NLP}}", "Venue of NLP"),
+     (r"{Venue \{Series\}}", "Venue {Series}")],
+)
+def test_venue_display_preserves_stored_protection(field: str, raw: str, display: str) -> None:
+    client, engine, sessions = build_test_client()
+    source = f"@article{{paper, title={{Paper}}, {field}={{{raw}}}}}"
+    semantic = semantic_record(key="paper", title="Paper", authors=[])
+    semantic["venue"]["value"]["raw"] = raw
+    engine.add(source, [semantic])
+    registered = client.post("/references", json={"bibtex": source, "source": "manual"})
+    assert registered.status_code == 201
+    reference = registered.json()["reference"]
+    assert reference["venue"] == display
+    assert reference["bibtex"] == source
+    assert client.get(f"/references/{reference['id']}").json()["venue"] == display
+    assert client.get("/references", params={"query": "Paper"}).json()[0]["venue"] == display
+    with sessions() as session:
+        record = session.get(ReferenceRecord, uuid.UUID(reference["id"]))
+        assert record is not None
+        assert record.venue_raw == raw
+        assert record.canonical_bibtex == source
+
+
+def test_duplicate_can_overwrite_existing_reference_without_losing_context_or_history() -> None:
+    client, engine, sessions = build_test_client()
+    original = "@article{old, title={Original}, doi={10.1000/overwrite}}"
+    replacement = "@article{new, title={Corrected}, doi={10.1000/overwrite}}"
+    for source, key, title in [(original, "old", "Original"), (replacement, "new", "Corrected")]:
+        engine.add(source, [semantic_record(key=key, title=title, authors=[], doi="10.1000/overwrite")])
+    created = client.post("/references", json={"bibtex": original, "source": "manual",
+                                              "citation_contexts": [{"context": "Keep this citation."}]}).json()["reference"]
+    rejected = client.post("/references", json={"bibtex": replacement, "source": "manual"})
+    assert rejected.status_code == 409
+    assert rejected.json()["error"]["details"]["duplicates"][0]["reference_id"] == created["id"]
+    updated = client.put(f"/references/{created['id']}", json={
+        "bibtex": replacement, "source_revision": created["sourceRevision"],
+    })
+    assert updated.status_code == 200
+    assert updated.json()["id"] == created["id"]
+    assert updated.json()["bibtex"] == replacement
+    assert updated.json()["citationContexts"] == created["citationContexts"]
+    with sessions() as session:
+        assert session.scalar(select(func.count()).select_from(ReferenceRecord)) == 1
+        assert session.scalar(select(func.count()).select_from(ReferenceAuditEvent)) == 2
+
+
 def test_register_search_edit_and_delete_reference() -> None:
     client, engine, sessions = build_test_client()
     original = (

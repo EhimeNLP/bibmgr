@@ -2,9 +2,10 @@
 import { computed, reactive, watch } from "vue";
 import type { DuplicateFinding } from "../api/duplicates";
 import { getReference } from "../api/references";
+import { bibtexTextForDisplay } from "../utils/bibtexDisplay";
 
-const props = defineProps<{ findings: DuplicateFinding[]; confirmationToken?: string; busy?: boolean; canRemove?: boolean }>();
-defineEmits<{ confirm: []; remove: [indices: number[]] }>();
+const props = defineProps<{ findings: DuplicateFinding[]; confirmationToken?: string; confirmLabel?: string; busy?: boolean; canRemove?: boolean; canOverwrite?: boolean }>();
+defineEmits<{ confirm: []; remove: [indices: number[]]; overwrite: [finding: DuplicateFinding] }>();
 const groups = computed(() => {
   const result = new Map<number, DuplicateFinding[]>();
   for (const finding of props.findings) {
@@ -50,10 +51,11 @@ const labels: Record<string, string> = {
     <div class="duplicate-review__header">
       <div>
         <h3>Related references <span>{{ groups.length }}</span></h3>
-        <p v-if="confirmationToken">Review these matches before saving a separate reference.</p>
-        <p v-else-if="findings.some(f => f.action === 'reject')">Resolve duplicate entries before registering.</p>
+        <p v-if="confirmationToken">Review these matches before saving.</p>
+        <p v-else-if="findings.some(f => f.action === 'reject')">Resolve duplicate entries before saving.</p>
         <p v-else>The following references share identifying information.</p>
         <p v-if="canRemove">Remove entries from this input to keep the existing references.</p>
+        <p v-if="canOverwrite">Or use the input entry to overwrite a stored reference or replace a matching input entry.</p>
       </div>
       <button v-if="canRemove && bulkIndices.length" type="button" class="button-secondary" :disabled="busy" @click="$emit('remove', bulkIndices)">
         Remove all duplicates ({{ bulkIndices.length }})
@@ -79,7 +81,7 @@ const labels: Record<string, string> = {
               <tbody>
                 <tr v-for="field in finding.comparison.fields" :key="field.field">
                   <th scope="row">{{ labels[field.field] || field.field }}</th>
-                  <td>{{ field.left.join('; ') || '—' }}</td><td>{{ field.right.join('; ') || '—' }}</td>
+                  <td>{{ (['title', 'venue'].includes(field.field) ? field.left.map(bibtexTextForDisplay) : field.left).join('; ') || '—' }}</td><td>{{ (['title', 'venue'].includes(field.field) ? field.right.map(bibtexTextForDisplay) : field.right).join('; ') || '—' }}</td>
                   <td>{{ field.agreement === 'missing' ? 'Insufficient information' : field.agreement === 'match' ? 'Matches' : 'Differs' }}</td>
                 </tr>
               </tbody>
@@ -94,9 +96,12 @@ const labels: Record<string, string> = {
             <pre v-else>{{ previews[`${entryIndex}-${index}`]?.source }}</pre>
           </div>
         </template>
+        <button v-if="canOverwrite && (!finding.existing || finding.reference_id)" type="button" class="button-secondary duplicate-review__overwrite" :disabled="busy" @click="$emit('overwrite', finding)">
+          {{ finding.existing ? 'Overwrite existing reference…' : `Replace input entry ${finding.candidate_index + 1} with this entry` }}
+        </button>
       </div>
     </article>
-    <button v-if="confirmationToken" type="button" class="button-secondary" :disabled="busy" @click="$emit('confirm')">Save as a separate reference</button>
+    <button v-if="confirmationToken" type="button" class="button-secondary" :disabled="busy" @click="$emit('confirm')">{{ confirmLabel || 'Save as a separate reference' }}</button>
   </section>
 </template>
 
@@ -122,6 +127,7 @@ summary:focus-visible { outline: 2px solid var(--color-primary); outline-offset:
 table { width: 100%; border-collapse: collapse; font-size: 11px; color: var(--color-text-secondary); }
 th, td { padding: 7px; border-bottom: 1px solid var(--color-border); text-align: left; vertical-align: top; min-width: 75px; }
 .button-secondary { min-height: 30px; font-size: 10.5px; flex-shrink: 0; }
+.duplicate-review__overwrite { display: block; margin-top: 8px; white-space: normal; }
 .duplicate-review__preview { margin-top: 8px; padding: 10px; border-radius: var(--radius-control); background: var(--color-fill); }
 pre { margin: 0; padding: 0; background: transparent; white-space: pre-wrap; overflow-wrap: anywhere; color: var(--color-text-secondary); font-size: 11px; line-height: 1.6; }
 @media (max-width: 540px) { .duplicate-review__header { flex-direction: column; } }

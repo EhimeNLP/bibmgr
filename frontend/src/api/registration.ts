@@ -9,7 +9,7 @@ import {
   handleAuthenticationFailure,
 } from "./auth";
 import { API_BASE_URL } from "./base";
-import { bibtexTitleForDisplay } from "../utils/bibtexDisplay";
+import { bibtexTextForDisplay } from "../utils/bibtexDisplay";
 
 type ApiRecord = Record<string, unknown>;
 
@@ -88,7 +88,7 @@ function normalizeReferenceRecord(
       stringValue(referenceRecord.reference_id) ??
       stringValue(referenceRecord.referenceId) ??
       createClientId("reference"),
-    title: bibtexTitleForDisplay(
+    title: bibtexTextForDisplay(
       stringValue(referenceRecord.title) ?? fallbackReference.title,
     ),
     authors: authorsValue(referenceRecord.authors) ?? fallbackReference.authors,
@@ -140,14 +140,15 @@ function normalizeCitationContext(value: unknown) {
 function referenceFromBibtex(bibtex: string): Reference {
   return {
     id: createClientId("reference"),
-    title: bibtexTitleForDisplay(
+    title: bibtexTextForDisplay(
       extractBibtexField(bibtex, "title") ?? "Untitled reference",
     ),
     authors: authorsValue(extractBibtexField(bibtex, "author")) ?? [],
     year: numberValue(extractBibtexField(bibtex, "year")),
-    venue:
+    venue: bibtexTextForDisplay(
       extractBibtexField(bibtex, "journal") ??
-      extractBibtexField(bibtex, "booktitle"),
+      extractBibtexField(bibtex, "booktitle") ?? "",
+    ) || undefined,
     doi: extractBibtexField(bibtex, "doi"),
     url: extractBibtexField(bibtex, "url"),
     bibtexKey: extractBibtexKey(bibtex),
