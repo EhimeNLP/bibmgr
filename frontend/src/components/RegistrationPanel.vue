@@ -6,7 +6,7 @@ import type {
   Reference,
   RegisterBibtexResult,
 } from "../types/reference";
-import { countBibliographicEntries } from "../utils/bibtexHighlight";
+import { bibliographicEntryRanges, countBibliographicEntries } from "../utils/bibtexHighlight";
 import BibtexEditor from "./BibtexEditor.vue";
 import BibtexExportPanel from "./BibtexExportPanel.vue";
 import BibtexValidationPanel from "./BibtexValidationPanel.vue";
@@ -144,6 +144,38 @@ function selectMode(nextMode: RegistrationMode, moveFocus = false) {
     void nextTick(() => {
       document.getElementById(`registration-tab-${nextMode}`)?.focus();
     });
+  }
+}
+
+function removeDuplicateEntries(target: RegistrationMode, indices: number[]) {
+  const source = target === "manual" ? manualBibtex : fileBibtex;
+  const findings = target === "manual" ? manualDuplicates : fileDuplicates;
+  if (target === "manual" ? isManualRegistering.value : isFileRegistering.value) return;
+  const ranges = bibliographicEntryRanges(source.value);
+  const allowed = new Set(findings.value.map(finding => finding.incoming_index));
+  const removed = new Set(indices.filter(index => allowed.has(index) && ranges[index]));
+  if (!removed.size) return;
+  const reindex = (index: number) => index - [...removed].filter(value => value < index).length;
+  const remaining = findings.value
+    .filter(finding => !removed.has(finding.incoming_index) && (finding.existing || !removed.has(finding.candidate_index)))
+    .map(finding => ({ ...finding, incoming_index: reindex(finding.incoming_index),
+      candidate_index: finding.existing ? finding.candidate_index : reindex(finding.candidate_index) }));
+  let updated = source.value;
+  for (const index of [...removed].sort((a, b) => b - a)) {
+    const range = ranges[index]!;
+    updated = updated.slice(0, range.start) + updated.slice(range.end);
+  }
+  source.value = updated;
+  findings.value = remaining;
+  const message = `${removed.size === 1 ? "1 entry" : `${removed.size} entries`} removed from the input. Review and register the remaining entries.`;
+  if (target === "manual") {
+    manualError.value = null;
+    manualMessage.value = message;
+    replaceDiagnostics(manualDiagnostics, []);
+  } else {
+    fileError.value = null;
+    fileMessage.value = message;
+    replaceDiagnostics(fileDiagnostics, []);
   }
 }
 
@@ -410,6 +442,7 @@ function onFileFixApplied() {
             <BibtexValidationPanel
               :source="manualBibtex"
               profile="archive"
+              safe-fixes-on-export
               :disabled="isManualRegistering"
               @update:source="manualBibtex = $event"
               @update:diagnostics="onManualDiagnostics"
@@ -430,7 +463,14 @@ function onFileFixApplied() {
               <BibtexExportPanel :source="manualBibtex" />
             </section>
 
-            <DuplicateReview :findings="manualDuplicates" :confirmation-token="manualConfirmation" :busy="isManualRegistering" @confirm="registerManualBibtex(true)" />
+            <DuplicateReview
+              :findings="manualDuplicates"
+              :can-remove="Boolean(manualBibtex.trim())"
+              :confirmation-token="manualConfirmation"
+              :busy="isManualRegistering"
+              @remove="removeDuplicateEntries('manual', $event)"
+              @confirm="registerManualBibtex(true)"
+            />
             <div class="registration-actions">
               <p
                 v-if="manualError"
@@ -523,6 +563,7 @@ function onFileFixApplied() {
               <BibtexValidationPanel
                 :source="fileBibtex"
                 profile="archive"
+                safe-fixes-on-export
                 :disabled="isFileRegistering"
                 @update:source="fileBibtex = $event"
                 @update:diagnostics="onFileDiagnostics"
@@ -542,7 +583,14 @@ function onFileFixApplied() {
               </section>
             </template>
 
-            <DuplicateReview :findings="fileDuplicates" :confirmation-token="fileConfirmation" :busy="isFileRegistering" @confirm="registerFileBibtex(true)" />
+            <DuplicateReview
+              :findings="fileDuplicates"
+              :can-remove="Boolean(fileBibtex.trim())"
+              :confirmation-token="fileConfirmation"
+              :busy="isFileRegistering"
+              @remove="removeDuplicateEntries('file', $event)"
+              @confirm="registerFileBibtex(true)"
+            />
             <div class="registration-actions registration-actions--file">
               <button
                 type="button"

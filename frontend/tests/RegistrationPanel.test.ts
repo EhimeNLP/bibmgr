@@ -332,9 +332,8 @@ describe("RegistrationPanel", () => {
     expect(apiMocks.registerBibtexToDatabase).not.toHaveBeenCalled();
   });
 
-  it("shows shared lint diagnostics and applies a safe quick fix", async () => {
+  it.each(["manual", "file"] as const)("omits automatic safe-fix diagnostics and controls in %s registration", async mode => {
     const source = "@article{demo, Title={A useful paper}}";
-    const fixedSource = "@article{demo, title={A useful paper}}";
     const diagnostic: BibtexDiagnostic = {
       id: "BIB-SYNTAX-002:0",
       code: "BIB-SYNTAX-002",
@@ -359,19 +358,17 @@ describe("RegistrationPanel", () => {
     bibtexApiMocks.analyzeBibtex.mockResolvedValueOnce(
       analysisResult([diagnostic], [fix]),
     );
-    bibtexApiMocks.applyBibtexFixes.mockResolvedValueOnce({
-      schema_version: "1",
-      source: fixedSource,
-      source_revision: sourceRevision,
-      applied_fix_ids: [fix.id],
-      analysis: analysisResult(),
-    });
     const wrapper = renderPanel();
-    await openRegistration(wrapper);
-    await wrapper.get("#manual-bibtex").setValue(source);
+    if (mode === "manual") {
+      await openRegistration(wrapper);
+      await wrapper.get("#manual-bibtex").setValue(source);
+    } else {
+      await openFilePanel(wrapper);
+      await chooseFile(wrapper, createFile("safe.bib", source));
+    }
 
     const checkButton = wrapper.get(
-      "#registration-panel-manual .bibtex-lint__check",
+      `#registration-panel-${mode} .bibtex-lint__check`,
     );
     expect(checkButton.attributes("disabled")).toBeUndefined();
     await checkButton.trigger("click");
@@ -382,37 +379,15 @@ describe("RegistrationPanel", () => {
       { signal: expect.any(AbortSignal) },
     );
 
-    const lint = wrapper.get("#registration-panel-manual .bibtex-lint");
-    await vi.waitFor(() => {
-      expect(lint.text()).toContain("BIB-SYNTAX-002");
-    });
-    expect(lint.text()).toContain("none are blocking");
-    expect(lint.text()).toContain("Rename field to `title`");
-    expect(
-      wrapper.get("#registration-panel-manual .bibtex-diagnostic-range").text(),
-    ).toBe("Title");
-
-    await lint.get(".bibtex-fixes button").trigger("click");
-    await flushPromises();
-
-    expect(bibtexApiMocks.applyBibtexFixes).toHaveBeenCalledWith({
-      source,
-      source_revision: sourceRevision,
-      fix_ids: [fix.id],
-      profile: "archive",
-    });
-    await vi.waitFor(() => {
-      expect(wrapper.get<HTMLTextAreaElement>("#manual-bibtex").element.value).toBe(
-        fixedSource,
-      );
-    });
-    await wrapper
-      .get("#registration-panel-manual .bibtex-lint__check")
-      .trigger("click");
-    await flushPromises();
-    expect(wrapper.get("#registration-panel-manual .bibtex-lint").text()).toContain(
-      "No diagnostics",
-    );
+    const lint = wrapper.get(`#registration-panel-${mode} .bibtex-lint`);
+    expect(lint.text()).not.toContain("BIB-SYNTAX-002");
+    expect(lint.text()).not.toContain("Rename field");
+    expect(lint.text()).toContain("Safe fixes are applied automatically on export.");
+    expect(lint.find(".bibtex-fixes").exists()).toBe(false);
+    expect(wrapper.find(".bibtex-diagnostic-range").exists()).toBe(false);
+    const editor = mode === "manual" ? "#manual-bibtex" : "#file-bibtex-preview";
+    expect(wrapper.get<HTMLTextAreaElement>(editor).element.value).toBe(source);
+    expect(bibtexApiMocks.applyBibtexFixes).not.toHaveBeenCalled();
   });
 
   it("connects file lint diagnostics to the file editor", async () => {
@@ -686,4 +661,32 @@ it("requires an explicit duplicate confirmation and clears it when input changes
   expect(wrapper.text()).not.toContain("Save as a separate reference");
   await wrapper.get(".registration-actions button.button-primary").trigger("click");
   expect(apiMocks.registerBibtexToDatabase).toHaveBeenLastCalledWith({ bibtex: "@misc{changed,title={Other}}", source: "manual" });
+});
+
+it.each(["manual", "file"] as const)("removes duplicates from %s input while preserving macros, comments, and remaining review indices", async mode => {
+  const entries = ["@article{日本語, title={Keep {nested} title}}", '@article(duplicate, title="Remove me")', "@misc{other,title={Remove next}}"];
+  const prefix = '% @misc{not-an-entry}\n@string{journal="日本語"}\n@preamble{"keep"}\n';
+  const input = prefix + entries.join("\n% retained comment\n");
+  const findings: DuplicateFinding[] = [1, 2].map(index => ({ incoming_index: index, candidate_index: 0, existing: true,
+    reference_id: `existing-${index}`, title: `Duplicate ${index}`, action: "reject", comparison: { kind: "exact", fields: [] } }));
+  apiMocks.registerBibtexToDatabase.mockRejectedValue(new DuplicateReviewError(findings, "old-confirmation"));
+  const wrapper = renderPanel();
+  if (mode === "file") { await openFilePanel(wrapper); await chooseFile(wrapper, createFile("duplicates.bib", input)); }
+  else { await openRegistration(wrapper); await wrapper.get("#manual-bibtex").setValue(input); }
+  const selector = mode === "manual" ? "#manual-bibtex" : "#file-bibtex-preview";
+  await wrapper.get(`#registration-panel-${mode} .registration-actions button.button-primary`).trigger("click");
+  await flushPromises();
+  expect(apiMocks.registerBibtexToDatabase).toHaveBeenCalled();
+  await wrapper.get('[aria-label="Remove input entry 2"]').trigger("click");
+  expect(wrapper.get<HTMLTextAreaElement>(selector).element.value).toBe(input.replace(entries[1]!, ""));
+  expect(wrapper.text()).not.toContain("Save as a separate reference");
+  expect(wrapper.findAll(".duplicate-review article")).toHaveLength(1);
+  expect(apiMocks.registerBibtexToDatabase).toHaveBeenCalled();
+  await wrapper.get('[aria-label="Remove input entry 2"]').trigger("click");
+  const remaining = input.replace(entries[1]!, "").replace(entries[2]!, "");
+  expect(wrapper.get<HTMLTextAreaElement>(selector).element.value).toBe(remaining);
+  expect(wrapper.find(".duplicate-review").exists()).toBe(false);
+  await wrapper.get(`#registration-panel-${mode} .registration-actions button.button-primary`).trigger("click");
+  expect(apiMocks.registerBibtexToDatabase.mock.calls.at(-1)?.[0].bibtex).toBe(remaining);
+  expect(apiMocks.registerBibtexToDatabase.mock.calls.at(-1)?.[0].duplicate_confirmation).toBeUndefined();
 });
