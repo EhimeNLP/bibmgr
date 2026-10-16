@@ -11,6 +11,25 @@ const match = (incoming: number, candidate: number, existing = false): Duplicate
   ...(existing ? { reference_id: `stored-${candidate}` } : {}),
   title: `Study ${candidate}`, action: "reject", comparison: { kind: "exact", fields: [] },
 });
+it("groups input matches, removes individually, and retains a batch representative", async () => {
+  const wrapper = mount(DuplicateReview, { props: { canRemove: true, findings: [
+    match(1, 0), match(2, 0), match(2, 1), match(3, 4, true),
+  ] } });
+  expect(wrapper.findAll("article")).toHaveLength(3);
+  await wrapper.get('[aria-label="Remove input entry 3"]').trigger("click");
+  expect(wrapper.emitted("remove")?.[0]).toEqual([[2]]);
+  await wrapper.get(".duplicate-review__header button").trigger("click");
+  expect(wrapper.emitted("remove")?.[1]).toEqual([[1, 2, 3]]);
+  await wrapper.setProps({ busy: true });
+  expect(wrapper.get(".duplicate-review__header button").attributes("disabled")).toBe("");
+});
+it("does not bulk-remove possible matches or the last representative of a non-transitive chain", async () => {
+  const wrapper = mount(DuplicateReview, { props: { canRemove: true, findings: [
+    match(1, 0), match(2, 1), { ...match(3, 5, true), action: "confirm" },
+  ] } });
+  await wrapper.get(".duplicate-review__header button").trigger("click");
+  expect(wrapper.emitted("remove")?.[0]).toEqual([[1]]);
+});
 it("keeps fetched BibTeX beside each match and caches it across toggles", async () => {
   api.getReference.mockImplementation(async (id: string) => ({ bibtex: `@misc{${id}}` }));
   const wrapper = mount(DuplicateReview, { props: { findings: [match(0, 0, true), match(1, 1, true)] } });

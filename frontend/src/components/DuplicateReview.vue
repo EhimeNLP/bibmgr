@@ -3,8 +3,8 @@ import { computed, reactive, watch } from "vue";
 import type { DuplicateFinding } from "../api/duplicates";
 import { getReference } from "../api/references";
 
-const props = defineProps<{ findings: DuplicateFinding[]; confirmationToken?: string; busy?: boolean }>();
-defineEmits<{ confirm: [] }>();
+const props = defineProps<{ findings: DuplicateFinding[]; confirmationToken?: string; busy?: boolean; canRemove?: boolean }>();
+defineEmits<{ confirm: []; remove: [indices: number[]] }>();
 const groups = computed(() => {
   const result = new Map<number, DuplicateFinding[]>();
   for (const finding of props.findings) {
@@ -13,6 +13,15 @@ const groups = computed(() => {
     result.set(finding.incoming_index, group);
   }
   return [...result].sort(([a], [b]) => a - b);
+});
+// Keep an earlier input representative for each batch match, including non-transitive matches.
+const bulkIndices = computed(() => {
+  const removed = new Set<number>();
+  for (const [index, findings] of groups.value) {
+    if (findings.some(finding => finding.action === "reject" &&
+      (finding.existing || !removed.has(finding.candidate_index)))) removed.add(index);
+  }
+  return [...removed];
 });
 type Preview = { open: boolean; loading: boolean; source?: string; error?: string };
 const previews = reactive<Record<string, Preview>>({});
@@ -44,11 +53,16 @@ const labels: Record<string, string> = {
         <p v-if="confirmationToken">Review these matches before saving a separate reference.</p>
         <p v-else-if="findings.some(f => f.action === 'reject')">Resolve duplicate entries before registering.</p>
         <p v-else>The following references share identifying information.</p>
+        <p v-if="canRemove">Remove entries from this input to keep the existing references.</p>
       </div>
+      <button v-if="canRemove && bulkIndices.length" type="button" class="button-secondary" :disabled="busy" @click="$emit('remove', bulkIndices)">
+        Remove all duplicates ({{ bulkIndices.length }})
+      </button>
     </div>
     <article v-for="[entryIndex, matches] in groups" :key="entryIndex" class="duplicate-review__entry">
       <div class="duplicate-review__entry-header">
         <h4>Input entry {{ entryIndex + 1 }}</h4>
+        <button v-if="canRemove" type="button" class="button-secondary" :disabled="busy" :aria-label="`Remove input entry ${entryIndex + 1}`" @click="$emit('remove', [entryIndex])">Remove from input</button>
       </div>
       <div v-for="(finding, index) in matches" :key="index" class="duplicate-review__match">
         <div class="duplicate-review__metadata">

@@ -176,7 +176,12 @@ export function countBibliographicEntries(source: string): number {
 }
 
 export function extractBibliographicEntries(source: string): string[] {
-  const entries: string[] = [];
+  return bibliographicEntryRanges(source).map(({ start, end }) => source.slice(start, end));
+}
+
+/** Half-open JavaScript string offsets; preserves comments and macro definitions. */
+export function bibliographicEntryRanges(source: string): Array<{ start: number; end: number }> {
+  const entries: Array<{ start: number; end: number }> = [];
   let index = 0;
 
   while (index < source.length) {
@@ -211,7 +216,7 @@ export function extractBibliographicEntries(source: string): string[] {
     }
 
     if (!SPECIAL_ENTRY_TYPES.has(entryType)) {
-      entries.push(source.slice(index, end));
+      entries.push({ start: index, end });
     }
     index = end;
   }

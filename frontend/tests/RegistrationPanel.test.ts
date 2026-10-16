@@ -687,3 +687,31 @@ it("requires an explicit duplicate confirmation and clears it when input changes
   await wrapper.get(".registration-actions button.button-primary").trigger("click");
   expect(apiMocks.registerBibtexToDatabase).toHaveBeenLastCalledWith({ bibtex: "@misc{changed,title={Other}}", source: "manual" });
 });
+
+it.each(["manual", "file"] as const)("removes duplicates from %s input while preserving macros, comments, and remaining review indices", async mode => {
+  const entries = ["@article{日本語, title={Keep {nested} title}}", '@article(duplicate, title="Remove me")', "@misc{other,title={Remove next}}"];
+  const prefix = '% @misc{not-an-entry}\n@string{journal="日本語"}\n@preamble{"keep"}\n';
+  const input = prefix + entries.join("\n% retained comment\n");
+  const findings: DuplicateFinding[] = [1, 2].map(index => ({ incoming_index: index, candidate_index: 0, existing: true,
+    reference_id: `existing-${index}`, title: `Duplicate ${index}`, action: "reject", comparison: { kind: "exact", fields: [] } }));
+  apiMocks.registerBibtexToDatabase.mockRejectedValue(new DuplicateReviewError(findings, "old-confirmation"));
+  const wrapper = renderPanel();
+  if (mode === "file") { await openFilePanel(wrapper); await chooseFile(wrapper, createFile("duplicates.bib", input)); }
+  else { await openRegistration(wrapper); await wrapper.get("#manual-bibtex").setValue(input); }
+  const selector = mode === "manual" ? "#manual-bibtex" : "#file-bibtex-preview";
+  await wrapper.get(`#registration-panel-${mode} .registration-actions button.button-primary`).trigger("click");
+  await flushPromises();
+  expect(apiMocks.registerBibtexToDatabase).toHaveBeenCalled();
+  await wrapper.get('[aria-label="Remove input entry 2"]').trigger("click");
+  expect(wrapper.get<HTMLTextAreaElement>(selector).element.value).toBe(input.replace(entries[1]!, ""));
+  expect(wrapper.text()).not.toContain("Save as a separate reference");
+  expect(wrapper.findAll(".duplicate-review article")).toHaveLength(1);
+  expect(apiMocks.registerBibtexToDatabase).toHaveBeenCalled();
+  await wrapper.get('[aria-label="Remove input entry 2"]').trigger("click");
+  const remaining = input.replace(entries[1]!, "").replace(entries[2]!, "");
+  expect(wrapper.get<HTMLTextAreaElement>(selector).element.value).toBe(remaining);
+  expect(wrapper.find(".duplicate-review").exists()).toBe(false);
+  await wrapper.get(`#registration-panel-${mode} .registration-actions button.button-primary`).trigger("click");
+  expect(apiMocks.registerBibtexToDatabase.mock.calls.at(-1)?.[0].bibtex).toBe(remaining);
+  expect(apiMocks.registerBibtexToDatabase.mock.calls.at(-1)?.[0].duplicate_confirmation).toBeUndefined();
+});
