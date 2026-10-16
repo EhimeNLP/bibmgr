@@ -442,6 +442,7 @@ function onFileFixApplied() {
             <BibtexValidationPanel
               :source="manualBibtex"
               profile="archive"
+              safe-fixes-on-export
               :disabled="isManualRegistering"
               @update:source="manualBibtex = $event"
               @update:diagnostics="onManualDiagnostics"
@@ -562,6 +563,7 @@ function onFileFixApplied() {
               <BibtexValidationPanel
                 :source="fileBibtex"
                 profile="archive"
+                safe-fixes-on-export
                 :disabled="isFileRegistering"
                 @update:source="fileBibtex = $event"
                 @update:diagnostics="onFileDiagnostics"

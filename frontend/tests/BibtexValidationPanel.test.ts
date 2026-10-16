@@ -243,3 +243,73 @@ function diagnostic(code: string, message: string): BibtexDiagnostic {
     fixes: [],
   };
 }
+
+it("hides automatically covered information and safe controls, but retains all actionable diagnostics", async () => {
+  const info = Array.from({ length: 8 }, (_, index) => ({
+    ...diagnostic(`INFO-${index}`, `Automatic information ${index}`),
+    severity: index % 2 ? "hint" as const : "information" as const,
+    fixes: [fix.id],
+  }));
+  const warning = { ...diagnostic("WARN", "Visible warning"), fixes: [fix.id] };
+  const error = { ...diagnostic("ERROR", "Visible error"), severity: "error" as const, fixes: [fix.id] };
+  const blocking = { ...diagnostic("BLOCK", "Visible blocking information"), severity: "information" as const, blocking: true, fixes: [fix.id] };
+  const manual = { ...diagnostic("MANUAL", "Review this suggestion"), severity: "information" as const, fixes: ["review"] };
+  const mixed = { ...manual, id: "mixed", message: "Mixed safe and manual fixes", fixes: [fix.id, "review"] };
+  const unknown = { ...manual, id: "unknown", message: "Unknown fix must stay visible", fixes: ["missing"] };
+  const noFix = { ...manual, id: "no-fix", message: "Information without a fix", fixes: [] };
+  const remaining = [warning, error, blocking, manual, mixed, unknown, noFix];
+  bibtexApiMocks.analyzeBibtex.mockResolvedValue(analysisResult([
+    fix,
+    { ...fix, id: "review", title: "Review suggestion", applicability: "requires_confirmation" },
+    { ...fix, id: "unsafe", title: "Manual correction", applicability: "unsafe" },
+  ], [...info, ...remaining]));
+  const wrapper = mount(BibtexValidationPanel, { props: { source, safeFixesOnExport: true } });
+  await wrapper.get(".bibtex-lint__check").trigger("click");
+  await flushPromises();
+  expect(wrapper.find("details").exists()).toBe(false);
+  expect(wrapper.findAll(".bibtex-diagnostic")).toHaveLength(remaining.length);
+  expect(wrapper.text()).not.toContain("Automatic information");
+  expect(wrapper.text()).not.toContain(fix.title);
+  for (const item of remaining) expect(wrapper.text()).toContain(item.message);
+  expect(wrapper.get(".bibtex-lint__summary").text()).toBe("7 diagnostics; 1 is blocking.");
+  expect(wrapper.findAll(".bibtex-lint__automatic-fixes")).toHaveLength(1);
+  expect(wrapper.findAll(".bibtex-fixes button").map(button => button.text())).toEqual(["Review and apply", "Manual fix only"]);
+  expect(wrapper.emitted("update:diagnostics")?.at(-1)).toEqual([remaining]);
+  const confirm = vi.spyOn(window, "confirm").mockReturnValue(true);
+  bibtexApiMocks.applyBibtexFixes.mockResolvedValue({ schema_version: "1", source: fixedSource, source_revision: sourceRevision, applied_fix_ids: ["review"], analysis: analysisResult() });
+  await wrapper.get(".bibtex-fixes button").trigger("click");
+  await flushPromises();
+  expect(confirm).toHaveBeenCalledOnce();
+  expect(wrapper.emitted("update:source")?.at(-1)).toEqual([fixedSource]);
+  wrapper.unmount();
+});
+
+it("does not claim the input has no diagnostics when all diagnostics are automatically handled", async () => {
+  bibtexApiMocks.analyzeBibtex.mockResolvedValue(analysisResult([fix], [{
+    ...diagnostic("AUTO", "Handled on export"), severity: "information", fixes: [fix.id],
+  }]));
+  const wrapper = mount(BibtexValidationPanel, { props: { source, safeFixesOnExport: true } });
+  await wrapper.get(".bibtex-lint__check").trigger("click");
+  await flushPromises();
+  expect(wrapper.text()).toContain("No diagnostics require manual attention.");
+  expect(wrapper.text()).not.toContain("This source passes");
+  expect(wrapper.find(".bibtex-diagnostic").exists()).toBe(false);
+  expect(wrapper.find(".bibtex-fixes").exists()).toBe(false);
+  expect(wrapper.emitted("update:diagnostics")?.at(-1)).toEqual([[]]);
+  expect(bibtexApiMocks.applyBibtexFixes).not.toHaveBeenCalled();
+  expect(wrapper.emitted("update:source")).toBeUndefined();
+  wrapper.unmount();
+});
+
+it("keeps informational fixes available in editors without automatic export handling", async () => {
+  bibtexApiMocks.analyzeBibtex.mockResolvedValue(analysisResult([fix], [{
+    ...diagnostic("AUTO", "Available correction"), severity: "information", fixes: [fix.id],
+  }]));
+  const wrapper = mount(BibtexValidationPanel, { props: { source } });
+  await wrapper.get(".bibtex-lint__check").trigger("click");
+  await flushPromises();
+  expect(wrapper.text()).toContain("Available correction");
+  expect(wrapper.get(".bibtex-fixes button").text()).toBe("Apply fix");
+  expect(wrapper.find(".bibtex-lint__automatic-fixes").exists()).toBe(false);
+  wrapper.unmount();
+});

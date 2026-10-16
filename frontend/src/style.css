@@ -3281,6 +3281,13 @@ form.settings-editor > .settings-editor__heading {
   flex: 0 0 auto;
 }
 
+.bibtex-lint__automatic-fixes {
+  margin: 0;
+  color: var(--color-text-secondary);
+  font-size: 11.5px;
+  line-height: 1.5;
+}
+
 .bibtex-lint__error,
 .bibtex-lint__stale,
 .bibtex-lint__summary {
