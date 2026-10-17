@@ -1,11 +1,19 @@
 <script setup lang="ts">
-import { computed, reactive, watch } from "vue";
+import { computed, nextTick, reactive, ref, watch } from "vue";
 import type { DuplicateFinding } from "../api/duplicates";
 import { getReference } from "../api/references";
 import { bibtexTextForDisplay } from "../utils/bibtexDisplay";
 
 const props = defineProps<{ findings: DuplicateFinding[]; confirmationToken?: string; confirmLabel?: string; busy?: boolean; canRemove?: boolean; canOverwrite?: boolean }>();
 defineEmits<{ confirm: []; remove: [indices: number[]]; overwrite: [finding: DuplicateFinding] }>();
+const panel = ref<HTMLElement | null>(null);
+async function reveal() {
+  await nextTick();
+  if (!panel.value) return;
+  panel.value.focus({ preventScroll: true });
+  panel.value.scrollIntoView({ block: "start", inline: "nearest", behavior: "instant" });
+}
+defineExpose({ reveal });
 const groups = computed(() => {
   const result = new Map<number, DuplicateFinding[]>();
   for (const finding of props.findings) {
@@ -47,7 +55,7 @@ const labels: Record<string, string> = {
 </script>
 
 <template>
-  <section v-if="findings.length" class="duplicate-review" aria-label="Duplicate review">
+  <section v-if="findings.length" ref="panel" class="duplicate-review" aria-label="Duplicate review" tabindex="-1">
     <div class="duplicate-review__header">
       <div>
         <h3>Related references <span>{{ groups.length }}</span></h3>
