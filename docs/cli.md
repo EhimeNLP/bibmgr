@@ -27,7 +27,7 @@ Set `BIBMGR_INSTALL_DIR` to select another destination, or `BIBMGR_VERSION` to i
 
 ```bash
 curl -LsSf https://github.com/EhimeNLP/bibmgr/releases/latest/download/bibmgr-installer.sh |
-  BIBMGR_INSTALL_DIR="$HOME/bin" BIBMGR_VERSION=v0.1.5 sh
+  BIBMGR_INSTALL_DIR="$HOME/bin" BIBMGR_VERSION=v0.1.6 sh
 ```
 
 Windows x86_64 users can download `bibmgr-x86_64-pc-windows-msvc.zip` from the [latest release](https://github.com/EhimeNLP/bibmgr/releases/latest), extract `bibmgr.exe`, and place it on `PATH`.

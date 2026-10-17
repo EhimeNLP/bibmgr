@@ -139,12 +139,12 @@ wheels = [
 
 [[package]]
 name = "bibmgr-native"
-version = "0.1.5"
+version = "0.1.6"
 source = { editable = "../../crates/bibmgr-python" }
 
 [[package]]
 name = "bibtex-reconstruction"
-version = "0.1.5"
+version = "0.1.6"
 source = { editable = "." }
 dependencies = [
     { name = "bibmgr-native" },
