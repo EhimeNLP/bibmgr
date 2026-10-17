@@ -31,6 +31,8 @@ const emit = defineEmits<{
 const isOpen = ref(false);
 const triggerButton = ref<HTMLButtonElement | null>(null);
 const dialogPanel = ref<HTMLElement | null>(null);
+const manualDuplicateReview = ref<InstanceType<typeof DuplicateReview> | null>(null);
+const fileDuplicateReview = ref<InstanceType<typeof DuplicateReview> | null>(null);
 const fileInput = ref<HTMLInputElement | null>(null);
 const mode = ref<RegistrationMode>("manual");
 
@@ -249,10 +251,12 @@ async function registerManualBibtex(confirmed = false) {
     manualConfirmation.value = undefined;
     manualMessage.value = "Registered.";
     emitRegisteredReferences(result);
+    void manualDuplicateReview.value?.reveal();
   } catch (error) {
     if (error instanceof DuplicateReviewError) {
       manualDuplicates.value = error.findings;
       manualConfirmation.value = error.confirmationToken;
+      void manualDuplicateReview.value?.reveal();
     }
     manualError.value =
       error instanceof Error ? error.message : "Failed to register BibTeX.";
@@ -333,10 +337,12 @@ async function registerFileBibtex(confirmed = false) {
     fileConfirmation.value = undefined;
     fileMessage.value = `${fileName} was registered.`;
     emitRegisteredReferences(result);
+    void fileDuplicateReview.value?.reveal();
   } catch (error) {
     if (error instanceof DuplicateReviewError) {
       fileDuplicates.value = error.findings;
       fileConfirmation.value = error.confirmationToken;
+      void fileDuplicateReview.value?.reveal();
     }
     fileError.value =
       error instanceof Error ? error.message : "Failed to register BibTeX.";
@@ -516,6 +522,7 @@ function onFileFixApplied() {
             </section>
 
             <DuplicateReview
+              ref="manualDuplicateReview"
               :findings="manualDuplicates"
               :can-remove="Boolean(manualBibtex.trim())"
               :can-overwrite="Boolean(manualBibtex.trim())"
@@ -647,6 +654,7 @@ function onFileFixApplied() {
             </template>
 
             <DuplicateReview
+              ref="fileDuplicateReview"
               :findings="fileDuplicates"
               :can-remove="Boolean(fileBibtex.trim())"
               :can-overwrite="Boolean(fileBibtex.trim())"

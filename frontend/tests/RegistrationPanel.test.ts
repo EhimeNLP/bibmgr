@@ -119,6 +119,7 @@ function analysisResult(
 }
 
 beforeEach(() => {
+  Object.defineProperty(HTMLElement.prototype, "scrollIntoView", { configurable: true, value: vi.fn() });
   bibtexApiMocks.analyzeBibtex.mockResolvedValue(analysisResult());
   bibtexApiMocks.applyBibtexFixes.mockImplementation(async (request) => ({
     schema_version: "1",
@@ -648,16 +649,19 @@ it("requires an explicit duplicate confirmation and clears it when input changes
     reference_id: "existing", title: "Existing study", citation_key: "old", action: "confirm",
     comparison: { kind: "title", fields: [{ field: "year", agreement: "missing", left: [], right: ["2024"] }] } }];
   apiMocks.registerBibtexToDatabase.mockRejectedValue(new DuplicateReviewError(findings, "a".repeat(64)));
-  const wrapper = renderPanel();
+  renderPanel(true, true);
+  const wrapper = new DOMWrapper(document.body);
   await openRegistration(wrapper);
   await wrapper.get("#manual-bibtex").setValue("@misc{new,title={Existing study}}");
   await wrapper.get(".registration-actions button.button-primary").trigger("click");
   await flushPromises();
   expect(wrapper.text()).toContain("Existing study");
   expect(wrapper.text()).toContain("Insufficient information");
+  expect(document.activeElement).toBe(wrapper.get(".duplicate-review").element);
   const confirm = wrapper.findAll("button").find(button => button.text() === "Save as a separate reference")!;
   await confirm.trigger("click");
   await flushPromises();
+  expect(HTMLElement.prototype.scrollIntoView).toHaveBeenCalledTimes(2);
   expect(apiMocks.registerBibtexToDatabase).toHaveBeenLastCalledWith({ bibtex: "@misc{new,title={Existing study}}", source: "manual", duplicate_confirmation: "a".repeat(64) });
   await wrapper.get("#manual-bibtex").setValue("@misc{changed,title={Other}}");
   expect(wrapper.text()).not.toContain("Save as a separate reference");
@@ -672,14 +676,18 @@ it.each(["manual", "file"] as const)("removes duplicates from %s input while pre
   const findings: DuplicateFinding[] = [1, 2].map(index => ({ incoming_index: index, candidate_index: 0, existing: true,
     reference_id: `existing-${index}`, title: `Duplicate ${index}`, action: "reject", comparison: { kind: "exact", fields: [] } }));
   apiMocks.registerBibtexToDatabase.mockRejectedValue(new DuplicateReviewError(findings, "old-confirmation"));
-  const wrapper = renderPanel();
+  renderPanel(true, true);
+  const wrapper = new DOMWrapper(document.body);
   if (mode === "file") { await openFilePanel(wrapper); await chooseFile(wrapper, createFile("duplicates.bib", input)); }
   else { await openRegistration(wrapper); await wrapper.get("#manual-bibtex").setValue(input); }
   const selector = mode === "manual" ? "#manual-bibtex" : "#file-bibtex-preview";
   await wrapper.get(`#registration-panel-${mode} .registration-actions button.button-primary`).trigger("click");
   await flushPromises();
   expect(apiMocks.registerBibtexToDatabase).toHaveBeenCalled();
+  expect(document.activeElement).toBe(wrapper.get(".duplicate-review").element);
+  expect(HTMLElement.prototype.scrollIntoView).toHaveBeenCalledWith({ block: "start", inline: "nearest", behavior: "instant" });
   await wrapper.get('[aria-label="Remove input entry 2"]').trigger("click");
+  expect(HTMLElement.prototype.scrollIntoView).toHaveBeenCalledTimes(1);
   expect(wrapper.get<HTMLTextAreaElement>(selector).element.value).toBe(input.replace(entries[1]!, ""));
   expect(wrapper.text()).not.toContain("Save as a separate reference");
   expect(wrapper.findAll(".duplicate-review article")).toHaveLength(1);

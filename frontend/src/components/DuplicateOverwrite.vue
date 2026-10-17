@@ -9,6 +9,7 @@ import UnifiedDiff from "./UnifiedDiff.vue";
 const props = defineProps<{ referenceId: string; source: string }>();
 const emit = defineEmits<{ saved: [reference: Reference]; cancel: []; busy: [value: boolean] }>();
 const panel = ref<HTMLElement | null>(null);
+const duplicateReview = ref<InstanceType<typeof DuplicateReview> | null>(null);
 const stored = ref<Reference>();
 const loading = ref(false);
 const saving = ref(false);
@@ -57,6 +58,7 @@ async function save(confirmed = false) {
     findings.value = failure instanceof DuplicateReviewError ? failure.findings : [];
     confirmation.value = failure instanceof DuplicateReviewError ? failure.confirmationToken : undefined;
     error.value = failure instanceof Error ? failure.message : "Could not overwrite reference.";
+    if (failure instanceof DuplicateReviewError) void duplicateReview.value?.reveal();
   } finally {
     saving.value = false;
     emit("busy", false);
@@ -84,7 +86,7 @@ onBeforeUnmount(() => { generation += 1; });
       />
     </template>
     <p v-if="error" role="alert">{{ error }}</p>
-    <DuplicateReview :findings="findings" :confirmation-token="confirmation" confirm-label="Confirm overwrite despite possible matches" :busy="saving" @confirm="save(true)" />
+    <DuplicateReview ref="duplicateReview" :findings="findings" :confirmation-token="confirmation" confirm-label="Confirm overwrite despite possible matches" :busy="saving" @confirm="save(true)" />
     <div class="duplicate-overwrite__actions">
       <button type="button" class="button-primary" :disabled="!stored || loading || saving || findings.length > 0" @click="save()">{{ saving ? 'Overwriting…' : 'Confirm overwrite' }}</button>
       <button v-if="error" type="button" class="button-secondary" :disabled="loading || saving" @click="load">Reload stored reference</button>

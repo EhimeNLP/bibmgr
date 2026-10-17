@@ -9,7 +9,11 @@ const api = vi.hoisted(() => ({ getReference: vi.fn(), updateReference: vi.fn() 
 vi.mock("../src/api/references", () => api);
 const source = "@article{new,title={New}}";
 const stored = { id: "existing", title: "Old", bibtex: "@article{old,title={Old}}", sourceRevision: `sha256:${"1".repeat(64)}` };
-beforeEach(() => { vi.resetAllMocks(); api.getReference.mockResolvedValue(stored); });
+beforeEach(() => {
+  vi.resetAllMocks();
+  Object.defineProperty(HTMLElement.prototype, "scrollIntoView", { configurable: true, value: vi.fn() });
+  api.getReference.mockResolvedValue(stored);
+});
 
 it("shows a unified diff preserving aligned fields, blank lines, and value indentation while submitting the original source", async () => {
   const original = '@article{new,\n    title     = {A long title with {Protected} text},\n    author    = {Doe, Jane and\n                 Roe, Richard},\n\n\tjournal = {{Venue}},\n    year      = {2024},\n}\n';
@@ -43,6 +47,7 @@ it("confirms new possible matches through update rather than creating a separate
   await wrapper.get("button.button-primary").trigger("click");
   await flushPromises();
   expect(wrapper.text()).toContain("Other paper");
+  expect(HTMLElement.prototype.scrollIntoView).toHaveBeenCalledWith({ block: "start", inline: "nearest", behavior: "instant" });
   expect(wrapper.text()).not.toContain("Save as a separate reference");
   expect(wrapper.get("button.button-primary").attributes("disabled")).toBeDefined();
   await wrapper.get(".duplicate-review > button").trigger("click");
