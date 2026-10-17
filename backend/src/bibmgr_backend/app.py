@@ -35,7 +35,7 @@ from .configuration import ApplicationConfiguration, InvalidConfigurationError
 from .library import (
     LibraryError,
     ReferenceLibrary,
-    normalize_title_for_display,
+    normalize_bibtex_for_display,
     reference_response,
 )
 from .models import (
@@ -471,7 +471,7 @@ def create_app(
             ),
             occurred_at=event.occurred_at,
             restored_from_revision=event.restored_from_revision,
-            title=normalize_title_for_display(title)
+            title=normalize_bibtex_for_display(title)
             if isinstance(title, str)
             else None,
             source_revision=(
@@ -952,7 +952,7 @@ def create_app(
                     reference_id=str(head.reference_id),
                     head_revision=head.latest_revision,
                     exists=live_reference_id is not None,
-                    title=normalize_title_for_display(title)
+                    title=normalize_bibtex_for_display(title)
                     if isinstance(title, str)
                     else None,
                     latest_action=event.action,

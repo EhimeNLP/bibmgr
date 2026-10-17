@@ -1,7 +1,7 @@
 import { DuplicateReviewError, type DuplicateFinding } from "../src/api/duplicates";
 // @vitest-environment jsdom
 
-import { flushPromises, mount } from "@vue/test-utils";
+import { DOMWrapper, flushPromises, mount } from "@vue/test-utils";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type {
   AnalyzeBibtexRequest,
@@ -21,6 +21,7 @@ const apiMocks = vi.hoisted(() => ({
     (payload: RegisterBibtexPayload) => Promise<RegisterBibtexResult>
   >(),
 }));
+const referenceMocks = vi.hoisted(() => ({ getReference: vi.fn(), updateReference: vi.fn() }));
 
 const bibtexApiMocks = vi.hoisted(() => ({
   analyzeBibtex: vi.fn<
@@ -34,23 +35,24 @@ const bibtexApiMocks = vi.hoisted(() => ({
 }));
 
 vi.mock("../src/api/registration", () => apiMocks);
+vi.mock("../src/api/references", () => referenceMocks);
 vi.mock("../src/api/bibtex", () => bibtexApiMocks);
 
 const wrappers: Array<ReturnType<typeof mount>> = [];
 
-function renderPanel(authenticated = true) {
+function renderPanel(authenticated = true, teleport = false) {
   const wrapper = mount(RegistrationPanel, {
     props: { authenticated },
     attachTo: document.body,
     global: {
-      stubs: { Teleport: true },
+      stubs: { Teleport: !teleport },
     },
   });
   wrappers.push(wrapper);
   return wrapper;
 }
 
-async function openRegistration(wrapper: ReturnType<typeof mount>) {
+async function openRegistration(wrapper: ReturnType<typeof mount> | DOMWrapper<Element>) {
   const trigger = wrapper.get("button.registration-trigger");
   if (trigger.attributes("aria-expanded") !== "true") {
     await trigger.trigger("click");
@@ -58,7 +60,7 @@ async function openRegistration(wrapper: ReturnType<typeof mount>) {
   return wrapper.get(".registration-sheet");
 }
 
-async function openFilePanel(wrapper: ReturnType<typeof mount>) {
+async function openFilePanel(wrapper: ReturnType<typeof mount> | DOMWrapper<Element>) {
   await openRegistration(wrapper);
   await wrapper.get("#registration-tab-file").trigger("click");
 }
@@ -74,7 +76,7 @@ function createFile(name: string, contents: string, readError?: Error) {
   return file;
 }
 
-async function chooseFile(wrapper: ReturnType<typeof mount>, file: File) {
+async function chooseFile(wrapper: ReturnType<typeof mount> | DOMWrapper<Element>, file: File) {
   const input = wrapper.get<HTMLInputElement>("#bibtex-file");
   Object.defineProperty(input.element, "files", {
     configurable: true,
@@ -117,6 +119,7 @@ function analysisResult(
 }
 
 beforeEach(() => {
+  Object.defineProperty(HTMLElement.prototype, "scrollIntoView", { configurable: true, value: vi.fn() });
   bibtexApiMocks.analyzeBibtex.mockResolvedValue(analysisResult());
   bibtexApiMocks.applyBibtexFixes.mockImplementation(async (request) => ({
     schema_version: "1",
@@ -646,16 +649,19 @@ it("requires an explicit duplicate confirmation and clears it when input changes
     reference_id: "existing", title: "Existing study", citation_key: "old", action: "confirm",
     comparison: { kind: "title", fields: [{ field: "year", agreement: "missing", left: [], right: ["2024"] }] } }];
   apiMocks.registerBibtexToDatabase.mockRejectedValue(new DuplicateReviewError(findings, "a".repeat(64)));
-  const wrapper = renderPanel();
+  renderPanel(true, true);
+  const wrapper = new DOMWrapper(document.body);
   await openRegistration(wrapper);
   await wrapper.get("#manual-bibtex").setValue("@misc{new,title={Existing study}}");
   await wrapper.get(".registration-actions button.button-primary").trigger("click");
   await flushPromises();
   expect(wrapper.text()).toContain("Existing study");
   expect(wrapper.text()).toContain("Insufficient information");
+  expect(document.activeElement).toBe(wrapper.get(".duplicate-review").element);
   const confirm = wrapper.findAll("button").find(button => button.text() === "Save as a separate reference")!;
   await confirm.trigger("click");
   await flushPromises();
+  expect(HTMLElement.prototype.scrollIntoView).toHaveBeenCalledTimes(2);
   expect(apiMocks.registerBibtexToDatabase).toHaveBeenLastCalledWith({ bibtex: "@misc{new,title={Existing study}}", source: "manual", duplicate_confirmation: "a".repeat(64) });
   await wrapper.get("#manual-bibtex").setValue("@misc{changed,title={Other}}");
   expect(wrapper.text()).not.toContain("Save as a separate reference");
@@ -670,14 +676,18 @@ it.each(["manual", "file"] as const)("removes duplicates from %s input while pre
   const findings: DuplicateFinding[] = [1, 2].map(index => ({ incoming_index: index, candidate_index: 0, existing: true,
     reference_id: `existing-${index}`, title: `Duplicate ${index}`, action: "reject", comparison: { kind: "exact", fields: [] } }));
   apiMocks.registerBibtexToDatabase.mockRejectedValue(new DuplicateReviewError(findings, "old-confirmation"));
-  const wrapper = renderPanel();
+  renderPanel(true, true);
+  const wrapper = new DOMWrapper(document.body);
   if (mode === "file") { await openFilePanel(wrapper); await chooseFile(wrapper, createFile("duplicates.bib", input)); }
   else { await openRegistration(wrapper); await wrapper.get("#manual-bibtex").setValue(input); }
   const selector = mode === "manual" ? "#manual-bibtex" : "#file-bibtex-preview";
   await wrapper.get(`#registration-panel-${mode} .registration-actions button.button-primary`).trigger("click");
   await flushPromises();
   expect(apiMocks.registerBibtexToDatabase).toHaveBeenCalled();
+  expect(document.activeElement).toBe(wrapper.get(".duplicate-review").element);
+  expect(HTMLElement.prototype.scrollIntoView).toHaveBeenCalledWith({ block: "start", inline: "nearest", behavior: "instant" });
   await wrapper.get('[aria-label="Remove input entry 2"]').trigger("click");
+  expect(HTMLElement.prototype.scrollIntoView).toHaveBeenCalledTimes(1);
   expect(wrapper.get<HTMLTextAreaElement>(selector).element.value).toBe(input.replace(entries[1]!, ""));
   expect(wrapper.text()).not.toContain("Save as a separate reference");
   expect(wrapper.findAll(".duplicate-review article")).toHaveLength(1);
@@ -689,4 +699,84 @@ it.each(["manual", "file"] as const)("removes duplicates from %s input while pre
   await wrapper.get(`#registration-panel-${mode} .registration-actions button.button-primary`).trigger("click");
   expect(apiMocks.registerBibtexToDatabase.mock.calls.at(-1)?.[0].bibtex).toBe(remaining);
   expect(apiMocks.registerBibtexToDatabase.mock.calls.at(-1)?.[0].duplicate_confirmation).toBeUndefined();
+});
+
+it.each(["manual", "file"] as const)("overwrites only the reviewed %s entry and preserves remaining input", async mode => {
+  const entries = ["@article{keep, title={Keep}}", '@article(duplicate, title="New title", journal=j)', "@misc{later,title={Later}}"];
+  const prefix = '% 日本語\n@string{j="Venue"}\n@preamble{"keep"}\n';
+  const input = prefix + entries.join("\n% retained\n");
+  const finding: DuplicateFinding = { incoming_index: 1, candidate_index: 0, existing: true,
+    reference_id: "existing", title: "Old title", action: "reject", comparison: { kind: "exact", fields: [] } };
+  apiMocks.registerBibtexToDatabase.mockRejectedValue(new DuplicateReviewError([finding]));
+  referenceMocks.getReference.mockResolvedValue({ id: "existing", title: "Old title", bibtex: "@article{old,title={Old title}}", sourceRevision });
+  let resolve!: (value: unknown) => void;
+  referenceMocks.updateReference.mockReturnValue(new Promise(done => { resolve = done; }));
+  const panel = renderPanel(true, true);
+  const wrapper = new DOMWrapper(document.body);
+  if (mode === "file") { await openFilePanel(wrapper); await chooseFile(wrapper, createFile("duplicates.bib", input)); }
+  else { await openRegistration(wrapper); await wrapper.get("#manual-bibtex").setValue(input); }
+  const editor = mode === "manual" ? "#manual-bibtex" : "#file-bibtex-preview";
+  await wrapper.get(`#registration-panel-${mode} .registration-actions button.button-primary`).trigger("click");
+  await flushPromises();
+  await wrapper.get(".duplicate-review__overwrite").trigger("click");
+  await flushPromises();
+  const replacement = input.replace(entries[0]!, "").replace(entries[2]!, "");
+  expect(wrapper.get(".duplicate-overwrite").text()).toContain("Old title");
+  expect(referenceMocks.updateReference).not.toHaveBeenCalled();
+  await wrapper.get(".duplicate-overwrite button.button-primary").trigger("click");
+  expect(referenceMocks.updateReference).toHaveBeenCalledWith("existing", { bibtex: replacement, source_revision: sourceRevision });
+  expect(wrapper.get(editor).attributes("disabled")).toBeDefined();
+  expect(wrapper.get(".duplicate-review__overwrite").attributes("disabled")).toBeDefined();
+  expect(wrapper.get<HTMLTextAreaElement>(editor).element.value).toBe(input);
+  const updated = { id: "existing", title: "New title", authors: [], bibtex: replacement };
+  resolve(updated);
+  await flushPromises();
+  expect(wrapper.get<HTMLTextAreaElement>(editor).element.value).toBe(input.replace(entries[1]!, ""));
+  expect(wrapper.find(".duplicate-overwrite").exists()).toBe(false);
+  expect(wrapper.text()).toContain("Reference overwritten.");
+  expect(panel.emitted("registered")).toEqual([[[updated]]]);
+  expect(apiMocks.registerBibtexToDatabase).toHaveBeenCalledTimes(1);
+});
+
+it("keeps input after a failed overwrite and invalidates the review when edited", async () => {
+  const input = "@article{new,title={New}}";
+  const finding: DuplicateFinding = { incoming_index: 0, candidate_index: 0, existing: true,
+    reference_id: "existing", action: "reject", comparison: { kind: "exact", fields: [] } };
+  apiMocks.registerBibtexToDatabase.mockRejectedValue(new DuplicateReviewError([finding]));
+  referenceMocks.getReference.mockResolvedValue({ id: "existing", title: "Old", bibtex: "old", sourceRevision });
+  referenceMocks.updateReference.mockRejectedValue(new Error("The reference has changed since it was loaded."));
+  const panel = renderPanel(true, true);
+  const wrapper = new DOMWrapper(document.body);
+  await openRegistration(wrapper);
+  await wrapper.get("#manual-bibtex").setValue(input);
+  await wrapper.get(".registration-actions button.button-primary").trigger("click");
+  await flushPromises();
+  await wrapper.get(".duplicate-review__overwrite").trigger("click");
+  await flushPromises();
+  await wrapper.get(".duplicate-overwrite button.button-primary").trigger("click");
+  await flushPromises();
+  expect(wrapper.get('.duplicate-overwrite [role="alert"]').text()).toContain("has changed");
+  expect(wrapper.get<HTMLTextAreaElement>("#manual-bibtex").element.value).toBe(input);
+  expect(panel.emitted("registered")).toBeUndefined();
+  await wrapper.get("#manual-bibtex").setValue(input.replace("New", "Edited"));
+  expect(wrapper.find(".duplicate-overwrite").exists()).toBe(false);
+});
+
+it("replaces an earlier batch duplicate with the selected later input without writing to the database", async () => {
+  const first = "@misc{old,title={Old}}", second = "@misc{new,title={New}}";
+  const input = `${first}\n% preserve\n${second}`;
+  const finding: DuplicateFinding = { incoming_index: 1, candidate_index: 0, existing: false,
+    action: "reject", comparison: { kind: "exact", fields: [] } };
+  apiMocks.registerBibtexToDatabase.mockRejectedValue(new DuplicateReviewError([finding]));
+  renderPanel(true, true);
+  const wrapper = new DOMWrapper(document.body);
+  await openRegistration(wrapper);
+  await wrapper.get("#manual-bibtex").setValue(input);
+  await wrapper.get(".registration-actions button.button-primary").trigger("click");
+  await flushPromises();
+  await wrapper.get(".duplicate-review__overwrite").trigger("click");
+  expect(wrapper.get<HTMLTextAreaElement>("#manual-bibtex").element.value).toBe(`\n% preserve\n${second}`);
+  expect(wrapper.find(".duplicate-review").exists()).toBe(false);
+  expect(referenceMocks.updateReference).not.toHaveBeenCalled();
+  expect(referenceMocks.getReference).not.toHaveBeenCalled();
 });
