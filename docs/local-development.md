@@ -18,7 +18,7 @@ node --version
 npm --version
 ```
 
-Installing the Rust toolchain through `rustup` is recommended. Because `npm` is bundled with Node.js, it normally does not require a separate installation.
+Install the Rust toolchain through `rustup`. Node.js includes npm.
 
 The first Rust build of the native search extension downloads and compiles the embedded IPADIC NEologd dictionary. It needs network access. To reuse the dictionary across build profiles and toolchains, set an absolute cache directory before building:
 
@@ -33,7 +33,7 @@ In addition to the BibMgR application, local development requires two services:
 - PostgreSQL: stores users, sessions, references, and audit history
 - Mailpit: captures login codes sent during development
 
-Docker is one way to run these services, but it is not an application requirement. Without Docker, install the same services directly on the local machine.
+Run these services with Docker or install them directly on the local machine.
 
 ## Application setup
 
@@ -103,7 +103,7 @@ After startup, use the following URLs:
 - API documentation: `http://127.0.0.1:8000/docs`
 - Mailpit inbox: `http://127.0.0.1:8025/`
 
-For the first login, enter a development address on the permitted domain, such as `dev@example.test`. The address does not need to exist because Mailpit captures the message locally instead of delivering it externally. Find the eight-digit code in the Mailpit inbox and enter it; the account is created when the address is verified for the first time. After login, use the add button to register BibTeX.
+For the first login, enter a development address on the permitted domain, such as `dev@example.test`. Mailpit captures the message locally. Find the eight-digit code in the Mailpit inbox and enter it; the account is created when the address is verified for the first time. After login, use the add button to register BibTeX.
 
 Using the application requires login. Read-only operations, including search, reference details, BibTeX analysis, fix calculation, and export, also require a valid session. Registering, editing, deleting, and restoring references additionally use the CSRF token managed by the frontend.
 
@@ -161,7 +161,7 @@ uv run poe db-reset
 
 ## Using external services
 
-Instead of installing PostgreSQL and Mailpit locally, you can configure an existing PostgreSQL server and SMTP relay:
+To use an existing PostgreSQL server and SMTP relay, configure their connection settings:
 
 ```bash
 export BIBMGR_DATABASE_URL="postgresql+psycopg://user:password@db.example/bibmgr"
