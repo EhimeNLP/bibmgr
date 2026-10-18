@@ -2,7 +2,7 @@
 
 ## Scope
 
-The runtime accepts a complete BibTeX document and exposes the same behavior to the CLI, Python backend, and Vue application. `pipeline/` is an initial data generation system and is intentionally outside the dependency graph.
+The runtime accepts a complete BibTeX document and exposes the same behavior to the CLI, Python backend, Vue application, and WebAssembly consumers. `pipeline/` is an initial data generation system and is intentionally outside the dependency graph.
 
 ## Dependency direction
 
@@ -18,6 +18,7 @@ flowchart TD
     search["bibmgr-search"]
     cli["bibmgr-cli"]
     python["bibmgr-python"]
+    wasm["bibmgr-wasm"]
 
     model --> syntax
     model --> semantics
@@ -36,6 +37,7 @@ flowchart TD
     search --> core
     core --> cli
     core --> python
+    core --> wasm
 ```
 
 Arrows mean “is used by.” Crates do not form dependency cycles. Parser backend types never cross the `bibmgr-syntax` boundary, and no adapter depends on `pipeline/`.
@@ -95,6 +97,8 @@ Export is separate. It serializes the semantic bibliography with an explicit tar
 ## Adapter boundary
 
 The CLI is responsible for arguments, files, terminal formatting, JSON output, diff display, and exit status. The PyO3 crate converts stable core DTOs to Python objects, maps typed errors, and releases the GIL around CPU-heavy work. The backend handles HTTP/authentication/transactions only. The Vue client renders DTOs and sends selected fix IDs; none of these layers owns a validation rule.
+
+The WebAssembly adapter exposes core analysis, safe fixes, registration validation, export, and the profile catalog through a JSON envelope for JavaScript applications. See [WebAssembly API](wasm.md).
 
 All machine consumers use schema version 1. Unknown additive fields should be ignored. A breaking rename, changed meaning, or range convention requires a new schema version.
 

@@ -53,6 +53,10 @@ bibmgr export references.bib --output references.exported.bib
 
 See [Command-line interface](docs/cli.md) for installation, profiles, JSON output, and exit codes.
 
+### WebAssembly
+
+Use the [WebAssembly API](docs/wasm.md) to analyze, validate, fix, and export BibTeX in JavaScript applications, including browser editors and Chrome extensions. Build the package with `python3 scripts/build_wasm.py`.
+
 ### Slack app
 
 Send a BibTeX entry in a channel mention or direct message, choose an export profile, and receive the formatted entry with any remaining warnings. The app runs in Socket Mode, separately from the web application.
