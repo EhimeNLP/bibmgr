@@ -145,3 +145,90 @@ pub fn invoke(request_json: &str) -> String {
         Err(error) => json!({ "ok": false, "error": error }).to_string(),
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn call(request: &Value) -> Value {
+        serde_json::from_str(&invoke(&request.to_string())).unwrap()
+    }
+
+    #[test]
+    fn analysis_and_export_match_the_native_core() {
+        let source = "@article{paper, title={{日本語} and {NASA}}, author={Doe, Jane}, journal={Example}, year={2025}}";
+        let analysis = call(&json!({"operation":"analyze", "source":source, "profile":"modern"}));
+        assert_eq!(
+            analysis["result"],
+            serde_json::to_value(bibmgr_core::analyze(source, &options("modern").unwrap()))
+                .unwrap()
+        );
+        let export = call(
+            &json!({"operation":"export", "source":source, "profile":"modern", "venue_name_style":"full"}),
+        );
+        assert_eq!(
+            export["result"],
+            serde_json::to_value(
+                bibmgr_core::export_source_workflow(
+                    source,
+                    &ExportProfile::modern(),
+                    &ExportSourceOptions::default()
+                )
+                .unwrap()
+            )
+            .unwrap()
+        );
+    }
+
+    #[test]
+    fn fixing_preserves_the_core_diff_and_is_idempotent() {
+        let source =
+            "@article{paper, YEAR={2025}, TITLE={{NASA}}, author={Doe, Jane}, journal={Example}}";
+        let first = call(&json!({"operation":"fix", "source":source, "profile":"modern"}));
+        assert_eq!(first["ok"], true);
+        let expected = bibmgr_core::apply_safe_fixes(source, &options("modern").unwrap()).unwrap();
+        assert_eq!(first["result"], serde_json::to_value(expected).unwrap());
+        let second = call(
+            &json!({"operation":"fix", "source":first["result"]["source"], "profile":"modern"}),
+        );
+        assert_eq!(first["result"]["source"], second["result"]["source"]);
+        assert_eq!(second["result"]["applied_fix_ids"], json!([]));
+    }
+
+    #[test]
+    fn registration_decisions_and_locations_match_native_core() {
+        for source in ["@article{", "@article{paper, title={日本語}, title={Other}, year={2025}}", "@article{doe-2025-example, title={{NASA}}, author={Doe, Jane}, journal={Example}, year={2025}}"] {
+            for apply_safe_fixes in [false, true] {
+                let mut policy = RegistrationPolicy::archive();
+                policy.apply_safe_fixes = apply_safe_fixes;
+                let actual = call(&json!({"operation":"validate_registration", "source":source, "profile":"archive", "apply_safe_fixes":apply_safe_fixes}));
+                assert_eq!(actual["ok"], true);
+                assert_eq!(actual["result"], serde_json::to_value(bibmgr_core::validate_for_registration(source, &policy)).unwrap());
+            }
+        }
+    }
+
+    #[test]
+    fn invalid_requests_and_profiles_are_structured_errors() {
+        assert_eq!(
+            call(&json!({"operation":"catalog", "extra":true}))["error"]["code"],
+            "invalid_request"
+        );
+        assert_eq!(
+            call(&json!({"operation":"fix", "source":"", "profile":"unknown"}))["error"]["code"],
+            "invalid_profile"
+        );
+        assert_eq!(
+            call(
+                &json!({"operation":"export", "source":"@article{", "profile":"modern", "venue_name_style":"full"})
+            )["error"]["code"],
+            "export_failed"
+        );
+        assert_eq!(
+            call(
+                &json!({"operation":"analyze", "source":"あ".repeat(MAX_SOURCE_BYTES / 3 + 1), "profile":"modern"})
+            )["error"]["code"],
+            "source_too_large"
+        );
+    }
+}
