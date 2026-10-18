@@ -10,7 +10,7 @@
 - **Duplicate review:** compare normalized titles, identifiers, and supporting fields, with configurable warnings, confirmation, or rejection.
 - **Revision history:** review changes and restore earlier versions, including deleted references.
 
-Registration preserves the submitted source. Fixes and export are explicit operations, so storing a reference does not silently reformat it. Validation policies, export profiles, and duplicate handling can be configured independently.
+Registration preserves the submitted source. Validation policies, fixes, export profiles, and duplicate handling can be configured independently.
 
 ## Run locally
 
@@ -52,6 +52,10 @@ bibmgr export references.bib --output references.exported.bib
 ```
 
 See [Command-line interface](docs/cli.md) for installation, profiles, JSON output, and exit codes.
+
+### WebAssembly
+
+Use the [WebAssembly API](docs/wasm.md) to analyze, validate, fix, and export BibTeX in JavaScript applications, including browser editors and Chrome extensions. Build the package with `python3 scripts/build_wasm.py`.
 
 ### Slack app
 

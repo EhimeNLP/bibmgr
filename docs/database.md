@@ -73,7 +73,7 @@ erDiagram
     }
 ```
 
-Contributors are deliberately reference-scoped. Equal author spellings do not prove that two people are the same person, so the schema does not create a global person authority record.
+Contributor records are scoped to individual references, allowing distinct people to share the same author spelling.
 
 ## Identity and duplicates
 
@@ -108,7 +108,7 @@ Run `cargo run --release -p bibmgr-search --example benchmark -- 100000` to meas
 
 ## Registration transaction
 
-`POST /references` opens a transaction before invoking authoritative strict registration validation with the `archive` policy. Parser failures and a source without bibliographic records are rejected; `LAB-*` conventions are disabled, while incomplete metadata and unresolved semantics remain non-blocking so the database can retain as much supplied information as possible. The backend never invokes `canonicalize_for_storage` during persistence. It stores the submitted entry bytes and uses the semantic result only for searchable relational projections. For a multi-entry document, UTF-8 byte ranges from the semantic records select the corresponding exact entries. Any invalid native result, duplicate strong identifier, or database failure rolls back every entry in the request.
+`POST /references` opens a transaction before invoking authoritative strict registration validation with the `archive` policy. Parser failures and a source without bibliographic records are rejected; `LAB-*` conventions are disabled, while incomplete metadata and unresolved semantics remain non-blocking so the database can retain as much supplied information as possible. The backend stores the submitted entry bytes and uses the semantic result for searchable relational projections. For a multi-entry document, UTF-8 byte ranges from the semantic records select the corresponding exact entries. Any invalid native result, duplicate strong identifier, or database failure rolls back every entry in the request.
 
 The active registration policy comes from `BIBMGR_REGISTRATION_POLICY`. The persistence request cannot choose a weaker policy.
 

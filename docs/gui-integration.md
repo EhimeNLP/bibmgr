@@ -1,12 +1,12 @@
 # GUI and backend integration
 
-The integration path is fixed:
+The web application uses this integration path:
 
 ```text
 Vue -> Python HTTP API -> bibmgr_native -> bibmgr-core
 ```
 
-The frontend never parses BibTeX to produce diagnostics or decide whether a record can be registered. It may perform transport-level checks such as an empty input or file-size limit.
+The core produces BibTeX diagnostics and registration decisions. The frontend renders these results and checks input size before sending requests.
 
 ## Endpoints
 
@@ -40,11 +40,11 @@ The backend exposes schema-v1 JSON:
 | `DELETE /references/{id}` | Delete a reference |
 | `POST /references/{id}/revert` | Restore a prior state as a new revision |
 
-BibTeX processing, reference reads, configuration reads, and history reads require the HttpOnly session cookie. Reference registration, replacement, deletion, citation-context addition, restoration, and configuration writes additionally require the session-bound `X-CSRF-Token`. The frontend restores that token from `GET /auth/session`; it never stores a reusable API key. Before authentication completes, the workspace is replaced by a login-required view and no reference request is sent.
+BibTeX processing, reference reads, configuration reads, and history reads require the HttpOnly session cookie. Reference registration, replacement, deletion, citation-context addition, restoration, and configuration writes additionally require the session-bound `X-CSRF-Token`. The frontend restores that token from `GET /auth/session` and loads the workspace after authentication.
 
 The history catalog retains deleted reference IDs and titles. Each revision derives its before and after BibTeX states from the ordered append-only snapshots and renders a unified line diff with old/new line numbers and highlighted additions and deletions. Creation compares against an empty source, deletion compares against an empty destination, and restoration therefore remains visually explicit. Restoring sends both the selected revision and the currently displayed head revision; `stale_reference_history` means the client must reload rather than retry with an obsolete head.
 
-Every request carries `source`; relevant requests also carry `profile`, `policy`, `mode`, `fix_ids`, or `source_revision`. An explicit fix request must send the revision returned by the analysis that exposed its IDs. Every success carries `schema_version`. Errors use a stable code/message DTO and do not masquerade as diagnostics. Transport-level request validation uses `invalid_request` without copying framework-owned input values into the response.
+BibTeX processing requests carry `source`; relevant requests also carry `profile`, `policy`, `mode`, `fix_ids`, or `source_revision`. An explicit fix request must send the revision returned by the analysis that exposed its IDs. Every success carries `schema_version`. Operation failures use a stable code/message DTO. Transport-level request validation uses `invalid_request` without copying framework-owned input values into the response.
 
 ## Editor lifecycle
 
@@ -64,9 +64,9 @@ sequenceDiagram
     R-->>V: changed source and fresh analysis
 ```
 
-The supplied validation panel debounces real-time tolerant analysis (350 ms by default). A source or profile change cancels the in-flight request and advances a local generation; responses from an older generation are ignored even if transport cancellation races with completion. The same stale-source check is performed before accepting a fix response, so an edit made while a fix is in flight is never overwritten.
+The supplied validation panel debounces real-time tolerant analysis (350 ms by default). A source or profile change cancels the in-flight request and advances a local generation; responses from an older generation are ignored even if transport cancellation races with completion. Fix responses use the same source-generation check.
 
-Render a result only when it belongs to the current editor buffer and profile. Core ranges are UTF-8 bytes, whereas JavaScript string and editor offsets are UTF-16 code units. Convert each primary and related range at the view boundary before highlighting; never pass byte offsets directly to `slice`, selection, or decoration APIs.
+Render a result only when it belongs to the current editor buffer and profile. Core ranges are UTF-8 bytes, whereas JavaScript string and editor offsets are UTF-16 code units. Convert each primary and related range to UTF-16 before passing it to `slice`, selection, or decoration APIs.
 
 ## Diagnostic presentation
 
@@ -74,24 +74,28 @@ Use `severity` for icon/color/order and `blocking` for the registration state. D
 
 ## Registration
 
-Before persistence, the backend calls `validate_for_registration` with the server-selected `archive` policy. This forces strict parsing, disables `LAB-*` conventions, and leaves incomplete metadata and unresolved semantics non-blocking. The registration and edit UIs run tolerant `archive` analysis for advisory diagnostics and show one read-only output preview generated through the export endpoint. That preview selects `modern` by default and regenerates when the user chooses another profile. Saving remains a single action and sends the current editor bytes directly; neither the selected output profile nor its preview changes the persistence payload. The backend does not call `canonicalize_for_storage`. Authoritative structural rejection is returned by the persistence endpoint, and the editor keeps its content.
+Before persistence, the backend calls `validate_for_registration` with the server-selected `archive` policy. This forces strict parsing, disables `LAB-*` conventions, and leaves incomplete metadata and unresolved semantics non-blocking. The registration and edit UIs run tolerant `archive` analysis for advisory diagnostics and show one read-only output preview generated through the export endpoint. That preview selects `modern` by default and regenerates when the user chooses another profile. Saving sends the current editor bytes directly. Authoritative structural rejection is returned by the persistence endpoint, and the editor keeps its content.
 
 `POST /references` accepts the complete submitted source and stores every exact UTF-8 entry slice plus its semantic projection in one transaction. The response field `reference` contains the first stored record, while `references` contains the complete batch. DOI and arXiv conflicts reject and roll back the complete batch. Each history revision retains the stored source and full semantic snapshot.
 
 `PUT /references/{id}` accepts exactly one entry and requires the current `source_revision`. A mismatch returns `stale_reference` with the current revision, so clients must reload instead of overwriting a concurrent edit.
 
-The reference detail groups `Edit…` and `Delete…` in a compact More menu. The menu lists Edit first and visually distinguishes Delete after a separator. An unauthenticated action opens login instead of attempting a write. Edit first fetches the latest reference, shows advisory archive diagnostics, and sends the exact edited source with that latest `source_revision`. Delete uses a concise confirmation dialog before calling the endpoint. After either operation, the application updates the selected reference and library list without a full-page reload. A deleted item remains restorable from History.
+The reference detail exposes `Edit…` and `Delete…` in the More menu. Editing fetches the latest reference, shows advisory archive diagnostics, and submits the edited source with that `source_revision`. Deletion requires confirmation. Both actions update the selected reference and library list, and deleted items remain restorable from History.
 
-Sign out also requires explicit confirmation. Opening the confirmation does not revoke the session; only its final `Sign out` action calls `POST /auth/logout`.
+Confirming Sign out calls `POST /auth/logout`.
 
 ## BibTeX preview and profiles
 
-The reference detail has one BibTeX preview and selects the general-purpose `modern` profile by default. Every selected built-in or custom profile is rendered through the export endpoint from the stored source. Venue name presentation is a second, independent two-value control: Full is the default and Abbreviated requests the registered short name. Selecting either option replaces the contents of the same preview and never changes stored source. Export warnings never change the database value. Profile, venue-style, and source generations are checked when each request completes, so a stale response cannot replace a newer preview. The authenticated history view labels the persisted value as Stored BibTeX.
+The reference detail renders a BibTeX preview from the stored source through the export endpoint, using `modern` by default. Users can select a built-in or custom profile and choose Full or Abbreviated venue names independently. Each response is checked against the current profile, venue style, and source generation before replacing the preview. History displays the persisted value as Stored BibTeX.
 
-Application settings exposes export profile definitions and venue mappings without mixing them into routine reference actions. Settings are shared deployment-wide, so the sheet states that changes affect every user. A plus action creates a new profile or mapping. Export profiles are edited with schema-aware controls for details, projection and ordering, case protection and renames, formatting, entry types, and advanced generation switches. Canonical JSON is available as a read-only Advanced view. The live preview submits the unsaved typed draft to the preview endpoint; this validates and renders with Rust without persisting or incrementing a revision. Custom settings expose a destructive delete action; modified built-ins expose **Restore Default**, which removes the shared override and reveals the embedded definition. The confirmation and its final action appear immediately below the editor heading, and the editor action bar stays pinned while its contents scroll. Save is disabled until the effective form data changes, and the backend independently treats identical writes as no-ops. Each write sends the loaded revision, and a stale response must be reloaded rather than retried blindly. Category-level history shows the action, actor, time, revision, and a unified JSON diff, including keys that custom deletion removed from the current catalog. Diff headers identify the transition, such as `Revision 1 → Revision 2`, using explicit labels for empty, deleted, and built-in-default states. The diff canonicalizes JSON object keys before comparison, so property order does not create false changes. Its table expands to the longest source line so addition and deletion highlighting continues across the complete horizontal scroll width. Profile documents and the complete effective venue registry are validated by Rust before persistence.
+Application settings manages shared export profiles and venue mappings. Export profiles use schema-aware controls for field projection, ordering, case protection, renames, formatting, and entry types, with canonical JSON available in the Advanced view. An unsaved draft can be rendered through the preview endpoint before saving.
 
-Application controls use Bootstrap Icons through the shared `AppIcon` component. Individual Vue components do not define their own SVG paths, keeping stroke/fill geometry and optical sizing consistent across settings, history, search, navigation, and destructive actions.
+Deleting a custom setting removes it from the catalog. **Restore Default** removes a built-in setting's shared override and restores the embedded definition. Each write requires the loaded revision; stale responses require a reload, and identical writes leave the revision unchanged. Rust validates profile documents and the complete effective venue registry before persistence.
+
+Category-level history shows each action, actor, time, revision, and unified JSON diff, including deleted custom settings. Diffs compare canonicalized JSON objects and identify empty, deleted, and built-in-default states.
+
+Application controls use Bootstrap Icons through the shared `AppIcon` component.
 
 ## Frontend modules
 
-`frontend/src/types/bibtex.ts` mirrors the stable DTO subset, and `frontend/src/api/bibtex.ts` owns transport. Components consume those modules; they should not add regex-based validation rules. Requests use the configured API base URL and the authenticated browser session. `frontend/src/utils/bibtexDiagnostics.ts` is the single UTF-8-byte to UTF-16-index conversion boundary used by editor diagnostics.
+`frontend/src/types/bibtex.ts` mirrors the stable DTO subset, and `frontend/src/api/bibtex.ts` owns transport. Components use these modules to request and display validation results. Requests use the configured API base URL and the authenticated browser session. `frontend/src/utils/bibtexDiagnostics.ts` is the single UTF-8-byte to UTF-16-index conversion boundary used by editor diagnostics.

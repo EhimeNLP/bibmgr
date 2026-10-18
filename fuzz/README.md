@@ -1,6 +1,6 @@
 # Fuzz targets
 
-This directory is a standalone cargo-fuzz workspace so it does not become a normal release package.
+This cargo-fuzz workspace exercises parsing, analysis, and source edits.
 
 ```console
 cargo install cargo-fuzz

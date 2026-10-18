@@ -32,7 +32,7 @@ def main() -> int:
     if any(str(member).startswith("pipeline/") for member in members):
         errors.append("pipeline must not be a Cargo workspace member")
 
-    for adapter in ("bibmgr-cli", "bibmgr-python"):
+    for adapter in ("bibmgr-cli", "bibmgr-python", "bibmgr-wasm"):
         internal = {
             name
             for name in dependency_names(adapter)
@@ -57,6 +57,7 @@ def main() -> int:
             "bibmgr-search",
             "bibmgr-cli",
             "bibmgr-python",
+            "bibmgr-wasm",
         )
         if "bibtex-parser" in dependency_names(crate)
     ]

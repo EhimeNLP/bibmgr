@@ -1,6 +1,6 @@
 # Frontend
 
-The Vue 3 and TypeScript frontend provides the authenticated BibMgR workspace for reference search, BibTeX editing, validation, registration, history, configuration, and profile-based export. It consumes backend DTOs without reimplementing BibTeX rules or persistence decisions in the browser.
+The Vue 3 and TypeScript frontend provides the authenticated BibMgR workspace for reference search, BibTeX editing, validation, registration, history, configuration, and profile-based export. It renders diagnostics and persistence decisions returned by the backend.
 
 ## Responsibilities
 
@@ -40,7 +40,7 @@ A base path such as `/bibmgr` emits assets and default API requests below `/bibm
 
 The browser calls the `api` path below Vite's configured base path. Initial loading and searches use `GET /references/page` and retain `total`, `limit`, and `offset` for pagination. All protected requests include the session cookie with `credentials: "include"`; writes also include `X-CSRF-Token`.
 
-A protected HTTP 401 clears remembered authentication and opens the login dialog. Updates send the observed `source_revision`, deletes send that revision as a quoted `If-Match`, and restores send the observed history-head revision. Profile selection changes only the exported preview and never the stored BibTeX source.
+A protected HTTP 401 clears remembered authentication and opens the login dialog. Updates send the observed `source_revision`, deletes send that revision as a quoted `If-Match`, and restores send the observed history-head revision. Profile selection controls the exported preview.
 
 ### Key modules
 
