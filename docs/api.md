@@ -1,6 +1,6 @@
 # Public Rust API
 
-Consumers should depend on `bibmgr-core`, not call parser, semantic, validation, edit, or export crates in sequence themselves. Exact Rust signatures are in the generated crate documentation; this page describes the stable high-level contract.
+Use `bibmgr-core` for the public processing API. Exact Rust signatures are in the generated crate documentation; this page describes the stable high-level contract.
 
 ## Analyze
 
@@ -44,18 +44,18 @@ let cst = bibmgr_core::inspect_cst(source, parse_options);
 let ast = bibmgr_core::inspect_ast(source, parse_options);
 ```
 
-Both inspection APIs return a core-owned envelope with `schema_version` and `source_revision`. The CST payload is under `document`; the semantic AST payload is under `bibliography`. Consumers should not depend on parser-backend types.
+Both inspection APIs return a core-owned envelope with `schema_version` and `source_revision`. The CST payload is under `document`; the semantic AST payload is under `bibliography`.
 
 ## Registration
 
 ```rust
 let decision = bibmgr_core::validate_for_registration(source, &policy);
 if !decision.accepted {
-    // Return decision.diagnostics; do not reconstruct the decision here.
+    // Present decision.diagnostics to the user.
 }
 ```
 
-Registration eligibility is a policy result, not `severity == Error`. Consumers must use the returned `accepted`/`blocking` decision and preserve diagnostics. Database ingest uses `RegistrationPolicy::archive()`, which forces strict parsing, disables `LAB-*` conventions, and leaves incomplete metadata and unresolved semantics non-blocking. Hosts that load policies and registries externally can call `validate_for_registration_with_options`; the supplied validation profile must match `RegistrationPolicy.validation_profile`. The core validates both configurations and forces strict parsing before deciding.
+Use `accepted` for registration eligibility and `blocking` to identify the diagnostics responsible for rejection. Severity controls presentation independently. Database ingest uses `RegistrationPolicy::archive()`, which forces strict parsing, disables `LAB-*` conventions, and leaves incomplete metadata and unresolved semantics non-blocking. Hosts that load policies and registries externally can call `validate_for_registration_with_options`; the supplied validation profile must match `RegistrationPolicy.validation_profile`. The core validates both configurations and forces strict parsing before deciding.
 
 ## Export
 
@@ -73,7 +73,7 @@ let abbreviated = bibmgr_core::export_source_with_options(
 )?;
 ```
 
-`export_profiles` returns the canonical built-in targets and their display metadata in stable order; compatibility aliases are intentionally omitted. Export analyzes the source and serializes the semantic bibliography. Blocking syntax, unresolved values, ambiguous macro expansions, or conflicting semantic state produces a typed export error. The exporter first generates semantic candidate fields, then applies the profile's case-insensitive allowlist and denylist to all structured and extra fields, normalizes names, applies configured whole-value case-protection groups, orders the survivors, and serializes them. `ExportSourceOptions.venue_name_style` applies full or abbreviated naming to conference, journal, and other venue-derived fields and defaults to full. A built-in or custom profile may case-protect the complete `title` value so traditional BST case conversion cannot rewrite its characters. The generated document is then re-analyzed under `ExportProfile.validation_profile`, so representation changes cannot silently violate target-profile requirements. Export output is deterministic and does not mutate the input or citation identity.
+`export_profiles` returns the canonical built-in targets and their display metadata in stable order. Export analyzes the source and serializes the semantic bibliography. Blocking syntax, unresolved values, ambiguous macro expansions, or conflicting semantic state produces a typed export error. The exporter first generates semantic candidate fields, then applies the profile's case-insensitive allowlist and denylist to all structured and extra fields, normalizes names, applies configured whole-value case-protection groups, orders the survivors, and serializes them. `ExportSourceOptions.venue_name_style` applies full or abbreviated naming to conference, journal, and other venue-derived fields and defaults to full. A built-in or custom profile may case-protect the complete `title` value so traditional BST case conversion cannot rewrite its characters. The generated document is re-analyzed under `ExportProfile.validation_profile`. Export produces deterministic BibTeX while preserving the input and citation identity.
 
 ## Editing session
 
@@ -92,7 +92,7 @@ The machine-readable definition is [`schemas/bibmgr-v1.schema.json`](../schemas/
 
 ## Errors
 
-Public entry points return typed errors rather than panic:
+Public entry points report failures with typed errors:
 
 ```text
 BibmgrError
@@ -105,7 +105,7 @@ BibmgrError
 `- Configuration
 ```
 
-An analysis diagnostic is a problem in the user's document. An API error means the requested operation could not be carried out; adapters should not collapse the two. `apply_safe_fixes` additionally reports a typed no-progress or pass limit error if repeated safe batches fail to reach a fixed point.
+An analysis diagnostic is a problem in the user's document. An API error means the requested operation could not be carried out. `apply_safe_fixes` additionally reports a typed no-progress or pass limit error if repeated safe batches fail to reach a fixed point.
 
 ## Duplicate comparison
 
