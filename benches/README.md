@@ -1,6 +1,6 @@
 # Benchmarks
 
-Criterion records complete-pipeline and source-edit baselines without adding benchmark dependencies to production crates.
+Criterion measures complete-pipeline and source-edit performance.
 
 ```console
 cargo bench --manifest-path benches/Cargo.toml

@@ -1,6 +1,6 @@
 # Metadata Extraction
 
-This stage extracts paper metadata and bibliography references from one or more PDFs with PaddleOCR-VL. It writes reviewable JSON artifacts and never registers records in BibMgR. See the [initialization pipeline overview](../README.md) for the boundary between this stage and BibTeX reconstruction. All commands below run from the repository root.
+This stage extracts paper metadata and bibliography references from one or more PDFs with PaddleOCR-VL. It writes reviewable JSON artifacts for [BibTeX reconstruction](../bibtex_reconstruction/README.md). See the [initialization pipeline overview](../README.md) for the complete workflow. All commands below run from the repository root.
 
 ## Setup
 
