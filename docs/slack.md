@@ -1,8 +1,8 @@
 # Slack app
 
-The BibMgR Slack app receives one syntactically valid BibTeX entry in a code block, asks the submitting user to choose an export profile, applies every safe fix (including lint fixes), and returns the exported entry. In channels it receives app mentions and replies in the original thread. In a direct message it does not require a mention and replies in the direct conversation. Validation findings that cannot be fixed do not block deterministic export; they are reported with the result. Syntax errors, ambiguous values, and conflicting values are not guessed.
+The BibMgR Slack app receives one syntactically valid BibTeX entry in a code block, asks the submitting user to choose an export profile, applies every safe fix (including lint fixes), and returns the exported entry. In channels it receives app mentions and replies in the original thread. Direct messages receive replies in the same conversation. Validation findings that cannot be fixed do not block deterministic export; they are reported with the result. Syntax errors, ambiguous values, and conflicting values prevent export.
 
-The app uses Slack Socket Mode and does not expose an HTTP endpoint. It stores each pending profile-selection request in process memory for ten minutes by default. Restarting the container expires pending selections.
+The app connects to Slack through Socket Mode. It stores each pending profile-selection request in process memory for ten minutes by default. Restarting the container expires pending selections.
 
 ## Create the Slack app
 
@@ -13,11 +13,7 @@ The app uses Slack Socket Mode and does not expose an HTTP endpoint. It stores e
 5. Open **Basic Information**, select **Generate Token and Scopes** under **App-Level Tokens**, add the `connections:write` scope, and copy the token beginning with `xapp-`.
 6. Invite `@BibMgR` to every channel where it should respond.
 
-No app ID, bot ID, team ID, signing secret, request URL, or public port is required at startup. The app obtains its identity with Slack's `auth.test` method.
-
-The app subscribes only to direct messages and app mentions; it does not read ordinary channel messages.
-
-The regular YAML App Manifest does not include app icon data, and the Socket Mode runtime tokens cannot update app configuration. Icon selection therefore remains a deployment-time setting in Slack rather than a bot startup setting.
+The app subscribes to direct messages and app mentions.
 
 ## Start locally with interactive token entry
 
@@ -33,7 +29,7 @@ English is the default user-facing language. To use Japanese, set the language f
 BIBMGR_SLACK_LANGUAGE=ja uv run poe slack
 ```
 
-This task is intended for local operation and troubleshooting, not unattended deployment.
+Use this interactive task for local operation and troubleshooting.
 
 ## Start in production
 
@@ -49,7 +45,7 @@ Provide `SLACK_APP_TOKEN` and `SLACK_BOT_TOKEN` through the deployment environme
 uv run poe slack-up
 ```
 
-The production task does not allocate a TTY, does not rebuild the image, and starts the container in the background with `restart: unless-stopped`. Both tokens are required before Docker creates the container; missing credentials cause configuration to fail instead of opening a prompt.
+The production task starts the existing image in the background with `restart: unless-stopped`. Startup requires both tokens in the environment.
 
 Follow its logs or stop the deployment with:
 
@@ -57,8 +53,6 @@ Follow its logs or stop the deployment with:
 uv run poe slack-logs
 uv run poe slack-down
 ```
-
-Do not place tokens directly in a committed Compose file or image. Inject them from the host environment or a production secret-management system.
 
 ## Environment settings
 
