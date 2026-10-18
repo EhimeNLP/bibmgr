@@ -233,6 +233,14 @@ help = "Build the frontend static files under frontend/dist."
 cmd = "npm run build"
 cwd = "frontend"
 
+[tool.poe.tasks.build-wasm]
+help = "Build the general-purpose WebAssembly package."
+cmd = "python scripts/build_wasm.py"
+
+[tool.poe.tasks.test-wasm]
+help = "Test WebAssembly API parity with the native core."
+cmd = "cargo test --locked -p bibmgr-wasm"
+
 [tool.poe.tasks._serve-backend-dev]
 cmd = "uvicorn bibmgr_backend.app:app --reload --host ${HOST:-127.0.0.1} --port ${PORT:-8000}"
 

@@ -1,0 +1,20 @@
+import assert from 'node:assert/strict';
+import {readFile} from 'node:fs/promises';
+import {pathToFileURL} from 'node:url';
+import path from 'node:path';
+const directory = process.argv[2];
+const wasm = await import(pathToFileURL(path.resolve(directory, 'bibmgr.js')));
+wasm.initSync({module: await readFile(path.resolve(directory, 'bibmgr_bg.wasm'))});
+const call = request => {
+  const result = JSON.parse(wasm.invoke(JSON.stringify(request)));
+  assert.equal(result.ok, true, JSON.stringify(result.error));
+  return result.result;
+};
+assert(call({operation: 'catalog'}).profiles.some(p => p.id === 'modern'));
+const source = '@article{doe-2025-example, title={{NASA} and 日本語}, author={Doe, Jane}, journal={Example}, year={2025}}';
+assert.equal(call({operation:'analyze',source,profile:'modern'}).syntax.status,'ok');
+assert.match(call({operation:'fix',source,profile:'modern'}).source,/日本語/);
+assert.equal(call({operation:'validate_registration',source,profile:'modern'}).accepted,true);
+assert.equal(call({operation:'validate_registration',source:'@article{',profile:'modern'}).accepted,false);
+assert.match(call({operation:'export',source,profile:'modern',venue_name_style:'full'}).source,/日本語/);
+console.log('General WASM API verified: catalog, analysis, safe fixes, registration, export');
