@@ -39,9 +39,9 @@ Reset the local schema with `uv run poe db-reset`. The command accepts only loca
 BIBMGR_ENV=development bibmgr-db reset --yes
 ```
 
-Production startup must run `bibmgr-db upgrade` before starting the application. Migrations are packaged in the backend wheel; importing or starting the service never creates or migrates tables automatically.
+Run `bibmgr-db upgrade` before starting the production application. The backend wheel includes the migrations.
 
-The native build downloads and embeds the IPADIC NEologd dictionary used by Lindera; serving searches requires no dictionary download or external search service. Titles, contributor names, and venue names support hiragana and katakana queries through a verified reading index, including bounded typo matching; English terms and model names bypass the Japanese segmenter. Each backend process rebuilds its in-memory search index on the first non-empty query and applies committed changes before later searches. Allow for that initial build latency and per-process index memory when sizing a deployment.
+The native build downloads and embeds the IPADIC NEologd dictionary used by Lindera for local search. Titles, contributor names, and venue names support hiragana and katakana queries through a verified reading index, including bounded typo matching; English terms and model names bypass the Japanese segmenter. Each backend process rebuilds its in-memory search index on the first non-empty query and applies committed changes before later searches. Allow for that initial build latency and per-process index memory when sizing a deployment.
 
 ## Configuration
 

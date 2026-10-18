@@ -1,13 +1,13 @@
 # Initialization Pipelines
 
-`pipeline/` contains optional, out-of-band tools for creating an initial bibliography from source PDFs. These tools are intentionally outside the BibMgR application dependency graph and never register records in the shared library automatically. All commands below run from the repository root.
+`pipeline/` provides tools for creating an initial bibliography from PDFs. Review the generated BibTeX before importing it into BibMgR. All commands below run from the repository root.
 
 ## Stages
 
 | Stage | Input | Primary output | Side effects |
 | --- | --- | --- | --- |
-| [Metadata extraction](metadata_extraction/README.md) | One or more PDF files | One reviewable extraction JSON document per PDF | May populate model caches; never writes to BibMgR |
-| [BibTeX reconstruction](bibtex_reconstruction/README.md) | One extraction JSON document | Validated BibTeX, audit report, and evidence directory | Queries providers and writes configured caches/artifacts; never writes to BibMgR |
+| [Metadata extraction](metadata_extraction/README.md) | One or more PDF files | One reviewable extraction JSON document per PDF | May populate model caches |
+| [BibTeX reconstruction](bibtex_reconstruction/README.md) | One extraction JSON document | Validated BibTeX, audit report, and evidence directory | Queries providers and writes configured caches/artifacts |
 
 The extraction batch array is a run-level result. Reconstruction accepts one document at a time, so use the per-PDF normalized files written below the extraction `--save-dir`.
 
@@ -55,10 +55,10 @@ The example assumes an input named `paper.pdf`. Repeat reconstruction for each p
 ## Contracts and Boundaries
 
 - Each stage has its own `pyproject.toml`, `uv.lock`, virtual environment, CLI, tests, and runtime dependencies.
-- Stage interfaces are files rather than imports across project boundaries.
+- Stages exchange data through files.
 - Extraction records OCR/VLM evidence and deterministic heuristic recovery; reconstruction resolves cited works against bibliographic evidence.
 - Reconstruction may query external services and use configured LLMs only for search-query improvement and citation-key concept generation.
-- Neither stage mutates source PDFs, registers references, or bypasses the shared Rust validation used for emitted BibTeX.
+- Source PDFs are read-only inputs, and emitted BibTeX passes through the shared Rust validation.
 
 ## Documentation
 

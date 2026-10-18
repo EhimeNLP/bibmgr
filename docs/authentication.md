@@ -22,7 +22,7 @@ Each code permits at most five failed verification attempts. Login starts have a
 
 Sessions expire after seven days and can be revoked by `POST /auth/logout`. `GET /auth/session` returns the authenticated user and a session-bound CSRF token so the Vue client can restore its in-memory authentication state after a reload.
 
-The frontend never invokes logout directly from the account button. It first presents a confirmation dialog and calls `POST /auth/logout` only after explicit confirmation; cancellation leaves the session unchanged.
+Selecting Sign out opens a confirmation dialog. Confirming calls `POST /auth/logout`.
 
 Every protected write sends the session cookie and `X-CSRF-Token`. The cookie is host-only, HttpOnly, `SameSite=Lax`, and uses `Secure` when `BIBMGR_COOKIE_SECURE=true` or `BIBMGR_ENV=production`. `BIBMGR_COOKIE_PATH` can restrict it to an application subpath on a shared host. Production traffic must use HTTPS and should serve the frontend and API from one origin.
 
@@ -32,7 +32,7 @@ Every protected write sends the session cookie and `X-CSRF-Token`. The cookie is
 
 Each new reference stores `created_by_user_id` and `updated_by_user_id`. An update changes only `updated_by_user_id`. The same transaction advances a persistent history head and appends a numbered `reference_audit_events` revision for every create, update, citation-context addition, delete, and restore operation.
 
-Each non-deleted revision stores the exact persisted BibTeX, complete semantic snapshot, reference row, contributors, identifiers, URLs, and citation contexts. A delete revision stores the complete previous state and a null resulting state. Audit rows deliberately do not have a foreign key to the live reference because deletion must not erase or null the historical reference ID. PostgreSQL rejects updates and deletes against the audit table with an append-only trigger.
+Each non-deleted revision stores the exact persisted BibTeX, complete semantic snapshot, reference row, contributors, identifiers, URLs, and citation contexts. A delete revision stores the complete previous state and a null resulting state. Audit rows retain their reference IDs after the live reference is deleted. PostgreSQL rejects updates and deletes against the audit table with an append-only trigger.
 
 `POST /references/{id}/revert` restores a selected non-deleted snapshot and appends the result as a new revision; it never rewrites the selected revision or removes later revisions. The request includes the caller's observed history-head revision. A concurrent edit, delete, or restore advances the head and causes the stale request to fail with HTTP 409.
 
@@ -52,7 +52,7 @@ uv run poe dev
 
 The development SMTP endpoint is `127.0.0.1:1025` and the captured inbox is available at `http://127.0.0.1:8025/`. Mailpit is a development tool and must not be exposed as the production mail service.
 
-Docker is not required. The [local development guide](local-development.md) documents how to run PostgreSQL and Mailpit directly on macOS, verify the first login code, and create a local development account.
+The [local development guide](local-development.md) documents how to run PostgreSQL and Mailpit directly on macOS, verify the first login code, and create a local development account.
 
 ## Production configuration
 

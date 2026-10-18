@@ -1,6 +1,6 @@
 # BibTeX Reconstruction
 
-This stage reconstructs evidence-grounded BibTeX from one metadata-extraction JSON document. It writes validated entries, a structured audit report, and content-addressed evidence artifacts; it never registers records in BibMgR. See the [initialization pipeline overview](../README.md) for the boundary between extraction and reconstruction. All commands below run from the repository root.
+This stage reconstructs evidence-grounded BibTeX from one metadata-extraction JSON document. It writes validated entries, a structured audit report, and content-addressed evidence artifacts. See the [initialization pipeline overview](../README.md) for the complete workflow. All commands below run from the repository root.
 
 ## Setup
 
@@ -155,7 +155,6 @@ flowchart LR
 - ACL Anthology, Crossref, Semantic Scholar, CiNii, J-STAGE, and arXiv are searched in parallel. Candidates remain independent, and normalized title and author values are used only for comparison.
 - Eligible non-DOI candidates are selected in the order above. Missing fields may be added from one same-DOI source without overwriting existing values; conflicting or insufficient evidence requires manual review.
 - Acceptance thresholds are defined in [`config.toml`](./config.toml). LLM output is limited to search-query improvement and citation-key concept generation; it never supplies BibTeX fields or selects a candidate.
-- This stage does not modify the extraction document or write to the BibMgR database.
 
 Generated citation keys use `{surname}-{year}-{venue}-{concept}`. Surname, year, and venue are deterministic. The concept comes from title rules or, when rules are insufficient, an LLM constrained to key-concept generation. Deterministic fallbacks handle unavailable LLM output and key collisions, while Local DB entries retain their stored keys.
 

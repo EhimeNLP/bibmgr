@@ -1,0 +1,32 @@
+name: WebAssembly API
+on:
+  workflow_dispatch:
+  pull_request:
+    paths: ['crates/**', 'config/**', 'Cargo.*', '.cargo/**', 'scripts/*wasm*', '.github/workflows/wasm.yml']
+  push:
+    tags: ['v*']
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+      - uses: Swatinem/rust-cache@v2
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: cargo install wasm-pack --version 0.13.1 --locked
+      - run: cargo test --locked -p bibmgr-wasm
+      - run: python3 scripts/build_wasm.py
+      - uses: actions/upload-artifact@v4
+        with:
+          name: bibmgr-wasm
+          path: dist/wasm
+          if-no-files-found: error
