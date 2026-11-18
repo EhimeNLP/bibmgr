@@ -106,6 +106,19 @@ Each backend process builds a disposable in-memory index on its first non-empty 
 
 Run `cargo run --release -p bibmgr-search --example benchmark -- 100000` to measure index construction and warm-query p50/p95 on a synthetic corpus, including English typos, kana queries, Japanese reading typos, mixed queries, and quoted reading phrases. Measure process memory as well as latency when choosing worker counts; dictionary data, surface terms, reading metadata, and n-gram postings all contribute to each process's footprint. Synthetic timings are not a substitute for measurement on the deployed library and hardware.
 
+### Optional Japanese–English search
+
+When a translation provider is configured, the backend processes existing and newly registered references in the background. It translates titles and resolved `keywords` into the other language as a separate search projection. `langid` or `language` identifies the title language when present. Otherwise the backend uses the writing system, treating kanji-only text as Japanese in this Japanese–English search. Explicitly declared languages outside Japanese and English are skipped.
+
+Automatic search can match the complete query against either the original index or the translated fields. Original matches rank first in relevance order, and both sets use the same filters, result count, and pagination. The original search mode searches the original index only. Display, citation, and BibTeX continue to use the stored bibliographic record.
+
+Set `BIBMGR_SEARCH_TRANSLATION_PROVIDER`, `BIBMGR_SEARCH_TRANSLATION_MODEL`, and `BIBMGR_SEARCH_TRANSLATION_REVISION` to enable the feature. Select either `command` or a Python `module:factory` installed on the backend:
+
+- With `command`, set `BIBMGR_SEARCH_TRANSLATION_COMMAND` to the executable and its arguments. The backend runs it without a shell, sends `{"text":"…","source_lang":"ja","target_lang":"en"}` on stdin, and reads `{"translation":"…"}` on stdout. Language codes are `ja` and `en`. Set `BIBMGR_SEARCH_TRANSLATION_TIMEOUT_SECONDS` to override the 30-second timeout.
+- A Python factory receives a `TranslationModel` and returns a `Translator` with that identity, a `translate(text, source, target)` method, and `close()` for shutdown. Initialize heavyweight runtimes lazily. One backend worker at a time processes translations for a PostgreSQL database.
+
+Switching the provider, model, or revision queues regeneration after restarting the backend. Existing translations remain searchable until their replacements succeed. Editing a reference invalidates its previous translation immediately. Failed translations can be retried by the background worker, while the original bibliographic text stays searchable.
+
 ## Registration transaction
 
 `POST /references` opens a transaction before invoking authoritative strict registration validation with the `archive` policy. Parser failures and a source without bibliographic records are rejected; `LAB-*` conventions are disabled, while incomplete metadata and unresolved semantics remain non-blocking so the database can retain as much supplied information as possible. The backend stores the submitted entry bytes and uses the semantic result for searchable relational projections. For a multi-entry document, UTF-8 byte ranges from the semantic records select the corresponding exact entries. Any invalid native result, duplicate strong identifier, or database failure rolls back every entry in the request.

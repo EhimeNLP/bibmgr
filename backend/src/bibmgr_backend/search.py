@@ -7,7 +7,7 @@ from threading import Lock
 from typing import Any
 import uuid
 
-from sqlalchemy import select, update
+from sqlalchemy import and_, literal, select, update
 from sqlalchemy.dialects.postgresql import insert as postgres_insert
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from sqlalchemy.orm import Session
@@ -16,6 +16,7 @@ from .db_models import (
     ReferenceRecord,
     ReferenceSearchChange,
     ReferenceSearchState,
+    ReferenceSearchTranslation,
     UserRecord,
 )
 from .models import SearchCorrection
@@ -66,7 +67,8 @@ def timestamp(value: datetime | None) -> int | None:
 
 
 class ReferenceSearch:
-    def __init__(self) -> None:
+    def __init__(self, *, include_translations: bool = False) -> None:
+        self._include_translations = include_translations
         self._lock = Lock()
         self._index: NativeSearchIndex | None = None
         self._generation = -1
@@ -78,7 +80,9 @@ class ReferenceSearch:
             try:
                 self._synchronize(session)
                 assert self._index is not None
-                page = self._index.search(request)
+                page = self._index.search({
+                    **request, "include_translations": self._include_translations,
+                })
             except Exception:
                 # A failed commit/reload must never expose a partly updated index.
                 self._index = None
@@ -115,7 +119,7 @@ class ReferenceSearch:
             ).all()
         for start in range(0, len(ids), 256):
             batch = ids[start : start + 256]
-            rows = session.execute(
+            statement = (
                 select(ReferenceRecord, UserRecord.email)
                 .outerjoin(
                     UserRecord,
@@ -123,9 +127,20 @@ class ReferenceSearch:
                 )
                 .where(ReferenceRecord.id.in_(batch))
                 .execution_options(populate_existing=True)
-            ).all()
-            documents = [_document(record, email) for record, email in rows]
-            present = {record.id for record, _email in rows}
+            )
+            if self._include_translations:
+                alias = ReferenceSearchTranslation
+                statement = statement.add_columns(
+                    alias.translated_title, alias.translated_keywords,
+                ).outerjoin(alias, and_(
+                    alias.reference_id == ReferenceRecord.id,
+                    alias.source_revision == ReferenceRecord.source_revision,
+                ))
+            else:
+                statement = statement.add_columns(literal(""), literal(""))
+            rows = session.execute(statement).all()
+            documents = [_document(*row) for row in rows]
+            present = {row[0].id for row in rows}
             self._index.apply(
                 documents,
                 [str(value) for value in batch if value not in present],
@@ -133,7 +148,10 @@ class ReferenceSearch:
         self._generation = generation
 
 
-def _document(record: ReferenceRecord, email: str | None) -> dict[str, Any]:
+def _document(
+    record: ReferenceRecord, email: str | None,
+    translated_title: str | None = None, translated_keywords: str | None = None,
+) -> dict[str, Any]:
     venue = record.semantic_data.get("venue") or {}
     venue = venue.get("value") or {}
     venues = [
@@ -174,6 +192,8 @@ def _document(record: ReferenceRecord, email: str | None) -> dict[str, Any]:
             ],
         ],
         "body": "\n".join(body),
+        "translated_title": translated_title or "",
+        "translated_keywords": translated_keywords or "",
         "year": record.publication_year,
         "entry_type": record.entry_type,
         "created_by": email or "",
