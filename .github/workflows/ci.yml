@@ -79,8 +79,15 @@ jobs:
           cache: npm
           cache-dependency-path: frontend/package-lock.json
       - run: uv run --frozen --no-default-groups poe setup-frontend
-      - run: npm audit --audit-level=high
+      - name: Audit production frontend dependencies
+        run: npm audit --omit=dev --audit-level=high
         working-directory: frontend
+      - name: Audit all frontend dependencies
+        working-directory: frontend
+        run: |
+          report="$RUNNER_TEMP/frontend-audit.json"
+          npm audit --audit-level=high --json > "$report" || test "$?" -eq 1
+          node ../scripts/check_frontend_audit.mjs "$report" package-lock.json
       - run: uv run --frozen --no-default-groups poe check-frontend
       - run: uv run --frozen --no-default-groups poe test-frontend
       - run: uv run --frozen --no-default-groups poe build-frontend
