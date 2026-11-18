@@ -19,7 +19,7 @@ jobs:
           - os: ubuntu-latest
             target: x86_64-unknown-linux-gnu
             manylinux: "2_17"
-          - os: macos-14
+          - os: macos-15
             target: aarch64-apple-darwin
             manylinux: "off"
           # Add a Linux aarch64 runner and target here without changing package metadata.
