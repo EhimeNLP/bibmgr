@@ -300,19 +300,15 @@ jobs:
   security:
     name: Dependency, source, and license policy
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      checks: write
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
-      - name: Resolve the audited dependency graph
-        run: cargo generate-lockfile
-      - uses: rustsec/audit-check@v2.0.0
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Audit locked Rust dependencies
+        run: |
+          cargo install cargo-audit --version 0.23.0 --locked
+          cargo audit
       - uses: EmbarkStudios/cargo-deny-action@v2
         with:
           command: check
-          arguments: --all-features
+          arguments: --all-features --locked
           command-arguments: licenses bans sources
