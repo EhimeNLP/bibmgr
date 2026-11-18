@@ -50,12 +50,12 @@ jobs:
             builder: cross
             archive: tar
             smoke_test: false
-          - os: macos-14
+          - os: macos-15
             target: x86_64-apple-darwin
             builder: cargo
             archive: tar
             smoke_test: false
-          - os: macos-14
+          - os: macos-15
             target: aarch64-apple-darwin
             builder: cargo
             archive: tar
