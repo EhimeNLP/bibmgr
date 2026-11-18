@@ -1,4 +1,4 @@
-use bibmgr_search::{SearchDocument, SearchIndex, SearchRequest};
+use bibmgr_search::{SearchDocument, SearchIndex, SearchMode, SearchRequest};
 
 fn document(id: &str, title: &str) -> SearchDocument {
     SearchDocument {
@@ -15,6 +15,49 @@ fn request(query: &str) -> SearchRequest {
         sort: "relevance".into(),
         ..SearchRequest::default()
     }
+}
+
+#[test]
+fn adds_translated_matches_without_replacing_literal_results_or_filters() {
+    let index = SearchIndex::new().unwrap();
+    let mut english = document("english", "Natural Language Processing Methods");
+    english.translated_title = "自然言語処理の手法".into();
+    english.translated_keywords = "言語モデル".into();
+    english.year = Some(2025);
+    let mut japanese = document("japanese", "自然言語処理の手法");
+    japanese.translated_title = "Natural Language Processing Methods".into();
+    japanese.year = Some(2024);
+    index.apply(vec![english, japanese], &[]).unwrap();
+
+    for (query, expected) in [
+        ("natural language processing", ["english", "japanese"]),
+        ("自然言語処理", ["japanese", "english"]),
+    ] {
+        let mut search = request(query);
+        search.include_translations = true;
+        let page = index.search(&search).unwrap();
+        assert_eq!(page.ids, expected);
+        assert_eq!(page.total, 2);
+        search.limit = 1;
+        search.offset = 1;
+        assert_eq!(index.search(&search).unwrap().ids, [expected[1]]);
+        search.offset = 0;
+        search.search_mode = SearchMode::Original;
+        let page = index.search(&search).unwrap();
+        assert_eq!(page.ids, [expected[0]]);
+        assert_eq!(page.total, 1);
+    }
+
+    let mut phrase = request("\"言語モデル\"");
+    phrase.include_translations = true;
+    phrase.year = Some(2025);
+    assert_eq!(index.search(&phrase).unwrap().ids, ["english"]);
+    phrase.year = Some(2024);
+    assert_eq!(index.search(&phrase).unwrap().total, 0);
+
+    let mut mixed = request("language 手法");
+    mixed.include_translations = true;
+    assert_eq!(index.search(&mixed).unwrap().total, 0);
 }
 
 #[test]
