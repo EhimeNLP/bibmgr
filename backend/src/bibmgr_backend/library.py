@@ -103,9 +103,12 @@ class InvalidRegistrationResultError(LibraryError):
 
 
 class ReferenceLibrary:
-    def __init__(self, engine: RegistrationEngine, duplicate_policy: dict[str, Any] | None = None) -> None:
+    def __init__(
+        self, engine: RegistrationEngine, duplicate_policy: dict[str, Any] | None = None,
+        *, include_translations: bool = False,
+    ) -> None:
         self.engine = engine
-        self.search_index = ReferenceSearch()
+        self.search_index = ReferenceSearch(include_translations=include_translations)
         self.duplicates = DuplicateCheck(duplicate_policy)
 
     def search(

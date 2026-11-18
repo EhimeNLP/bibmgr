@@ -2,13 +2,13 @@
 //! this index is a disposable, incrementally updated projection.
 
 use std::cmp::Ordering;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::ops::Bound;
 use std::sync::{Arc, OnceLock};
 
 use lindera::segmenter::Segmenter;
 use serde::{Deserialize, Serialize};
-use tantivy::collector::{Count, TopDocs};
+use tantivy::collector::{Count, DocSetCollector, TopDocs};
 use tantivy::query::{
     AllQuery, BooleanQuery, BoostQuery, ConstScoreQuery, EmptyQuery, FuzzyTermQuery, Occur,
     PhraseQuery, Query, RangeQuery, RegexQuery, TermQuery,
@@ -18,7 +18,8 @@ use tantivy::schema::{
     STRING, TEXT,
 };
 use tantivy::{
-    Index, IndexReader, IndexWriter, ReloadPolicy, SegmentReader, TantivyDocument, Term,
+    DocAddress, Index, IndexReader, IndexWriter, ReloadPolicy, Searcher, SegmentReader,
+    TantivyDocument, Term,
 };
 use unicode_normalization::{char::is_combining_mark, UnicodeNormalization};
 
@@ -50,6 +51,8 @@ pub struct SearchDocument {
     pub venues: Vec<String>,
     pub identifiers: Vec<String>,
     pub body: String,
+    pub translated_title: String,
+    pub translated_keywords: String,
     pub year: Option<i64>,
     pub entry_type: String,
     pub created_by: String,
@@ -61,6 +64,7 @@ pub struct SearchDocument {
 pub struct SearchRequest {
     pub query: String,
     pub search_mode: SearchMode,
+    pub include_translations: bool,
     pub year: Option<i64>,
     pub author: Option<String>,
     pub venue: Option<String>,
@@ -167,6 +171,9 @@ impl SearchIndex {
         for name in ["title", "authors", "venues", "identifiers", "body"] {
             schema.add_text_field(name, TEXT);
         }
+        for name in ["translated_title", "translated_keywords"] {
+            schema.add_text_field(name, TEXT);
+        }
         for name in [reading::GRAM_FIELD, correction::FIELD] {
             schema.add_text_field(
                 name,
@@ -256,6 +263,7 @@ impl SearchIndex {
                 readings.add("author_aliases", &analysis);
                 spelling.extend(correction::terms(&analysis));
             }
+            index_translations(&schema, input, &mut doc)?;
             doc.add_text(
                 field(&schema, correction::FIELD),
                 spelling.into_iter().collect::<Vec<_>>().join(" "),
@@ -337,7 +345,17 @@ impl SearchIndex {
         // Pin the reader and its corresponding metadata together. Readers can
         // finish on this immutable snapshot while another batch is committed.
         drop(state);
-        let correction = if request.search_mode == SearchMode::Auto {
+        let alias = if request.include_translations && request.search_mode == SearchMode::Auto {
+            let query = translation_query(&schema, &request)?;
+            if searcher.search(&query, &Count)? > 0 {
+                Some(query)
+            } else {
+                None
+            }
+        } else {
+            None
+        };
+        let correction = if request.search_mode == SearchMode::Auto && alias.is_none() {
             correction::suggest(&searcher, &schema, &request, &metadata)?
         } else {
             None
@@ -353,77 +371,141 @@ impl SearchIndex {
                 .map_or(&request.query, |value| &value.corrected_query),
         );
         let analysis = analyze(&request.query)?;
-        let query = build_query(&schema, &request, &analysis, &metadata, retrieval)?;
-        if u64::try_from(request.offset).unwrap_or(u64::MAX) >= searcher.num_docs() {
-            return Ok(SearchPage {
-                total: searcher.search(&query, &Count)?,
-                ids: Vec::new(),
-                correction,
-            });
-        }
-        let sort = request.sort.clone();
-        let normalized_query = normalize(&request.query);
-        let japanese: Vec<_> = analysis
-            .groups
-            .into_iter()
-            .filter_map(|group| match group {
-                Group::Japanese { words, reading } => Some((words, Pattern::new(reading, false))),
-                Group::Word(_) => None,
-            })
-            .collect();
-        let collector = TopDocs::with_limit(request.limit)
-            .and_offset(request.offset)
-            .tweak_score(move |segment: &SegmentReader| {
-                let ordinals = segment
-                    .fast_fields()
-                    .u64("ordinal")
-                    .expect("index schema contains ordinal")
-                    .first_or_default_col(0);
-                let metadata = Arc::clone(&metadata);
-                let sort = sort.clone();
-                let query = normalized_query.clone();
-                let japanese = japanese.clone();
-                move |doc, score| {
-                    let data = &metadata[&ordinals.get_val(doc)];
-                    let exact = if data.identifiers.contains(&query) {
-                        2
-                    } else {
-                        u8::from(data.title == query)
-                    };
-                    Rank {
-                        sort: sort.clone(),
-                        exact,
-                        quality: japanese
-                            .iter()
-                            .map(|(words, pattern)| {
-                                if words
-                                    .iter()
-                                    .all(|word| data.readings.surface_words.contains(word))
-                                {
-                                    3
-                                } else if data.readings.exact(pattern) {
-                                    2
-                                } else {
-                                    1
-                                }
-                            })
-                            .min()
-                            .unwrap_or(3),
-                        score,
-                        data: data.clone(),
-                    }
-                }
-            });
-        let (total, hits) = searcher.search(&query, &(Count, collector))?;
+        let original = build_query(&schema, &request, &analysis, &metadata, retrieval)?;
+        let (query, originals) = if let Some(alias) = alias {
+            let originals = Arc::new(searcher.search(&original, &DocSetCollector)?);
+            let alias_only = BooleanQuery::new(vec![
+                (Occur::Must, alias),
+                (Occur::MustNot, original.box_clone()),
+            ]);
+            (
+                Box::new(BooleanQuery::new(vec![
+                    (Occur::Should, original),
+                    (Occur::Should, Box::new(alias_only)),
+                ])) as Box<dyn Query>,
+                Some(originals),
+            )
+        } else {
+            (original, None)
+        };
+        let (total, ids) = ranked_page(
+            &searcher,
+            query.as_ref(),
+            &request,
+            analysis,
+            metadata,
+            originals,
+        )?;
         Ok(SearchPage {
+            ids,
             total,
             correction,
-            ids: hits
-                .into_iter()
-                .map(|(rank, _)| rank.data.id.clone())
-                .collect(),
         })
     }
+}
+
+fn index_translations(
+    schema: &Schema,
+    input: &SearchDocument,
+    doc: &mut TantivyDocument,
+) -> Result<(), SearchError> {
+    for (name, value) in [
+        ("translated_title", &input.translated_title),
+        ("translated_keywords", &input.translated_keywords),
+    ] {
+        if !value.is_empty() {
+            doc.add_text(field(schema, name), analyze(value)?.words().join(" "));
+        }
+    }
+    Ok(())
+}
+
+fn ranked_page(
+    searcher: &Searcher,
+    query: &dyn Query,
+    request: &SearchRequest,
+    analysis: Analysis,
+    metadata: Arc<HashMap<u64, Arc<Metadata>>>,
+    originals: Option<Arc<HashSet<DocAddress>>>,
+) -> Result<(usize, Vec<String>), SearchError> {
+    if u64::try_from(request.offset).unwrap_or(u64::MAX) >= searcher.num_docs() {
+        return Ok((searcher.search(query, &Count)?, Vec::new()));
+    }
+    let sort = request.sort.clone();
+    let segment_ordinals = originals.as_ref().map(|_| {
+        searcher
+            .segment_readers()
+            .iter()
+            .enumerate()
+            .map(|(ordinal, reader)| (reader.segment_id(), u32::try_from(ordinal).unwrap()))
+            .collect::<HashMap<_, _>>()
+    });
+    let normalized_query = normalize(&request.query);
+    let japanese: Vec<_> = analysis
+        .groups
+        .into_iter()
+        .filter_map(|group| match group {
+            Group::Japanese { words, reading } => Some((words, Pattern::new(reading, false))),
+            Group::Word(_) => None,
+        })
+        .collect();
+    let collector = TopDocs::with_limit(request.limit)
+        .and_offset(request.offset)
+        .tweak_score(move |segment: &SegmentReader| {
+            let ordinals = segment
+                .fast_fields()
+                .u64("ordinal")
+                .expect("index schema contains ordinal")
+                .first_or_default_col(0);
+            let metadata = Arc::clone(&metadata);
+            let originals = originals.clone();
+            let segment_ord = segment_ordinals
+                .as_ref()
+                .map(|ordinals| ordinals[&segment.segment_id()]);
+            let sort = sort.clone();
+            let query = normalized_query.clone();
+            let japanese = japanese.clone();
+            move |doc, score| {
+                let data = &metadata[&ordinals.get_val(doc)];
+                let exact = if data.identifiers.contains(&query) {
+                    2
+                } else {
+                    u8::from(data.title == query)
+                };
+                Rank {
+                    sort: sort.clone(),
+                    exact,
+                    original: originals
+                        .as_ref()
+                        .zip(segment_ord)
+                        .is_none_or(|(hits, ord)| hits.contains(&DocAddress::new(ord, doc))),
+                    quality: japanese
+                        .iter()
+                        .map(|(words, pattern)| {
+                            if words
+                                .iter()
+                                .all(|word| data.readings.surface_words.contains(word))
+                            {
+                                3
+                            } else if data.readings.exact(pattern) {
+                                2
+                            } else {
+                                1
+                            }
+                        })
+                        .min()
+                        .unwrap_or(3),
+                    score,
+                    data: data.clone(),
+                }
+            }
+        });
+    let (total, hits) = searcher.search(query, &(Count, collector))?;
+    let ids = hits
+        .into_iter()
+        .map(|(rank, _)| rank.data.id.clone())
+        .collect();
+    Ok((total, ids))
 }
 
 fn field(schema: &Schema, name: &str) -> Field {
@@ -568,13 +650,7 @@ fn build_query(
     }
     // Balanced quotes require consecutive tokens within one field. Treat all
     // other punctuation literally; never pass user input to a query parser.
-    for phrase in request
-        .query
-        .split('"')
-        .skip(1)
-        .step_by(2)
-        .take(request.query.matches('"').count() / 2)
-    {
+    for phrase in quoted_phrases(&request.query) {
         let phrase_analysis = analyze(phrase)?;
         let phrase_words = phrase_analysis.words();
         if !phrase_words.is_empty() {
@@ -583,16 +659,7 @@ fn build_query(
                 .map(|name| {
                     (
                         Occur::Should,
-                        if phrase_words.len() == 1 {
-                            term_query(field(schema, name), &phrase_words[0])
-                        } else {
-                            Box::new(PhraseQuery::new(
-                                phrase_words
-                                    .iter()
-                                    .map(|word| Term::from_field_text(field(schema, name), word))
-                                    .collect(),
-                            )) as Box<dyn Query>
-                        },
+                        phrase_query(field(schema, name), &phrase_words),
                     )
                 })
                 .collect();
@@ -678,10 +745,80 @@ fn append_filters(
     Ok(())
 }
 
+/// Match the whole query against translated text, independently of original
+/// text. This keeps mixed matches and translated names out of exact filters.
+fn translation_query(
+    schema: &Schema,
+    request: &SearchRequest,
+) -> Result<Box<dyn Query>, SearchError> {
+    let normalized = normalize(&request.query);
+    if normalized.starts_with("10.")
+        || identifier_query(&normalized) != normalized
+        || !normalized.chars().any(char::is_alphabetic)
+    {
+        return Ok(Box::new(EmptyQuery));
+    }
+    let words = analyze(&request.query)?.words();
+    if words.is_empty() {
+        return Ok(Box::new(EmptyQuery));
+    }
+    let title = field(schema, "translated_title");
+    let keywords = field(schema, "translated_keywords");
+    let mut clauses: Vec<(Occur, Box<dyn Query>)> = Vec::new();
+    for word in words {
+        clauses.push((
+            Occur::Must,
+            Box::new(BooleanQuery::new(vec![
+                (
+                    Occur::Should,
+                    Box::new(BoostQuery::new(term_query(title, &word), 3.0)),
+                ),
+                (Occur::Should, term_query(keywords, &word)),
+            ])),
+        ));
+    }
+    for phrase in quoted_phrases(&request.query) {
+        let words = analyze(phrase)?.words();
+        if !words.is_empty() {
+            clauses.push((
+                Occur::Must,
+                Box::new(BooleanQuery::new(vec![
+                    (Occur::Should, phrase_query(title, &words)),
+                    (Occur::Should, phrase_query(keywords, &words)),
+                ])),
+            ));
+        }
+    }
+    append_filters(schema, request, &mut clauses)?;
+    Ok(Box::new(BooleanQuery::new(clauses)))
+}
+
+fn quoted_phrases(query: &str) -> impl Iterator<Item = &str> {
+    query
+        .split('"')
+        .skip(1)
+        .step_by(2)
+        .take(query.matches('"').count() / 2)
+}
+
+fn phrase_query(field: Field, words: &[String]) -> Box<dyn Query> {
+    if words.len() == 1 {
+        term_query(field, &words[0])
+    } else {
+        Box::new(PhraseQuery::new(
+            words
+                .iter()
+                .map(|word| Term::from_field_text(field, word))
+                .collect(),
+        ))
+    }
+}
+
 #[derive(Debug, Clone)]
 struct Rank {
     sort: String,
     exact: u8,
+    original: bool,
     quality: u8,
     score: f32,
     data: Arc<Metadata>,
@@ -719,8 +856,9 @@ impl Ord for Rank {
                 })
                 .then_with(|| title_order(&self.data.title, &other.data.title)),
             _ => self
-                .exact
-                .cmp(&other.exact)
+                .original
+                .cmp(&other.original)
+                .then_with(|| self.exact.cmp(&other.exact))
                 .then_with(|| self.quality.cmp(&other.quality))
                 .then_with(|| self.score.total_cmp(&other.score)),
         };

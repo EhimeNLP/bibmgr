@@ -2,7 +2,7 @@
 
 from collections import Counter
 from collections.abc import Callable, Iterator
-from contextlib import contextmanager
+from contextlib import asynccontextmanager, contextmanager
 from datetime import datetime
 import json
 import logging
@@ -63,6 +63,8 @@ from .models import (
     UpdateApplicationConfigurationRequest,
 )
 from .native import NativeCallError, NativeEngine
+from .translation import Translator, translator_from_environment
+from .translation_jobs import TranslationWorker
 from .security import (
     RequestProtection,
     RequestProtectionMiddleware,
@@ -191,7 +193,19 @@ def create_app(
     duplicate_policy: dict[str, Any] | None = None,
     authentication: AuthenticationManager | None = None,
     request_protection: RequestProtection | None = None,
+    translator: Translator | None = None,
 ) -> FastAPI:
+    selected_session_factory = session_factory or SessionFactory
+    selected_translator = translator if translator is not None else translator_from_environment()
+
+    @asynccontextmanager
+    async def lifespan(_application: FastAPI):
+        if selected_translator is None:
+            yield
+        else:
+            with TranslationWorker(selected_session_factory, selected_translator).running():
+                yield
+
     application = FastAPI(
         title="bibmgr backend",
         version="1.0.0",
@@ -199,10 +213,12 @@ def create_app(
             "HTTP transport for the shared Rust BibTeX core and PostgreSQL "
             "reference library"
         ),
+        lifespan=lifespan,
     )
     selected_engine: Engine = engine or NativeEngine()
-    selected_session_factory = session_factory or SessionFactory
-    library = ReferenceLibrary(selected_engine, duplicate_policy)
+    library = ReferenceLibrary(
+        selected_engine, duplicate_policy, include_translations=selected_translator is not None,
+    )
     configuration = ApplicationConfiguration(selected_engine)
     selected_authentication = authentication or AuthenticationManager()
     selected_request_protection = (

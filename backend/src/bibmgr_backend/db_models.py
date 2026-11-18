@@ -55,6 +55,22 @@ class ReferenceSearchChange(Base):
     )
 
 
+class ReferenceSearchTranslation(Base):
+    __tablename__ = "reference_search_translations"
+
+    reference_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid(as_uuid=True),
+        ForeignKey("bibliographic_references.id", ondelete="CASCADE"),
+        primary_key=True,
+    )
+    source_revision: Mapped[str] = mapped_column(String(71), nullable=False)
+    provider: Mapped[str] = mapped_column(String(255), nullable=False)
+    model: Mapped[str] = mapped_column(String(255), nullable=False)
+    model_revision: Mapped[str] = mapped_column(String(255), nullable=False)
+    translated_title: Mapped[str] = mapped_column(Text, nullable=False)
+    translated_keywords: Mapped[str] = mapped_column(Text, nullable=False)
+
+
 class UserRecord(Base):
     __tablename__ = "users"
 
